@@ -1,6 +1,7 @@
 {
   "version": 2,
   "functions": {
-    "api/data.js": { "maxDuration": 30 }
+    "api/data.js": { "maxDuration": 30 },
+    "api/ohlc.js": { "maxDuration": 30 }
   }
 }
