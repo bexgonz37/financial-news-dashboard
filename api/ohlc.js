@@ -1,5 +1,6 @@
-// api/ohlc.js
-// GET /api/ohlc?ticker=NVDA&interval=1min&limit=240
+// Intraday candles for sparklines & modal chart
+// Uses FMP historical chart endpoint (1min)
+
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
@@ -8,38 +9,35 @@ export default async function handler(req, res) {
   if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' });
 
   try {
-    const apiKey = process.env.ALPHAVANTAGE_KEY;
-    if (!apiKey) return res.status(500).json({ error: 'Missing ALPHAVANTAGE_KEY' });
+    const { ticker, interval = '1min', limit = 120 } = req.query;
+    const fmpKey = process.env.FMP_KEY;
+    if (!ticker) return res.status(400).json({ error: 'Missing ticker' });
+    if (!fmpKey) return res.status(500).json({ error: 'Missing FMP_KEY' });
 
-    const ticker = (req.query.ticker || '').toUpperCase();
-    const interval = (req.query.interval || '1min'); // 1min, 5min, 15min
-    const limit = Math.min(parseInt(req.query.limit || '180', 10), 1000);
-    if (!ticker) return res.status(400).json({ error: 'ticker required' });
+    // Only 1min supported here; you can extend to 5min/15min by mapping paths.
+    const path = `historical-chart/1min/${encodeURIComponent(ticker.toUpperCase())}`;
+    const url = `https://financialmodelingprep.com/api/v3/${path}?apikey=${fmpKey}`;
 
-    const url = `https://www.alphavantage.co/query?function=TIME_SERIES_INTRADAY&symbol=${encodeURIComponent(ticker)}&interval=${encodeURIComponent(interval)}&outputsize=compact&datatype=json&apikey=${apiKey}`;
     const r = await fetch(url);
-    if (!r.ok) throw new Error(`Alpha Vantage error: ${r.status} ${r.statusText}`);
-    const data = await r.json();
+    if (!r.ok) throw new Error(`FMP error: ${r.status} ${r.statusText}`);
+    const arr = await r.json();
 
-    const key = Object.keys(data).find(k => k.includes('Time Series'));
-    const series = key ? data[key] : null;
-    if (!series) return res.status(200).json({ ticker, interval, candles: [] });
+    // FMP returns newest first; trim + reverse to oldest->newest
+    const max = Math.min(parseInt(limit, 10) || 120, arr.length || 0);
+    const sliced = arr.slice(0, max).reverse();
 
-    const candles = Object.entries(series)
-      .map(([ts, v]) => ({
-        t: new Date(ts + 'Z').toISOString(),
-        o: parseFloat(v['1. open']),
-        h: parseFloat(v['2. high']),
-        l: parseFloat(v['3. low']),
-        c: parseFloat(v['4. close']),
-        v: parseFloat(v['5. volume'])
-      }))
-      .sort((a,b) => new Date(a.t) - new Date(b.t))
-      .slice(-limit);
+    const candles = sliced.map(k => ({
+      t: new Date(k.date).toISOString(),
+      o: Number(k.open),
+      h: Number(k.high),
+      l: Number(k.low),
+      c: Number(k.close),
+      v: Number(k.volume || 0)
+    }));
 
-    res.status(200).json({ ticker, interval, candles });
-  } catch (e) {
-    console.error('ohlc error:', e);
-    res.status(500).json({ error: 'Internal server error', message: e.message });
+    res.status(200).json({ ticker: ticker.toUpperCase(), interval: '1min', candles });
+  } catch (err) {
+    console.error('ohlc error:', err);
+    res.status(500).json({ error: 'Internal server error', message: err.message });
   }
 }
