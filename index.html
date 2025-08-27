@@ -1,0 +1,542 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Financial News Aggregator</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: Arial, Helvetica, sans-serif;
+            background-color: #000;
+            color: #fff;
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .disclaimer {
+            background: linear-gradient(135deg, #ff6b6b, #ff8e8e);
+            color: #000;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 30px;
+            text-align: center;
+            font-weight: bold;
+            box-shadow: 0 4px 15px rgba(255, 107, 107, 0.3);
+        }
+
+        .view-toggle {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .toggle-btn {
+            background: #8a2be2;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            margin: 0 10px;
+            border-radius: 25px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: bold;
+            transition: all 0.3s ease;
+        }
+
+        .toggle-btn:hover {
+            background: #9d4edd;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 15px rgba(138, 43, 226, 0.4);
+        }
+
+        .toggle-btn.active {
+            background: #6a0dad;
+            box-shadow: 0 0 20px rgba(138, 43, 226, 0.6);
+        }
+
+        .view {
+            display: none;
+        }
+
+        .view.active {
+            display: block;
+        }
+
+        .news-filters {
+            display: flex;
+            justify-content: center;
+            flex-wrap: wrap;
+            gap: 15px;
+            margin-bottom: 30px;
+        }
+
+        .filter-btn {
+            background: #333;
+            color: #fff;
+            border: 2px solid #8a2be2;
+            padding: 10px 20px;
+            border-radius: 20px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-weight: bold;
+        }
+
+        .filter-btn:hover {
+            background: #8a2be2;
+            transform: translateY(-2px);
+        }
+
+        .filter-btn.active {
+            background: #8a2be2;
+            box-shadow: 0 0 15px rgba(138, 43, 226, 0.5);
+        }
+
+        .news-feed {
+            background: #111;
+            border-radius: 15px;
+            padding: 20px;
+            border: 2px solid #8a2be2;
+            min-height: 400px;
+        }
+
+        .news-item {
+            background: #1a1a1a;
+            border-left: 4px solid #8a2be2;
+            padding: 15px;
+            margin-bottom: 15px;
+            border-radius: 8px;
+            transition: all 0.3s ease;
+        }
+
+        .news-item:hover {
+            transform: translateX(5px);
+            box-shadow: 0 4px 15px rgba(138, 43, 226, 0.3);
+        }
+
+        .news-header {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            margin-bottom: 10px;
+        }
+
+        .ticker {
+            background: #8a2be2;
+            color: white;
+            padding: 5px 12px;
+            border-radius: 15px;
+            font-weight: bold;
+            font-size: 14px;
+        }
+
+        .price-change {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            font-weight: bold;
+        }
+
+        .price-up {
+            color: #00ff88;
+        }
+
+        .price-down {
+            color: #ff4757;
+        }
+
+        .arrow {
+            font-size: 18px;
+        }
+
+        .news-title {
+            font-size: 18px;
+            font-weight: bold;
+            color: #8a2be2;
+            margin-bottom: 8px;
+        }
+
+        .news-summary {
+            color: #ccc;
+            font-size: 14px;
+        }
+
+        .scanners-view {
+            text-align: center;
+            padding: 60px 20px;
+        }
+
+        .scanners-title {
+            font-size: 36px;
+            color: #8a2be2;
+            margin-bottom: 30px;
+            text-shadow: 0 0 20px rgba(138, 43, 226, 0.5);
+        }
+
+        .scanners-note {
+            background: #1a1a1a;
+            border: 2px solid #8a2be2;
+            border-radius: 15px;
+            padding: 30px;
+            max-width: 600px;
+            margin: 0 auto;
+            color: #ccc;
+            font-size: 18px;
+            line-height: 1.8;
+        }
+
+        .donate-section {
+            text-align: center;
+            margin-top: 50px;
+            padding: 30px;
+        }
+
+        .donate-btn {
+            background: linear-gradient(135deg, #8a2be2, #9d4edd);
+            color: white;
+            border: none;
+            padding: 15px 40px;
+            border-radius: 30px;
+            font-size: 18px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(138, 43, 226, 0.4);
+        }
+
+        .donate-btn:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 6px 20px rgba(138, 43, 226, 0.6);
+        }
+
+        .loading {
+            text-align: center;
+            color: #8a2be2;
+            font-size: 18px;
+            padding: 40px;
+        }
+
+        .spinner {
+            border: 3px solid #333;
+            border-top: 3px solid #8a2be2;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                padding: 15px;
+            }
+            
+            .news-filters {
+                gap: 10px;
+            }
+            
+            .filter-btn {
+                padding: 8px 16px;
+                font-size: 14px;
+            }
+            
+            .toggle-btn {
+                padding: 10px 20px;
+                font-size: 14px;
+                margin: 5px;
+            }
+            
+            .scanners-title {
+                font-size: 28px;
+            }
+            
+            .scanners-note {
+                font-size: 16px;
+                padding: 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Disclaimer -->
+        <div class="disclaimer">
+            Heads up! This app is for informational and entertainment purposes only. It's a fun hobby project that shows data from public sources. This data may be delayed or contain errors. This is not financial advice. Before making any investment decisions, please consult a qualified financial professional. By using this app, you agree that you are solely responsible for your own decisions and that we hold no liability for any gains or losses. Have fun!
+        </div>
+
+        <!-- View Toggle -->
+        <div class="view-toggle">
+            <button class="toggle-btn active" onclick="switchView('news')">News</button>
+            <button class="toggle-btn" onclick="switchView('scanners')">Scanners</button>
+        </div>
+
+        <!-- News View -->
+        <div id="news-view" class="view active">
+            <!-- News Filters -->
+            <div class="news-filters">
+                <button class="filter-btn active" onclick="filterNews('all')">All News</button>
+                <button class="filter-btn" onclick="filterNews('medical')">Medical</button>
+                <button class="filter-btn" onclick="filterNews('patent')">Patent</button>
+                <button class="filter-btn" onclick="filterNews('lawsuit')">Lawsuit</button>
+                <button class="filter-btn" onclick="filterNews('acquisition')">Acquisition</button>
+                <button class="filter-btn" onclick="filterNews('earnings')">Earnings</button>
+            </div>
+
+            <!-- News Feed -->
+            <div class="news-feed" id="news-feed">
+                <div class="loading">
+                    <div class="spinner"></div>
+                    Loading financial news...
+                </div>
+            </div>
+        </div>
+
+        <!-- Scanners View -->
+        <div id="scanners-view" class="view">
+            <div class="scanners-view">
+                <h1 class="scanners-title">Stock Scanners</h1>
+                <div class="scanners-note">
+                    This section is a work in progress and not the primary function of the app. 
+                    We're building some cool scanning tools for the future!
+                </div>
+            </div>
+        </div>
+
+        <!-- Donate Section -->
+        <div class="donate-section">
+            <button class="donate-btn">Donate</button>
+        </div>
+    </div>
+
+    <script>
+        // Data storage for the app
+        let newsData = [];
+        let stockData = {};
+        let marketData = {};
+
+        let currentFilter = 'all';
+        let filteredNews = [];
+
+        // View switching functionality
+        function switchView(view) {
+            // Hide all views
+            document.getElementById('news-view').classList.remove('active');
+            document.getElementById('scanners-view').classList.remove('active');
+            
+            // Show selected view
+            document.getElementById(view + '-view').classList.add('active');
+            
+            // Update toggle buttons
+            document.querySelectorAll('.toggle-btn').forEach(btn => btn.classList.remove('active'));
+            event.target.classList.add('active');
+        }
+
+        // API integration functions
+        async function fetchData(ticker = null, category = null, search = null) {
+            try {
+                const params = new URLSearchParams();
+                if (ticker) params.append('ticker', ticker);
+                if (category && category !== 'all') params.append('category', category);
+                if (search) params.append('search', search);
+                
+                const response = await fetch(`/api/data?${params.toString()}`);
+                
+                if (!response.ok) {
+                    throw new Error(`API error: ${response.status}`);
+                }
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    newsData = data.data.news || [];
+                    if (data.data.stock) stockData = data.data.stock;
+                    if (data.data.market) marketData = data.data.market;
+                    
+                    // Apply current filter
+                    applyFilter(currentFilter);
+                } else {
+                    console.error('API returned error:', data);
+                    showError('Failed to fetch data from API');
+                }
+                
+            } catch (error) {
+                console.error('Fetch error:', error);
+                showError('Failed to connect to the server. Please check your connection.');
+                
+                // Fallback to sample data for demo purposes
+                loadSampleData();
+            }
+        }
+
+        // Load sample data as fallback
+        function loadSampleData() {
+            newsData = [
+                {
+                    id: 1,
+                    ticker: 'AAPL',
+                    priceChange: '+2.45',
+                    isPositive: true,
+                    title: 'Apple Reports Strong Q4 Earnings, Exceeds Expectations',
+                    summary: 'Apple Inc. announced record-breaking quarterly results with iPhone sales up 15% year-over-year.',
+                    category: 'earnings'
+                },
+                {
+                    id: 2,
+                    ticker: 'TSLA',
+                    priceChange: '-1.20',
+                    isPositive: false,
+                    title: 'Tesla Faces New Patent Lawsuit Over Battery Technology',
+                    summary: 'Electric vehicle manufacturer Tesla is facing legal challenges over alleged patent infringement.',
+                    category: 'patent'
+                },
+                {
+                    id: 3,
+                    ticker: 'JNJ',
+                    priceChange: '+0.85',
+                    isPositive: true,
+                    title: 'Johnson & Johnson Receives FDA Approval for New Medical Device',
+                    summary: 'Healthcare giant J&J gets green light for innovative cardiac monitoring system.',
+                    category: 'medical'
+                }
+            ];
+            applyFilter(currentFilter);
+        }
+
+        // Show error message to user
+        function showError(message) {
+            const newsFeed = document.getElementById('news-feed');
+            newsFeed.innerHTML = `
+                <div class="loading" style="color: #ff4757;">
+                    <div style="font-size: 48px; margin-bottom: 20px;">⚠️</div>
+                    ${message}
+                    <br><br>
+                    <button onclick="fetchData()" style="background: #8a2be2; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer;">Retry</button>
+                </div>
+            `;
+        }
+
+        // News filtering functionality
+        function filterNews(category) {
+            currentFilter = category;
+            
+            // Update filter button states
+            document.querySelectorAll('.filter-btn').forEach(btn => btn.classList.remove('active'));
+            event.target.classList.add('active');
+            
+            // Apply the filter
+            applyFilter(category);
+        }
+
+        // Apply filter to current data
+        function applyFilter(category) {
+            if (category === 'all') {
+                filteredNews = [...newsData];
+            } else {
+                filteredNews = newsData.filter(item => 
+                    item.category === category ||
+                    item.title.toLowerCase().includes(category) ||
+                    item.summary.toLowerCase().includes(category)
+                );
+            }
+            
+            renderNews();
+        }
+
+        // Render news items
+        function renderNews() {
+            const newsFeed = document.getElementById('news-feed');
+            
+            if (filteredNews.length === 0) {
+                newsFeed.innerHTML = '<div class="loading">No news found for the selected filter.</div>';
+                return;
+            }
+            
+            newsFeed.innerHTML = filteredNews.map(item => {
+                // Get stock data for this ticker if available
+                const tickerData = stockData[item.ticker] || stockData;
+                const priceChange = tickerData && tickerData.change ? 
+                    (tickerData.change > 0 ? `+${tickerData.change.toFixed(2)}` : tickerData.change.toFixed(2)) : 
+                    (item.priceChange || 'N/A');
+                const isPositive = tickerData && tickerData.change ? tickerData.change > 0 : (item.isPositive !== null ? item.isPositive : null);
+                
+                return `
+                    <div class="news-item">
+                        <div class="news-header">
+                            <span class="ticker">${item.ticker}</span>
+                            ${priceChange !== 'N/A' ? `
+                                <div class="price-change ${isPositive ? 'price-up' : 'price-down'}">
+                                    <span class="arrow">${isPositive ? '↗' : '↘'}</span>
+                                    ${priceChange}
+                                </div>
+                            ` : ''}
+                        </div>
+                        <div class="news-title">${item.title}</div>
+                        <div class="news-summary">${item.summary}</div>
+                        ${item.source ? `<div style="color: #888; font-size: 12px; margin-top: 8px;">Source: ${item.source}</div>` : ''}
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // Live updates every 30 seconds
+        function startLiveUpdates() {
+            setInterval(async () => {
+                try {
+                    await fetchData(null, currentFilter);
+                } catch (error) {
+                    console.log('Live update failed, will retry next cycle');
+                }
+            }, 30000);
+        }
+
+        // Initialize the app
+        async function init() {
+            try {
+                // Show loading state
+                const newsFeed = document.getElementById('news-feed');
+                newsFeed.innerHTML = `
+                    <div class="loading">
+                        <div class="spinner"></div>
+                        Fetching live financial news...
+                    </div>
+                `;
+                
+                // Fetch initial data
+                await fetchData();
+                
+                // Start live updates
+                startLiveUpdates();
+                
+            } catch (error) {
+                console.error('Initialization error:', error);
+                showError('Failed to initialize the app. Please refresh the page.');
+            }
+        }
+
+        // Start the app when page loads
+        document.addEventListener('DOMContentLoaded', init);
+
+        // Add some interactivity to the donate button
+        document.addEventListener('DOMContentLoaded', function() {
+            const donateBtn = document.querySelector('.donate-btn');
+            donateBtn.addEventListener('click', function() {
+                alert('Thank you for your interest in supporting this project! This is a placeholder for future donation functionality.');
+            });
+        });
+    </script>
+</body>
+</html>
