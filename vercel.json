@@ -2,6 +2,8 @@
   "version": 2,
   "functions": {
     "api/data.js": { "maxDuration": 30 },
-    "api/ohlc.js": { "maxDuration": 30 }
+    "api/ohlc.js": { "maxDuration": 30 },
+    "api/checkout.js": { "maxDuration": 30 },
+    "api/portal.js": { "maxDuration": 30 }
   }
 }
