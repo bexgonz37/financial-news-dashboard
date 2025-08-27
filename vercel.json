@@ -1,12 +1,10 @@
 {
   "version": 2,
   "functions": {
-    "api/data.js": {
-      "maxDuration": 30
-    }
+    "api/data.js": { "maxDuration": 30 }
   },
   "env": {
-    "NEWSAPI_KEY": "@newsapi_key",
+    "ALPHAVANTAGE_KEY": "@alphavantage_key",
     "FINNHUB_KEY": "@finnhub_key",
     "FMP_KEY": "@fmp_key"
   }
