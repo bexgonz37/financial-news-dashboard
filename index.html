@@ -1,542 +1,545 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Financial News Aggregator</title>
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>NewsPulse — Financial News & Momentum</title>
+  <style>
+    :root{
+      --bg:#0b0f17; --card:#121826; --border:#20273a; --text:#e6e8ee; --muted:#9aa3b2;
+      --accent:#b167ff; --accent-2:#8f6cff; --up:#24e39c; --down:#ff5b6e;
+    }
+    *{ box-sizing:border-box }
+    body{ margin:0; font-family: system-ui,-apple-system,Segoe UI,Roboto,Inter,Arial,sans-serif; background:var(--bg); color:var(--text); }
+    .container{ max-width:1200px; margin:0 auto; padding:20px; }
 
-        body {
-            font-family: Arial, Helvetica, sans-serif;
-            background-color: #000;
-            color: #fff;
-            line-height: 1.6;
-        }
+    .topbar{ display:flex; gap:12px; align-items:center; justify-content:space-between; margin-bottom:16px; }
+    .brand{ font-weight:900; letter-spacing:.2px; }
+    .rightTop{ display:flex; gap:12px; align-items:center; flex-wrap:wrap; justify-content:flex-end }
+    .clock{ color:var(--muted); font-size:.95rem }
+    .session{ border:1px solid var(--border); padding:4px 8px; border-radius:999px; color:var(--muted); font-size:.8rem }
+    .session.live{ color:var(--text); border-color:var(--accent) }
 
-        .container {
-            max-width: 1200px;
-            margin: 0 auto;
-            padding: 20px;
-        }
+    .donateCta{ display:flex; align-items:center; gap:8px; color:var(--muted); font-size:.9rem }
+    .donateCta strong{ color:#fff }
+    .donateBar{ display:flex; gap:8px; flex-wrap:wrap; }
+    .donateBar button{
+      background:linear-gradient(90deg, var(--accent), var(--accent-2));
+      color:#fff; border:1px solid rgba(255,255,255,.12);
+      padding:8px 12px; border-radius:999px; font-weight:800; cursor:pointer; font-size:.9rem;
+    }
 
-        .disclaimer {
-            background: linear-gradient(135deg, #ff6b6b, #ff8e8e);
-            color: #000;
-            padding: 20px;
-            border-radius: 10px;
-            margin-bottom: 30px;
-            text-align: center;
-            font-weight: bold;
-            box-shadow: 0 4px 15px rgba(255, 107, 107, 0.3);
-        }
+    .disclaimer{
+      background:linear-gradient(180deg, rgba(177,103,255,.15), rgba(177,103,255,.06));
+      border:1px solid var(--border);
+      color:var(--text);
+      padding:14px 16px; border-radius:12px; margin-bottom:18px; line-height:1.5;
+    }
+    .disclaimer strong{ color:var(--accent); }
 
-        .view-toggle {
-            text-align: center;
-            margin-bottom: 30px;
-        }
+    .tabs{ display:flex; gap:10px; margin:12px 0 18px }
+    .tab{ border:1px solid var(--border); background:var(--card); color:var(--text); padding:10px 16px; border-radius:999px; cursor:pointer; }
+    .tab.active{ border-color:var(--accent); box-shadow:0 0 0 3px rgba(177,103,255,.15) inset }
 
-        .toggle-btn {
-            background: #8a2be2;
-            color: white;
-            border: none;
-            padding: 12px 24px;
-            margin: 0 10px;
-            border-radius: 25px;
-            cursor: pointer;
-            font-size: 16px;
-            font-weight: bold;
-            transition: all 0.3s ease;
-        }
+    .filters{ display:flex; flex-wrap:wrap; gap:10px; margin-bottom:14px; }
+    .filters select, .filters input{ background:var(--card); color:var(--text); border:1px solid var(--border); padding:10px 12px; border-radius:10px; outline:none; }
+    .filters .btn{ background:var(--accent); color:#fff; border:none; padding:10px 14px; border-radius:10px; cursor:pointer; }
 
-        .toggle-btn:hover {
-            background: #9d4edd;
-            transform: translateY(-2px);
-            box-shadow: 0 4px 15px rgba(138, 43, 226, 0.4);
-        }
+    .panel{ background:var(--card); border:1px solid var(--border); border-radius:14px; padding:16px; }
+    .news-list{ display:grid; gap:12px; }
+    .news-item{ border:1px solid var(--border); border-radius:12px; padding:12px; background:linear-gradient(180deg, rgba(32,39,58,.6), rgba(18,24,38,.9)); }
+    .item-top{ display:flex; align-items:center; gap:10px; flex-wrap:wrap }
+    .ticker{ background:rgba(177,103,255,.16); border:1px solid var(--accent); color:#fff; padding:4px 10px; border-radius:999px; font-weight:700; cursor:pointer; }
+    .pct{ font-weight:700 } .pct.up{ color:var(--up) } .pct.down{ color:var(--down) }
+    .meta{ color:var(--muted); font-size:.85rem } .title{ margin-top:8px; font-weight:800; color:#fff }
+    .summary{ color:var(--muted); margin-top:6px; line-height:1.5 }
+    .mini-row{ display:flex; align-items:center; justify-content:space-between; gap:10px; margin-top:8px }
+    .mini-chart{ width:140px; height:42px } .toggle-mini{ color:var(--muted); font-size:.8rem }
 
-        .toggle-btn.active {
-            background: #6a0dad;
-            box-shadow: 0 0 20px rgba(138, 43, 226, 0.6);
-        }
+    .loading{ text-align:center; color:var(--muted); padding:28px }
 
-        .view {
-            display: none;
-        }
+    /* Modal */
+    #chartModal{ position:fixed; inset:0; display:none; align-items:center; justify-content:center; z-index:9999; background:rgba(0,0,0,.55); padding:20px }
+    .modal{ width:min(920px,95vw); height:min(600px,85vh); background:var(--card); border:1px solid var(--border); border-radius:14px; display:flex; flex-direction:column; }
+    .modal-head{ display:flex; align-items:center; justify-content:space-between; padding:10px 14px; border-bottom:1px solid var(--border) }
+    .modal-title{ font-weight:900 }
+    .modal-tools{ display:flex; align-items:center; gap:8px }
+    .modal select{ background:var(--bg); color:var(--text); border:1px solid var(--border); border-radius:8px; padding:6px 8px }
+    .close{ background:none; border:1px solid var(--border); color:var(--text); padding:6px 10px; border-radius:8px; cursor:pointer }
+    .modal-body{ flex:1 }
 
-        .view.active {
-            display: block;
-        }
+    /* Scanner */
+    .grid{ display:grid; grid-template-columns:repeat(auto-fill,minmax(260px,1fr)); gap:12px }
+    .card{ background:var(--card); border:1px solid var(--border); border-radius:12px; padding:12px }
+    .kpi{ display:flex; align-items:center; justify-content:space-between; gap:10px }
+    .change.up{ color:var(--up); font-weight:800 } .change.down{ color:var(--down); font-weight:800 }
 
-        .news-filters {
-            display: flex;
-            justify-content: center;
-            flex-wrap: wrap;
-            gap: 15px;
-            margin-bottom: 30px;
-        }
-
-        .filter-btn {
-            background: #333;
-            color: #fff;
-            border: 2px solid #8a2be2;
-            padding: 10px 20px;
-            border-radius: 20px;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            font-weight: bold;
-        }
-
-        .filter-btn:hover {
-            background: #8a2be2;
-            transform: translateY(-2px);
-        }
-
-        .filter-btn.active {
-            background: #8a2be2;
-            box-shadow: 0 0 15px rgba(138, 43, 226, 0.5);
-        }
-
-        .news-feed {
-            background: #111;
-            border-radius: 15px;
-            padding: 20px;
-            border: 2px solid #8a2be2;
-            min-height: 400px;
-        }
-
-        .news-item {
-            background: #1a1a1a;
-            border-left: 4px solid #8a2be2;
-            padding: 15px;
-            margin-bottom: 15px;
-            border-radius: 8px;
-            transition: all 0.3s ease;
-        }
-
-        .news-item:hover {
-            transform: translateX(5px);
-            box-shadow: 0 4px 15px rgba(138, 43, 226, 0.3);
-        }
-
-        .news-header {
-            display: flex;
-            align-items: center;
-            gap: 15px;
-            margin-bottom: 10px;
-        }
-
-        .ticker {
-            background: #8a2be2;
-            color: white;
-            padding: 5px 12px;
-            border-radius: 15px;
-            font-weight: bold;
-            font-size: 14px;
-        }
-
-        .price-change {
-            display: flex;
-            align-items: center;
-            gap: 5px;
-            font-weight: bold;
-        }
-
-        .price-up {
-            color: #00ff88;
-        }
-
-        .price-down {
-            color: #ff4757;
-        }
-
-        .arrow {
-            font-size: 18px;
-        }
-
-        .news-title {
-            font-size: 18px;
-            font-weight: bold;
-            color: #8a2be2;
-            margin-bottom: 8px;
-        }
-
-        .news-summary {
-            color: #ccc;
-            font-size: 14px;
-        }
-
-        .scanners-view {
-            text-align: center;
-            padding: 60px 20px;
-        }
-
-        .scanners-title {
-            font-size: 36px;
-            color: #8a2be2;
-            margin-bottom: 30px;
-            text-shadow: 0 0 20px rgba(138, 43, 226, 0.5);
-        }
-
-        .scanners-note {
-            background: #1a1a1a;
-            border: 2px solid #8a2be2;
-            border-radius: 15px;
-            padding: 30px;
-            max-width: 600px;
-            margin: 0 auto;
-            color: #ccc;
-            font-size: 18px;
-            line-height: 1.8;
-        }
-
-        .donate-section {
-            text-align: center;
-            margin-top: 50px;
-            padding: 30px;
-        }
-
-        .donate-btn {
-            background: linear-gradient(135deg, #8a2be2, #9d4edd);
-            color: white;
-            border: none;
-            padding: 15px 40px;
-            border-radius: 30px;
-            font-size: 18px;
-            font-weight: bold;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            box-shadow: 0 4px 15px rgba(138, 43, 226, 0.4);
-        }
-
-        .donate-btn:hover {
-            transform: translateY(-3px);
-            box-shadow: 0 6px 20px rgba(138, 43, 226, 0.6);
-        }
-
-        .loading {
-            text-align: center;
-            color: #8a2be2;
-            font-size: 18px;
-            padding: 40px;
-        }
-
-        .spinner {
-            border: 3px solid #333;
-            border-top: 3px solid #8a2be2;
-            border-radius: 50%;
-            width: 30px;
-            height: 30px;
-            animation: spin 1s linear infinite;
-            margin: 0 auto 20px;
-        }
-
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-
-        @media (max-width: 768px) {
-            .container {
-                padding: 15px;
-            }
-            
-            .news-filters {
-                gap: 10px;
-            }
-            
-            .filter-btn {
-                padding: 8px 16px;
-                font-size: 14px;
-            }
-            
-            .toggle-btn {
-                padding: 10px 20px;
-                font-size: 14px;
-                margin: 5px;
-            }
-            
-            .scanners-title {
-                font-size: 28px;
-            }
-            
-            .scanners-note {
-                font-size: 16px;
-                padding: 20px;
-            }
-        }
-    </style>
+    @media (max-width:900px){
+      .rightTop{ justify-content:flex-start }
+    }
+    @media (max-width:700px){
+      .mini-row{ flex-direction:column; align-items:flex-start }
+      .mini-chart{ width:100%; height:44px }
+      .donateCta{ display:none } /* keep it clean on small screens */
+    }
+  </style>
 </head>
 <body>
-    <div class="container">
-        <!-- Disclaimer -->
-        <div class="disclaimer">
-            Heads up! This app is for informational and entertainment purposes only. It's a fun hobby project that shows data from public sources. This data may be delayed or contain errors. This is not financial advice. Before making any investment decisions, please consult a qualified financial professional. By using this app, you agree that you are solely responsible for your own decisions and that we hold no liability for any gains or losses. Have fun!
+  <div class="container">
+    <div class="topbar">
+      <div class="brand">NewsPulse</div>
+      <div class="rightTop">
+        <div class="donateCta">Please consider <strong>donating</strong> so we can add paid data & grow this into a full app.</div>
+        <div class="donateBar">
+          <button id="donate-once">Donate Once</button>
+          <button id="donate-monthly">Donate Monthly</button>
+          <button id="manage-subscription">Manage Subscription</button>
         </div>
-
-        <!-- View Toggle -->
-        <div class="view-toggle">
-            <button class="toggle-btn active" onclick="switchView('news')">News</button>
-            <button class="toggle-btn" onclick="switchView('scanners')">Scanners</button>
-        </div>
-
-        <!-- News View -->
-        <div id="news-view" class="view active">
-            <!-- News Filters -->
-            <div class="news-filters">
-                <button class="filter-btn active" onclick="filterNews('all')">All News</button>
-                <button class="filter-btn" onclick="filterNews('medical')">Medical</button>
-                <button class="filter-btn" onclick="filterNews('patent')">Patent</button>
-                <button class="filter-btn" onclick="filterNews('lawsuit')">Lawsuit</button>
-                <button class="filter-btn" onclick="filterNews('acquisition')">Acquisition</button>
-                <button class="filter-btn" onclick="filterNews('earnings')">Earnings</button>
-            </div>
-
-            <!-- News Feed -->
-            <div class="news-feed" id="news-feed">
-                <div class="loading">
-                    <div class="spinner"></div>
-                    Loading financial news...
-                </div>
-            </div>
-        </div>
-
-        <!-- Scanners View -->
-        <div id="scanners-view" class="view">
-            <div class="scanners-view">
-                <h1 class="scanners-title">Stock Scanners</h1>
-                <div class="scanners-note">
-                    This section is a work in progress and not the primary function of the app. 
-                    We're building some cool scanning tools for the future!
-                </div>
-            </div>
-        </div>
-
-        <!-- Donate Section -->
-        <div class="donate-section">
-            <button class="donate-btn">Donate</button>
-        </div>
+        <div class="clock" id="etClock">—:— ET</div>
+        <div class="session" id="sessionBadge">Session: —</div>
+      </div>
     </div>
 
-    <script>
-        // Data storage for the app
-        let newsData = [];
-        let stockData = {};
-        let marketData = {};
+    <div class="disclaimer">
+      <strong>Educational Purposes Only.</strong> The content on this site (including news, data, and any analysis) is provided for informational and educational purposes only and does not constitute investment, financial, or trading advice. Nothing on this website is a recommendation or endorsement to buy or sell any security. Market data may be delayed, inaccurate, or incomplete. Trading involves substantial risk, including the risk of loss. You are solely responsible for your trading decisions. Consider consulting a licensed financial professional. We make no warranties and assume no liability for any losses arising from use of this site.
+    </div>
 
-        let currentFilter = 'all';
-        let filteredNews = [];
+    <div class="tabs">
+      <button class="tab active" data-tab="news">News</button>
+      <button class="tab" data-tab="scanners">Scanners</button>
+    </div>
 
-        // View switching functionality
-        function switchView(view) {
-            // Hide all views
-            document.getElementById('news-view').classList.remove('active');
-            document.getElementById('scanners-view').classList.remove('active');
-            
-            // Show selected view
-            document.getElementById(view + '-view').classList.add('active');
-            
-            // Update toggle buttons
-            document.querySelectorAll('.toggle-btn').forEach(btn => btn.classList.remove('active'));
-            event.target.classList.add('active');
-        }
+    <!-- NEWS VIEW -->
+    <div id="view-news" class="panel">
+      <div class="filters">
+        <select id="category">
+          <option value="all">All categories</option>
+          <option value="medical">Medical / FDA</option>
+          <option value="patent">Patent / IP</option>
+          <option value="lawsuit">Lawsuit / Legal</option>
+          <option value="acquisition">Acquisition / M&A</option>
+          <option value="earnings">Earnings</option>
+          <option value="offering">Public Offering</option>
+        </select>
+        <input id="ticker" placeholder="Ticker (optional)" />
+        <input id="keyword" placeholder="Keyword (optional)" />
+        <button class="btn" id="run">Apply</button>
+      </div>
 
-        // API integration functions
-        async function fetchData(ticker = null, category = null, search = null) {
-            try {
-                const params = new URLSearchParams();
-                if (ticker) params.append('ticker', ticker);
-                if (category && category !== 'all') params.append('category', category);
-                if (search) params.append('search', search);
-                
-                const response = await fetch(`/api/data?${params.toString()}`);
-                
-                if (!response.ok) {
-                    throw new Error(`API error: ${response.status}`);
-                }
-                
-                const data = await response.json();
-                
-                if (data.success) {
-                    newsData = data.data.news || [];
-                    if (data.data.stock) stockData = data.data.stock;
-                    if (data.data.market) marketData = data.data.market;
-                    
-                    // Apply current filter
-                    applyFilter(currentFilter);
-                } else {
-                    console.error('API returned error:', data);
-                    showError('Failed to fetch data from API');
-                }
-                
-            } catch (error) {
-                console.error('Fetch error:', error);
-                showError('Failed to connect to the server. Please check your connection.');
-                
-                // Fallback to sample data for demo purposes
-                loadSampleData();
+      <div id="news-feed" class="news-list">
+        <div class="loading"><span>Loading financial news…</span></div>
+      </div>
+    </div>
+
+    <!-- SCANNERS VIEW -->
+    <div id="view-scanners" class="panel" style="display:none">
+      <div class="filters">
+        <input id="minPct" type="number" step="0.1" placeholder="Min % change (e.g. 2)" />
+        <input id="minRVOL" type="number" step="0.1" placeholder="Min RVOL (e.g. 1.5x)" />
+        <input id="minMentions" type="number" step="1" placeholder="Min mentions (e.g. 2)" />
+        <button class="btn" id="rescore">Recalculate</button>
+      </div>
+      <div id="scanner-grid" class="grid">
+        <div class="card">Run a news load, then click Recalculate to see high-momentum movers.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- CHART MODAL -->
+  <div id="chartModal">
+    <div class="modal">
+      <div class="modal-head">
+        <div class="modal-title" id="chartTitle">Chart</div>
+        <div class="modal-tools">
+          <label class="meta">Indicators</label>
+          <select id="indicatorsSelect" multiple size="1">
+            <option value="vwap" selected>VWAP</option>
+            <option value="sma20">SMA 20</option>
+            <option value="ema9">EMA 9</option>
+            <option value="rsi14">RSI 14</option>
+          </select>
+          <button class="close" onclick="closeChart()">Close</button>
+        </div>
+      </div>
+      <div id="chartBody" class="modal-body"></div>
+    </div>
+  </div>
+
+  <!-- Lightweight Charts -->
+  <script src="https://unpkg.com/lightweight-charts@4.2.0/dist/lightweight-charts.standalone.production.js"></script>
+  <script>
+    // ---------- STATE ----------
+    let allNewsStore = new Map();    // id -> article (session-persistent)
+    let newsData = [];               // derived from store (sorted)
+    let filteredNews = [];
+    const stockCache = new Map();    // ticker -> { changePercent, change, ts }
+    const et = new Intl.DateTimeFormat('en-US',{ timeZone:'America/New_York', hour:'2-digit', minute:'2-digit' });
+
+    // ---------- CLOCK + SESSION ----------
+    function updateClockAndSession(){
+      const now = new Date();
+      document.getElementById('etClock').textContent = et.format(now) + ' ET';
+      const d = new Date().toLocaleString('en-US', { timeZone: 'America/New_York' });
+      const n = new Date(d); const day=n.getDay(); const hh=n.getHours(), mm=n.getMinutes(); const mins=hh*60+mm;
+      let label='Closed', live=false;
+      if(day>=1 && day<=5){
+        if(mins<570 && mins>=240) label='Premarket';
+        else if(mins>=570 && mins<=960){ label='Regular Hours'; live=true; }
+        else if(mins>960 && mins<=1200) label='After-hours';
+      }
+      const b=document.getElementById('sessionBadge'); b.textContent=`Session: ${label}`; b.className='session'+(live?' live':'');
+    }
+    setInterval(updateClockAndSession, 15000); updateClockAndSession();
+
+    // ---------- HELPERS ----------
+    function mergeNews(newItems){
+      let added=0;
+      for(const a of (newItems||[])){
+        if(!a || !a.id) continue;
+        if(!allNewsStore.has(a.id)){ allNewsStore.set(a.id, a); added++; }
+        else allNewsStore.set(a.id, { ...allNewsStore.get(a.id), ...a });
+      }
+      return added;
+    }
+    function currentNewsArray(){
+      const arr = Array.from(allNewsStore.values());
+      arr.sort((a,b)=> (Date.parse(b.publishedAt||0) - Date.parse(a.publishedAt||0)));
+      return arr;
+    }
+    function timeAgo(iso){
+      const t = Date.parse(iso||''); if(!t) return '';
+      const s = Math.floor((Date.now()-t)/1000);
+      if (s<60) return `${s}s ago`;
+      const m = Math.floor(s/60); if(m<60) return `${m}m ago`;
+      const h = Math.floor(m/60); if(h<24) return `${h}h ago`;
+      const d = Math.floor(h/24); return `${d}d ago`;
+    }
+
+    async function getQuote(ticker){
+      const key = ticker.toUpperCase();
+      const cached = stockCache.get(key);
+      if(cached && (Date.now()-cached.ts)<60_000) return cached;
+      const r = await fetch(`/api/data?ticker=${encodeURIComponent(key)}`);
+      if(!r.ok) return null;
+      const payload = await r.json();
+      const q = payload?.data?.stock;
+      if(!q) return null;
+      const obj = { changePercent:q.changePercent, change:q.change, ts:Date.now() };
+      stockCache.set(key, obj); return obj;
+    }
+    async function getRVOL(ticker){
+      const r = await fetch(`/api/data?ticker=${encodeURIComponent(ticker)}`);
+      if(!r.ok) return null;
+      const payload = await r.json();
+      const m = payload?.data?.market;
+      if(!m || !m.volume || !m.avgVolume) return null;
+      return m.volume / m.avgVolume;
+    }
+    async function drawSparkline(el, ticker){
+      try{
+        const r = await fetch(`/api/ohlc?ticker=${encodeURIComponent(ticker)}&interval=1min&limit=60`);
+        const payload = await r.json();
+        const candles = payload.candles||[];
+        const closes = candles.map(c=>c.c);
+        if(closes.length<2){ el.innerHTML=''; return; }
+        const w=140,h=42,pad=4;
+        const min=Math.min(...closes), max=Math.max(...closes);
+        const xStep=(w-2*pad)/(closes.length-1);
+        const y=v=> h-pad-((v-min)/(max-min||1))*(h-2*pad);
+        let d=''; closes.forEach((v,i)=>{ const x=pad+i*xStep; const yy=y(v); d+=(i?`L${x},${yy}`:`M${x},${yy}`); });
+        const color = closes[closes.length-1]>=closes[0] ? '#24e39c' : '#ff5b6e';
+        el.innerHTML = `<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}"><path d="${d}" fill="none" stroke="${color}" stroke-width="2"/></svg>`;
+      }catch{ el.innerHTML=''; }
+    }
+
+    // ---------- FETCH + FILTER ----------
+    async function fetchData(){
+      const params = new URLSearchParams();
+      const t = (document.getElementById('ticker').value||'').trim();
+      const c = document.getElementById('category').value;
+      const k = (document.getElementById('keyword').value||'').trim();
+      if (t) params.set('ticker', t.toUpperCase());
+      if (c && c!=='all') params.set('category', c);
+      if (k) params.set('search', k);
+
+      const feed = document.getElementById('news-feed');
+      feed.innerHTML = `<div class="loading">Loading…</div>`;
+
+      try{
+        const r = await fetch(`/api/data?${params.toString()}`);
+        if(!r.ok) throw new Error('API error');
+        const data = await r.json();
+        const incoming = data?.data?.news || [];
+        mergeNews(incoming);
+        newsData = currentNewsArray();
+        applyFilter();
+      }catch(e){
+        console.error(e);
+        newsData = currentNewsArray();
+        renderNews();
+      }
+    }
+
+    function applyFilter(){
+      const c = document.getElementById('category').value;
+      const k = (document.getElementById('keyword').value||'').toLowerCase();
+      filteredNews = newsData.filter(n=>{
+        const byCat = (c==='all') ? true : (
+          (n.category===c) ||
+          (n.title||'').toLowerCase().includes(c) ||
+          (n.summary||'').toLowerCase().includes(c)
+        );
+        const byKey = !k || ( (n.title||'').toLowerCase().includes(k) || (n.summary||'').toLowerCase().includes(k) );
+        return byCat && byKey;
+      });
+      renderNews();
+    }
+
+    // ---------- RENDER ----------
+    function renderNews(){
+      const feed = document.getElementById('news-feed');
+      if (!filteredNews.length){
+        feed.innerHTML = `<div class="loading">No news found for the selected filter.</div>`;
+        return;
+      }
+      feed.innerHTML = filteredNews.map(n=>{
+        const t = (n.ticker||'').toUpperCase();
+        const when = n.publishedAt ? timeAgo(n.publishedAt) : '';
+        const source = n.source ? n.source : '';
+        return `
+          <div class="news-item">
+            <div class="item-top">
+              <a class="ticker" href="#" data-open-chart="${t}">${t || 'GENERAL'}</a>
+              <span class="pct"><span class="arrow">⏳</span><span class="val">…</span></span>
+              <span class="meta rvol"></span>
+              <span class="meta">${source ? source : ''}${when ? ` · ${when}` : ''}</span>
+              <label class="toggle-mini" style="margin-left:auto">
+                <input type="checkbox" class="mini-toggle" data-ticker="${t}" checked /> mini chart
+              </label>
+            </div>
+            <div class="title">${n.title||''}</div>
+            <div class="summary">${n.summary||''} ${n.url?`<a href="${n.url}" target="_blank" rel="noopener">Read</a>`:''}</div>
+            <div class="mini-row">
+              <div class="meta">${n.category ? n.category : ''}</div>
+              <div class="mini-chart" data-ticker="${t}"></div>
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      const cards = feed.querySelectorAll('.news-item');
+      const io = new IntersectionObserver((entries)=>{
+        entries.forEach(async e=>{
+          if(!e.isIntersecting) return;
+          const card = e.target;
+          const t = (card.querySelector('.mini-toggle')?.dataset?.ticker||'').toUpperCase();
+          if(!t || t==='GENERAL'){ io.unobserve(card); return; }
+
+          // % change
+          try{
+            const q = await getQuote(t);
+            if(q && typeof q.changePercent==='number'){
+              const val = card.querySelector('.val');
+              const arrow = card.querySelector('.arrow');
+              val.textContent = `${q.changePercent>0?'+':''}${q.changePercent.toFixed(2)}%`;
+              val.className = 'val ' + (q.changePercent>0?'up':'down');
+              arrow.textContent = q.changePercent>0 ? '↗' : '↘';
             }
-        }
+          }catch{}
 
-        // Load sample data as fallback
-        function loadSampleData() {
-            newsData = [
-                {
-                    id: 1,
-                    ticker: 'AAPL',
-                    priceChange: '+2.45',
-                    isPositive: true,
-                    title: 'Apple Reports Strong Q4 Earnings, Exceeds Expectations',
-                    summary: 'Apple Inc. announced record-breaking quarterly results with iPhone sales up 15% year-over-year.',
-                    category: 'earnings'
-                },
-                {
-                    id: 2,
-                    ticker: 'TSLA',
-                    priceChange: '-1.20',
-                    isPositive: false,
-                    title: 'Tesla Faces New Patent Lawsuit Over Battery Technology',
-                    summary: 'Electric vehicle manufacturer Tesla is facing legal challenges over alleged patent infringement.',
-                    category: 'patent'
-                },
-                {
-                    id: 3,
-                    ticker: 'JNJ',
-                    priceChange: '+0.85',
-                    isPositive: true,
-                    title: 'Johnson & Johnson Receives FDA Approval for New Medical Device',
-                    summary: 'Healthcare giant J&J gets green light for innovative cardiac monitoring system.',
-                    category: 'medical'
-                }
-            ];
-            applyFilter(currentFilter);
-        }
+          // RVOL
+          try{
+            const rv = await getRVOL(t);
+            if (rv) card.querySelector('.rvol').textContent = `RVOL ${rv.toFixed(2)}x`;
+          }catch{}
 
-        // Show error message to user
-        function showError(message) {
-            const newsFeed = document.getElementById('news-feed');
-            newsFeed.innerHTML = `
-                <div class="loading" style="color: #ff4757;">
-                    <div style="font-size: 48px; margin-bottom: 20px;">⚠️</div>
-                    ${message}
-                    <br><br>
-                    <button onclick="fetchData()" style="background: #8a2be2; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer;">Retry</button>
-                </div>
-            `;
-        }
+          // mini chart toggle
+          const toggle = card.querySelector('.mini-toggle');
+          const slot = card.querySelector('.mini-chart');
+          if (toggle && toggle.checked) drawSparkline(slot, t);
+          toggle?.addEventListener('change', ()=>{
+            if (toggle.checked) drawSparkline(slot, t);
+            else slot.innerHTML = '';
+          });
 
-        // News filtering functionality
-        function filterNews(category) {
-            currentFilter = category;
-            
-            // Update filter button states
-            document.querySelectorAll('.filter-btn').forEach(btn => btn.classList.remove('active'));
-            event.target.classList.add('active');
-            
-            // Apply the filter
-            applyFilter(category);
-        }
-
-        // Apply filter to current data
-        function applyFilter(category) {
-            if (category === 'all') {
-                filteredNews = [...newsData];
-            } else {
-                filteredNews = newsData.filter(item => 
-                    item.category === category ||
-                    item.title.toLowerCase().includes(category) ||
-                    item.summary.toLowerCase().includes(category)
-                );
-            }
-            
-            renderNews();
-        }
-
-        // Render news items
-        function renderNews() {
-            const newsFeed = document.getElementById('news-feed');
-            
-            if (filteredNews.length === 0) {
-                newsFeed.innerHTML = '<div class="loading">No news found for the selected filter.</div>';
-                return;
-            }
-            
-            newsFeed.innerHTML = filteredNews.map(item => {
-                // Get stock data for this ticker if available
-                const tickerData = stockData[item.ticker] || stockData;
-                const priceChange = tickerData && tickerData.change ? 
-                    (tickerData.change > 0 ? `+${tickerData.change.toFixed(2)}` : tickerData.change.toFixed(2)) : 
-                    (item.priceChange || 'N/A');
-                const isPositive = tickerData && tickerData.change ? tickerData.change > 0 : (item.isPositive !== null ? item.isPositive : null);
-                
-                return `
-                    <div class="news-item">
-                        <div class="news-header">
-                            <span class="ticker">${item.ticker}</span>
-                            ${priceChange !== 'N/A' ? `
-                                <div class="price-change ${isPositive ? 'price-up' : 'price-down'}">
-                                    <span class="arrow">${isPositive ? '↗' : '↘'}</span>
-                                    ${priceChange}
-                                </div>
-                            ` : ''}
-                        </div>
-                        <div class="news-title">${item.title}</div>
-                        <div class="news-summary">${item.summary}</div>
-                        ${item.source ? `<div style="color: #888; font-size: 12px; margin-top: 8px;">Source: ${item.source}</div>` : ''}
-                    </div>
-                `;
-            }).join('');
-        }
-
-        // Live updates every 30 seconds
-        function startLiveUpdates() {
-            setInterval(async () => {
-                try {
-                    await fetchData(null, currentFilter);
-                } catch (error) {
-                    console.log('Live update failed, will retry next cycle');
-                }
-            }, 30000);
-        }
-
-        // Initialize the app
-        async function init() {
-            try {
-                // Show loading state
-                const newsFeed = document.getElementById('news-feed');
-                newsFeed.innerHTML = `
-                    <div class="loading">
-                        <div class="spinner"></div>
-                        Fetching live financial news...
-                    </div>
-                `;
-                
-                // Fetch initial data
-                await fetchData();
-                
-                // Start live updates
-                startLiveUpdates();
-                
-            } catch (error) {
-                console.error('Initialization error:', error);
-                showError('Failed to initialize the app. Please refresh the page.');
-            }
-        }
-
-        // Start the app when page loads
-        document.addEventListener('DOMContentLoaded', init);
-
-        // Add some interactivity to the donate button
-        document.addEventListener('DOMContentLoaded', function() {
-            const donateBtn = document.querySelector('.donate-btn');
-            donateBtn.addEventListener('click', function() {
-                alert('Thank you for your interest in supporting this project! This is a placeholder for future donation functionality.');
-            });
+          io.unobserve(card);
         });
-    </script>
+      }, { root:null, rootMargin:'200px', threshold:.01 });
+      cards.forEach(c=>io.observe(c));
+    }
+
+    // ---------- CHART MODAL ----------
+    function sma(data, period){
+      const out=[]; let sum=0;
+      for(let i=0;i<data.length;i++){ sum+=data[i].close; if(i>=period) sum-=data[i-period].close; if(i>=period-1) out.push({time:data[i].time,value:sum/period}); }
+      return out;
+    }
+    function ema(data, period){
+      const out=[]; const k=2/(period+1); let prev=data[0]?.close||0;
+      out.push({time:data[0]?.time,value:prev});
+      for(let i=1;i<data.length;i++){ const v=data[i].close*k + prev*(1-k); out.push({time:data[i].time,value:v}); prev=v; }
+      return out;
+    }
+    function rsi(data, period){
+      const out=[]; let g=0,l=0;
+      for(let i=1;i<=period;i++){ const ch=data[i].close - data[i-1].close; if(ch>=0) g+=ch; else l-=ch; }
+      let avgG=g/period, avgL=l/period; let rs=avgL===0?100:avgG/avgL;
+      out.push({time:data[period].time,value:100-100/(1+rs)});
+      for(let i=period+1;i<data.length;i++){
+        const ch=data[i].close - data[i-1].close; const gg=Math.max(0,ch), ll=Math.max(0,-ch);
+        avgG=(avgG*(period-1)+gg)/period; avgL=(avgL*(period-1)+ll)/period; rs=avgL===0?100:avgG/avgL;
+        out.push({time:data[i].time,value:100-100/(1+rs)});
+      }
+      return out;
+    }
+
+    async function openChart(ticker){
+      const modal = document.getElementById('chartModal');
+      const body = document.getElementById('chartBody');
+      const title = document.getElementById('chartTitle');
+      const sel = document.getElementById('indicatorsSelect');
+      title.textContent = `${ticker} — intraday (1m)`;
+      body.innerHTML = '';
+
+      const r = await fetch(`/api/ohlc?ticker=${encodeURIComponent(ticker)}&interval=1min&limit=300`);
+      const payload = await r.json();
+      const candles = payload.candles||[];
+      const data = candles.map(k=>({ time:Math.floor(new Date(k.t).getTime()/1000), open:k.o, high:k.h, low:k.l, close:k.c, volume:k.v }));
+
+      const container = document.createElement('div'); container.style.width='100%'; container.style.height='100%'; body.appendChild(container);
+      const chart = LightweightCharts.createChart(container, {
+        layout:{ background:{type:'Solid', color:'#0b0f17'}, textColor:'#e6e8ee' },
+        grid:{ vertLines:{color:'#1a2132'}, horzLines:{color:'#1a2132'} },
+        rightPriceScale:{ borderColor:'#20273a' }, timeScale:{ borderColor:'#20273a' }, autoSize:true
+      });
+
+      const candleSeries = chart.addCandlestickSeries({
+        upColor:'#24e39c', downColor:'#ff5b6e', borderUpColor:'#24e39c', borderDownColor:'#ff5b6e', wickUpColor:'#24e39c', wickDownColor:'#ff5b6e'
+      });
+      candleSeries.setData(data);
+
+      const volSeries = chart.addHistogramSeries({ priceFormat:{type:'volume'}, priceScaleId:'', base:0 });
+      volSeries.setData(data.map(k=>({ time:k.time, value:k.volume, color: k.close>=k.open?'#24e39c':'#ff5b6e' })));
+      chart.priceScale('').applyOptions({ scaleMargins:{ top:0.8, bottom:0 } });
+
+      // Indicators
+      let vwap=null,sma20=null,ema9=null,rsiPane=null;
+      function renderIndicators(){
+        const chosen=new Set(Array.from(sel.selectedOptions).map(o=>o.value));
+        if(chosen.has('vwap')){
+          if(!vwap) vwap = chart.addLineSeries({ color:'#b167ff', lineWidth:2 });
+          let cumPV=0,cumV=0;
+          const v = data.map(k=>{ const typ=(k.high+k.low+k.close)/3; cumPV+=typ*(k.volume||0); cumV+=(k.volume||0)||1; return {time:k.time,value:cumPV/cumV}; });
+          vwap.setData(v);
+        } else if(vwap){ vwap.setData([]); }
+
+        if(chosen.has('sma20')){ if(!sma20) sma20=chart.addLineSeries({color:'#8f6cff',lineWidth:2}); sma20.setData(sma(data,20)); }
+        else if(sma20){ sma20.setData([]); }
+
+        if(chosen.has('ema9')){ if(!ema9) ema9=chart.addLineSeries({color:'#c08bff',lineWidth:2}); ema9.setData(ema(data,9)); }
+        else if(ema9){ ema9.setData([]); }
+
+        if(chosen.has('rsi14')){
+          if(!rsiPane){ rsiPane=chart.addLineSeries({ color:'#b167ff', lineWidth:2, priceScaleId:'rsi' }); chart.priceScale('rsi').applyOptions({ scaleMargins:{ top:0.02, bottom:0.65 } }); }
+          rsiPane.setData(rsi(data,14));
+        } else if(rsiPane){ rsiPane.setData([]); }
+      }
+      sel.addEventListener('change', renderIndicators);
+      renderIndicators();
+
+      try{ const q=await getQuote(ticker); if(q && typeof q.changePercent==='number'){ title.textContent += ` • ${q.changePercent>0?'↗':'↘'} ${q.changePercent.toFixed(2)}%`; } }catch{}
+      document.getElementById('chartModal').style.display='flex';
+    }
+    function closeChart(){ document.getElementById('chartModal').style.display='none'; }
+
+    // ---------- STRIPE (front-end calls to your private API) ----------
+    async function postJSON(url, body){
+      const r = await fetch(url, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body||{}) });
+      if(!r.ok) throw new Error(`HTTP ${r.status}`);
+      return r.json();
+    }
+    document.getElementById('donate-once').addEventListener('click', async ()=>{
+      try{ const { url } = await postJSON('/api/checkout', { mode:'payment' }); if(url) window.location.href = url; }catch(e){ alert('Unable to start checkout.'); }
+    });
+    document.getElementById('donate-monthly').addEventListener('click', async ()=>{
+      try{ const { url } = await postJSON('/api/checkout', { mode:'subscription' }); if(url) window.location.href = url; }catch(e){ alert('Unable to start checkout.'); }
+    });
+    document.getElementById('manage-subscription').addEventListener('click', async ()=>{
+      try{ const { url } = await postJSON('/api/portal', {}); if(url) window.location.href = url; }catch(e){ alert('Unable to open portal.'); }
+    });
+
+    // ---------- EVENTS ----------
+    document.addEventListener('click', (e)=>{
+      const tab = e.target.closest('.tab');
+      if(tab){
+        document.querySelectorAll('.tab').forEach(b=>b.classList.remove('active'));
+        tab.classList.add('active');
+        const v = tab.dataset.tab;
+        document.getElementById('view-news').style.display = (v==='news')?'block':'none';
+        document.getElementById('view-scanners').style.display = (v==='scanners')?'block':'none';
+      }
+      const chartLink = e.target.closest('[data-open-chart]');
+      if(chartLink){ e.preventDefault(); const t = chartLink.getAttribute('data-open-chart'); if(t && t!=='GENERAL') openChart(t); }
+    });
+    document.getElementById('run').addEventListener('click', ()=>fetchData());
+    document.getElementById('rescore').addEventListener('click', buildScanners);
+
+    // ---------- SCANNER ----------
+    async function buildScanners(){
+      const base = filteredNews.length ? filteredNews : newsData;
+      const stats = new Map(); // ticker -> {mentions, latest}
+      for(const n of base){
+        const t = (n.ticker||'').toUpperCase(); if(!t || t==='GENERAL') continue;
+        const s = stats.get(t)||{mentions:0,latest:0}; s.mentions++;
+        const ts = n.publishedAt?Date.parse(n.publishedAt):0; if(ts> (s.latest||0)) s.latest = ts;
+        stats.set(t,s);
+      }
+      const list = [...stats.keys()].slice(0,30);
+      const rows = [];
+      for(const t of list){
+        let pct=0, rvol=0, rec=0;
+        try{ const q=await getQuote(t); pct = q?.changePercent||0; }catch{}
+        try{ const rv=await getRVOL(t); rvol = rv||0; }catch{}
+        const minsOld = stats.get(t)?.latest ? (Date.now()-stats.get(t).latest)/60000 : 999;
+        rec = Math.max(0, 30 - Math.min(30, minsOld)); // 0..30
+        const score = (pct*1.0) + (stats.get(t).mentions*0.6) + (rvol*5) + (rec*0.35);
+        rows.push({ ticker:t, pct, mentions:stats.get(t).mentions, rvol, recency:rec, score });
+      }
+      rows.sort((a,b)=> b.score-a.score);
+      const minPct = parseFloat(document.getElementById('minPct').value||'NaN');
+      const minRVOL = parseFloat(document.getElementById('minRVOL').value||'NaN');
+      const minMent = parseFloat(document.getElementById('minMentions').value||'NaN');
+      const filt = rows.filter(r=>{
+        return (isNaN(minPct) || r.pct>=minPct) &&
+               (isNaN(minRVOL) || r.rvol>=minRVOL) &&
+               (isNaN(minMent) || r.mentions>=minMent);
+      }).slice(0,12);
+
+      const grid = document.getElementById('scanner-grid');
+      if(!filt.length){ grid.innerHTML = `<div class="card">No results match the thresholds.</div>`; return; }
+      grid.innerHTML = filt.map(r=>`
+        <div class="card">
+          <div class="kpi">
+            <div>
+              <div style="font-weight:900">${r.ticker}</div>
+              <div class="meta">Mentions: ${r.mentions} · RVOL: ${r.rvol?r.rvol.toFixed(2):'—'} · Recency: ${r.recency.toFixed(0)}</div>
+            </div>
+            <div class="change ${r.pct>0?'up':'down'}">${r.pct>0?'↗':'↘'} ${r.pct.toFixed(2)}%</div>
+          </div>
+          <div class="meta" style="margin-top:6px">
+            Score: ${r.score.toFixed(1)} · <a href="#" data-open-chart="${r.ticker}">Chart</a>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    // ---------- INIT ----------
+    async function init(){
+      document.getElementById('news-feed').innerHTML = `<div class="loading">Fetching live financial news…</div>`;
+      await fetchData();
+      setInterval(()=>fetchData(), 45000); // keep merging, never wipe on empty
+    }
+    init();
+  </script>
 </body>
 </html>
