@@ -99,7 +99,6 @@ export default async function handler(req, res) {
 // Fetch news data from Alpha Vantage NEWS_SENTIMENT
 async function fetchNewsData(apiKey, ticker, category, search, limit) {
   try {
-    // Build Alpha Vantage URL
     const params = new URLSearchParams({
       function: 'NEWS_SENTIMENT',
       apikey: apiKey,
@@ -118,12 +117,11 @@ async function fetchNewsData(apiKey, ticker, category, search, limit) {
     }
 
     const data = await response.json();
-
     if (!data.feed || !Array.isArray(data.feed)) {
       return [];
     }
 
-    // Optional search filter (client-side since AV doesn’t support free-text search)
+    // Optional client-side search filter
     const filtered = search
       ? data.feed.filter(a =>
           (a.title || '').toLowerCase().includes(search.toLowerCase()) ||
@@ -155,9 +153,7 @@ async function fetchNewsData(apiKey, ticker, category, search, limit) {
 // Fetch stock data from Finnhub
 async function fetchStockData(apiKey, ticker) {
   try {
-    if (!ticker) {
-      return null;
-    }
+    if (!ticker) return null;
 
     const url = `https://finnhub.io/api/v1/quote?symbol=${ticker.toUpperCase()}&token=${apiKey}`;
     const response = await fetch(url);
@@ -186,9 +182,7 @@ async function fetchStockData(apiKey, ticker) {
 // Fetch market data from Financial Modeling Prep
 async function fetchMarketData(apiKey, ticker) {
   try {
-    if (!ticker) {
-      return null;
-    }
+    if (!ticker) return null;
 
     const url = `https://financialmodelingprep.com/api/v3/quote/${ticker.toUpperCase()}?apikey=${apiKey}`;
     const response = await fetch(url);
@@ -224,7 +218,7 @@ async function fetchMarketData(apiKey, ticker) {
   }
 }
 
-// Helper: extract ticker from title
+// Helper function to extract stock ticker from news title
 function extractTickerFromTitle(title) {
   if (!title) return null;
   const tickerPatterns = [
@@ -242,7 +236,7 @@ function extractTickerFromTitle(title) {
   return null;
 }
 
-// Helper: categorize news
+// Helper function to categorize news
 function categorizeNews(title, description) {
   const content = `${title || ''} ${description || ''}`.toLowerCase();
   if (content.includes('medical') || content.includes('fda') || content.includes('health') || content.includes('drug')) return 'medical';
