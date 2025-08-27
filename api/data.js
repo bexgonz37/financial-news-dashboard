@@ -1,58 +1,50 @@
 // Vercel serverless function for financial news aggregator
-// This function consolidates data from multiple financial APIs
+// Consolidates data from Alpha Vantage (news), Finnhub (quote), and FMP (fundamentals)
 
 export default async function handler(req, res) {
-  // Set CORS headers for cross-origin requests
+  // CORS
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
-  // Handle preflight OPTIONS request
   if (req.method === 'OPTIONS') {
     res.status(200).end();
     return;
   }
-
-  // Only allow GET requests
   if (req.method !== 'GET') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
   try {
-    // Get API keys from environment variables
     const alphaVantageKey = process.env.ALPHAVANTAGE_KEY;
     const finnhubKey = process.env.FINNHUB_KEY;
     const fmpKey = process.env.FMP_KEY;
 
-    // Validate that all API keys are present
     if (!alphaVantageKey || !finnhubKey || !fmpKey) {
       console.error('Missing API keys:', {
         alphaVantage: !!alphaVantageKey,
         finnhub: !!finnhubKey,
         fmp: !!fmpKey
       });
-      return res.status(500).json({ 
+      return res.status(500).json({
         error: 'API configuration error',
         message: 'One or more API keys are missing'
       });
     }
 
-    // Extract query parameters
-    const { 
-      ticker, 
-      category, 
+    const {
+      ticker,
+      category,
       limit = 20,
-      search 
+      search
     } = req.query;
 
-    // Make concurrent API calls to all three services
     const [newsData, stockData, marketData] = await Promise.allSettled([
       fetchNewsData(alphaVantageKey, ticker, category, search, limit),
       fetchStockData(finnhubKey, ticker),
       fetchMarketData(fmpKey, ticker)
     ]);
 
-    // Consolidate the data
     const consolidatedData = {
       success: true,
       timestamp: new Date().toISOString(),
@@ -64,36 +56,42 @@ export default async function handler(req, res) {
       errors: []
     };
 
-    // Add any errors that occurred during API calls
     if (newsData.status === 'rejected') {
       consolidatedData.errors.push({
         service: 'Alpha Vantage',
-        error: newsData.reason.message
+        error: newsData.reason?.message || String(newsData.reason)
       });
     }
     if (stockData.status === 'rejected') {
       consolidatedData.errors.push({
         service: 'Finnhub',
-        error: stockData.reason.message
+        error: stockData.reason?.message || String(stockData.reason)
       });
     }
     if (marketData.status === 'rejected') {
       consolidatedData.errors.push({
         service: 'Financial Modeling Prep',
-        error: marketData.reason.message
+        error: marketData.reason?.message || String(marketData.reason)
       });
     }
 
-    // Return consolidated data
     res.status(200).json(consolidatedData);
-
   } catch (error) {
     console.error('Server error:', error);
-    res.status(500).json({ 
+    res.status(500).json({
       error: 'Internal server error',
-      message: error.message 
+      message: error.message
     });
   }
+}
+
+// Convert Alpha Vantage time_published "YYYYMMDDTHHMMSS" -> ISO "YYYY-MM-DDTHH:mm:SSZ"
+function toISOFromAV(ts) {
+  // e.g. "20250109T143013"
+  if (!ts || ts.length < 15) return null;
+  const y = ts.slice(0, 4), m = ts.slice(4, 6), d = ts.slice(6, 8);
+  const hh = ts.slice(9, 11), mm = ts.slice(11, 13), ss = ts.slice(13, 15);
+  return `${y}-${m}-${d}T${hh}:${mm}:${ss}Z`;
 }
 
 // Fetch news data from Alpha Vantage NEWS_SENTIMENT
@@ -121,14 +119,12 @@ async function fetchNewsData(apiKey, ticker, category, search, limit) {
       return [];
     }
 
-    // Optional client-side search filter
     const filtered = search
       ? data.feed.filter(a =>
           (a.title || '').toLowerCase().includes(search.toLowerCase()) ||
           (a.summary || '').toLowerCase().includes(search.toLowerCase()))
       : data.feed;
 
-    // Transform Alpha Vantage data to our format
     return filtered.map(article => ({
       id: article.url,
       ticker: extractTickerFromTitle(article.title) || 'GENERAL',
@@ -139,11 +135,10 @@ async function fetchNewsData(apiKey, ticker, category, search, limit) {
       summary: article.summary || 'No summary available',
       category: categorizeNews(article.title, article.summary),
       source: article.source,
-      publishedAt: article.time_published,
+      publishedAt: toISOFromAV(article.time_published), // ✅ normalized for "time-ago"
       url: article.url,
       imageUrl: article.banner_image
     }));
-
   } catch (error) {
     console.error('Alpha Vantage fetch error:', error);
     throw error;
@@ -154,13 +149,9 @@ async function fetchNewsData(apiKey, ticker, category, search, limit) {
 async function fetchStockData(apiKey, ticker) {
   try {
     if (!ticker) return null;
-
     const url = `https://finnhub.io/api/v1/quote?symbol=${ticker.toUpperCase()}&token=${apiKey}`;
     const response = await fetch(url);
-    if (!response.ok) {
-      throw new Error(`Finnhub error: ${response.status} ${response.statusText}`);
-    }
-
+    if (!response.ok) throw new Error(`Finnhub error: ${response.status} ${response.statusText}`);
     const data = await response.json();
     return {
       ticker: ticker.toUpperCase(),
@@ -171,7 +162,7 @@ async function fetchStockData(apiKey, ticker) {
       high: data.h,
       low: data.l,
       open: data.o,
-      timestamp: new Date(data.t * 1000).toISOString()
+      timestamp: data.t ? new Date(data.t * 1000).toISOString() : new Date().toISOString()
     };
   } catch (error) {
     console.error('Finnhub fetch error:', error);
@@ -183,17 +174,11 @@ async function fetchStockData(apiKey, ticker) {
 async function fetchMarketData(apiKey, ticker) {
   try {
     if (!ticker) return null;
-
     const url = `https://financialmodelingprep.com/api/v3/quote/${ticker.toUpperCase()}?apikey=${apiKey}`;
     const response = await fetch(url);
-    if (!response.ok) {
-      throw new Error(`FMP error: ${response.status} ${response.statusText}`);
-    }
-
+    if (!response.ok) throw new Error(`FMP error: ${response.status} ${response.statusText}`);
     const data = await response.json();
-    if (!Array.isArray(data) || data.length === 0) {
-      return null;
-    }
+    if (!Array.isArray(data) || data.length === 0) return null;
 
     const stock = data[0];
     return {
@@ -218,31 +203,38 @@ async function fetchMarketData(apiKey, ticker) {
   }
 }
 
-// Helper function to extract stock ticker from news title
+// Helper: extract stock ticker from news title
 function extractTickerFromTitle(title) {
   if (!title) return null;
   const tickerPatterns = [
-    /\(([A-Z]{1,5})\)/,
-    /\b([A-Z]{1,5})\b/,
-    /([A-Z]{1,5}) stock/i,
-    /([A-Z]{1,5}) shares/i
+    /\(([A-Z]{1,5})\)/,       // (AAPL)
+    /\b([A-Z]{1,5})\b/,       // AAPL
+    /([A-Z]{1,5}) stock/i,    // AAPL stock
+    /([A-Z]{1,5}) shares/i    // AAPL shares
   ];
   for (const pattern of tickerPatterns) {
     const match = title.match(pattern);
-    if (match && match[1] && /^[A-Z]+$/.test(match[1])) {
-      return match[1];
-    }
+    if (match && match[1] && /^[A-Z]+$/.test(match[1])) return match[1];
   }
   return null;
 }
 
-// Helper function to categorize news
-function categorizeNews(title, description) {
+// Helper: categorize news (expanded a bit for traders)
+function categorizeNews(title, description = '') {
   const content = `${title || ''} ${description || ''}`.toLowerCase();
-  if (content.includes('medical') || content.includes('fda') || content.includes('health') || content.includes('drug')) return 'medical';
-  if (content.includes('patent') || content.includes('intellectual property') || content.includes('ip')) return 'patent';
-  if (content.includes('lawsuit') || content.includes('legal') || content.includes('court') || content.includes('sue')) return 'lawsuit';
-  if (content.includes('acquisition') || content.includes('merger') || content.includes('buyout') || content.includes('takeover')) return 'acquisition';
-  if (content.includes('earnings') || content.includes('quarterly') || content.includes('revenue') || content.includes('profit')) return 'earnings';
+  if (/public offering|secondary|atm|registered direct|follow-on/.test(content)) return 'offering';
+  if (/guidance|outlook|raises guidance|lowers guidance/.test(content)) return 'guidance';
+  if (/downgrade|downgraded|price target cut/.test(content)) return 'downgrade';
+  if (/upgrade|upgraded|price target raised/.test(content)) return 'upgrade';
+  if (/partnership|collaborat(e|ion)|alliance/.test(content)) return 'partnership';
+  if (/product|launch|rollout|introduces/.test(content)) return 'product';
+  if (/sec filing|8-k|10-q|10-k|s-1|s-3/.test(content)) return 'sec';
+  if (/insider (buy|sell|purchase|sale)/.test(content)) return 'insider';
+  if (/medical|fda|health|drug|trial|phase (1|2|3)/.test(content)) return 'medical';
+  if (/patent|intellectual property|\bip\b/.test(content)) return 'patent';
+  if (/lawsuit|legal|court|sue/.test(content)) return 'lawsuit';
+  if (/acquisition|merger|buyout|takeover/.test(content)) return 'acquisition';
+  if (/earnings|quarterly|revenue|profit|eps/.test(content)) return 'earnings';
   return 'general';
 }
+
