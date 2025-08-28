@@ -2,6 +2,11 @@
 // - News: Alpha Vantage NEWS_SENTIMENT
 // - Quote: Finnhub
 // - Market stats (RVOL inputs): Financial Modeling Prep (FMP)
+// - Company matching: Intelligent company name to ticker matching
+
+// Import company matching functions
+import { findCompanyMatches } from './company-matcher.js';
+import { findCompanyByTicker, findCompaniesByName } from './company-database.js';
 
 export default async function handler(req, res) {
   // CORS
@@ -95,14 +100,53 @@ async function fetchNewsData(apiKey, ticker, category, search, limit) {
       )
     : feed;
 
-  return rows.map(a => {
-    const iso = normalizeAVTime(a.time_published);
-    const fromAV = Array.isArray(a.ticker_sentiment) && a.ticker_sentiment.length
-      ? (a.ticker_sentiment[0].ticker || '')
-      : '';
-    const tkr = sanitizeTicker(fromAV) || extractTickerFromTitle(a.title) || 'GENERAL';
+  if (!rows.length) return [];
 
-    return {
+  // Process news items with intelligent company matching
+  const processedRows = [];
+  
+  for (const a of rows) {
+    const iso = normalizeAVTime(a.time_published);
+    
+    // Try to get ticker from Alpha Vantage first
+    let tkr = '';
+    if (Array.isArray(a.ticker_sentiment) && a.ticker_sentiment.length) {
+      tkr = sanitizeTicker(a.ticker_sentiment[0].ticker || '');
+    }
+    
+    // If no ticker from AV, use intelligent company matching
+    if (!tkr) {
+      try {
+        // First try the comprehensive database for fast lookup
+        const potentialCompanies = extractCompanyNames(`${a.title} ${a.summary || ''}`);
+        for (const companyName of potentialCompanies) {
+          const dbMatch = findCompaniesByName(companyName);
+          if (dbMatch.length > 0) {
+            tkr = dbMatch[0].ticker;
+            console.log(`Database matched "${companyName}" to ${tkr} (${dbMatch[0].name})`);
+            break;
+          }
+        }
+        
+        // If still no match, use dynamic company matching
+        if (!tkr) {
+          const companyMatches = await findCompanyMatches(`${a.title} ${a.summary || ''}`);
+          if (companyMatches.length > 0 && companyMatches[0].confidence === 'high') {
+            tkr = companyMatches[0].ticker;
+            console.log(`Dynamic matched "${a.title}" to ${tkr} (${companyMatches[0].company})`);
+          }
+        }
+      } catch (error) {
+        console.warn('Company matching failed:', error);
+      }
+    }
+    
+    // Fallback to old method if still no ticker
+    if (!tkr) {
+      tkr = extractTickerFromTitle(a.title) || 'GENERAL';
+    }
+
+    processedRows.push({
       id: a.url,
       ticker: (tkr || 'GENERAL').toUpperCase(),
       priceChange: null,
@@ -115,20 +159,28 @@ async function fetchNewsData(apiKey, ticker, category, search, limit) {
       publishedAt: iso,
       url: a.url,
       imageUrl: a.banner_image
-    };
-  });
+    });
+  }
+  
+  return processedRows;
 }
 
-function normalizeAVTime(s) {
-  if (!s || typeof s !== 'string' || s.length < 15) return null;
-  const y = s.slice(0, 4), m = s.slice(4, 6), d = s.slice(6, 8);
-  const H = s.slice(9, 11), M = s.slice(11, 13), S = s.slice(13, 15);
-  return `${y}-${m}-${d}T${H}:${M}:${S}Z`;
+function normalizeAVTime(timeStr) {
+  if (!timeStr) return new Date().toISOString();
+  // Alpha Vantage format: "20231201T143000"
+  const year = timeStr.substring(0, 4);
+  const month = timeStr.substring(4, 6);
+  const day = timeStr.substring(6, 8);
+  const hour = timeStr.substring(9, 11);
+  const minute = timeStr.substring(11, 13);
+  const second = timeStr.substring(13, 15);
+  return new Date(`${year}-${month}-${day}T${hour}:${minute}:${second}Z`).toISOString();
 }
-function sanitizeTicker(t) {
-  if (!t) return '';
-  const m = (t.toUpperCase().match(/^[A-Z]{1,5}$/) || [])[0];
-  return m || '';
+
+function sanitizeTicker(ticker) {
+  if (!ticker) return '';
+  // Remove any non-alphabetic characters and convert to uppercase
+  return ticker.replace(/[^A-Za-z]/g, '').toUpperCase();
 }
 
 // ---------- Finnhub Quote ----------
@@ -179,29 +231,119 @@ async function fetchMarketData(apiKey, ticker) {
 }
 
 // ---------- Helpers ----------
+function extractCompanyNames(text) {
+  const companies = new Set();
+  
+  // Look for capitalized company patterns
+  const patterns = [
+    // "Company Name Inc." pattern
+    /\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*\s+(?:Inc|Corp|Corporation|LLC|Ltd|Limited|Company|Co|Group|Holdings|Technologies|Systems|Solutions|Partners|Ventures|Enterprises|Industries|International|Global|America|USA|US))\b/g,
+    
+    // "Company Name" pattern (standalone)
+    /\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)\b/g,
+    
+    // "The Company Name" pattern
+    /\bThe\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)\b/g,
+    
+    // Product-based company identification
+    /\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)\s+(?:announces|launches|reports|reveals|introduces|partners|acquires|merges|expands|invests)\b/gi
+  ];
+  
+  patterns.forEach(pattern => {
+    let match;
+    while ((match = pattern.exec(text)) !== null) {
+      const company = match[1] || match[0];
+      if (isValidCompanyName(company)) {
+        companies.add(company.trim());
+      }
+    }
+  });
+  
+  return Array.from(companies);
+}
+
+function isValidCompanyName(name) {
+  if (!name || name.length < 2) return false;
+  
+  // Common words that are unlikely to be company names
+  const commonWords = new Set([
+    'the', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'of', 'with', 'by',
+    'announces', 'launches', 'reports', 'reveals', 'introduces', 'partners', 'acquires',
+    'merges', 'expands', 'invests', 'said', 'will', 'has', 'had', 'have', 'been',
+    'this', 'that', 'these', 'those', 'new', 'old', 'big', 'small', 'high', 'low',
+    'first', 'last', 'next', 'previous', 'current', 'future', 'past', 'today',
+    'yesterday', 'tomorrow', 'now', 'then', 'here', 'there', 'where', 'when',
+    'what', 'why', 'how', 'who', 'which', 'whose', 'whom'
+  ]);
+  
+  const words = name.toLowerCase().split(/\s+/);
+  if (words.length === 1 && commonWords.has(words[0])) return false;
+  
+  // Must have at least one non-common word
+  const hasValidWord = words.some(word => !commonWords.has(word) && word.length > 1);
+  return hasValidWord;
+}
+
 function extractTickerFromTitle(title) {
   if (!title) return null;
-  // prefer parenthetical tickers like "(NVDA)" but reject common words
+  
+  // First, try to find tickers in parentheses - these are usually accurate
   const paren = title.match(/\(([A-Z]{1,5})\)/);
-  if (paren && paren[1]) return paren[1];
-  const m = title.match(/\b([A-Z]{1,5})\b/);
-  if (m && m[1] && !['CEO','USA','NYSE','SEC','ETF','IPO','AI','FDA','EPS','QEQ','QOQ','YOY','USD'].includes(m[1])) return m[1];
-  return null;
+  if (paren && paren[1]) {
+    const ticker = paren[1];
+    // Validate it's not a common word
+    if (!isCommonWord(ticker)) return ticker;
+  }
+  
+  // Look for ticker patterns in the text
+  const tickerPattern = /\b([A-Z]{1,5})\b/g;
+  const matches = [];
+  let match;
+  
+  while ((match = tickerPattern.exec(title)) !== null) {
+    const potentialTicker = match[1];
+    if (!isCommonWord(potentialTicker)) {
+      matches.push(potentialTicker);
+    }
+  }
+  
+  // Return the first valid ticker found
+  return matches.length > 0 ? matches[0] : null;
 }
+
+function isCommonWord(word) {
+  const commonWords = new Set([
+    'CEO', 'USA', 'NYSE', 'SEC', 'ETF', 'IPO', 'AI', 'FDA', 'EPS', 'QEQ', 'QOQ', 'YOY', 'USD',
+    'CFO', 'CTO', 'COO', 'VP', 'DIR', 'INC', 'LLC', 'CORP', 'LTD', 'CO', 'THE', 'AND', 'FOR',
+    'NEW', 'TOP', 'BIG', 'LOW', 'HIGH', 'OPEN', 'CLOSE', 'VOLUME', 'PRICE', 'STOCK', 'SHARE',
+    'MARKET', 'TRADING', 'INVESTMENT', 'FINANCIAL', 'BUSINESS', 'COMPANY', 'REPORT', 'QUARTER',
+    'YEAR', 'MONTH', 'WEEK', 'DAY', 'TIME', 'DATE', 'HOUR', 'MINUTE', 'SECOND', 'NOW', 'TODAY',
+    'YESTERDAY', 'TOMORROW', 'NEXT', 'LAST', 'FIRST', 'BEST', 'WORST', 'GOOD', 'BAD', 'UP', 'DOWN',
+    'LEFT', 'RIGHT', 'CENTER', 'MIDDLE', 'START', 'END', 'BEGIN', 'FINISH', 'COMPLETE', 'DONE',
+    'READY', 'SET', 'GO', 'STOP', 'PAUSE', 'PLAY', 'RECORD', 'DELETE', 'SAVE', 'LOAD', 'OPEN',
+    'CLOSE', 'EXIT', 'ENTER', 'BACK', 'FORWARD', 'NEXT', 'PREVIOUS', 'CURRENT', 'FUTURE', 'PAST'
+  ]);
+  
+  return commonWords.has(word);
+}
+
 function categorizeNews(title, description = '') {
   const c = `${title || ''} ${description || ''}`.toLowerCase();
-  if (/public offering|secondary|atm|shelf|registered direct|follow-?on/.test(c)) return 'offering';
-  if (/guidance|outlook|raises guidance|lowers guidance|updates guidance/.test(c)) return 'guidance';
-  if (/downgrade|downgraded|price target cut/.test(c)) return 'downgrade';
-  if (/upgrade|upgraded|price target raised/.test(c)) return 'upgrade';
-  if (/partnership|collaborat(e|ion)|alliance/.test(c)) return 'partnership';
-  if (/\bproduct\b|launch|rollout|introduces/.test(c)) return 'product';
-  if (/sec filing|\b8-k\b|\b10-q\b|\b10-k\b|\bs-1\b|\bs-3\b/.test(c)) return 'sec';
-  if (/insider (buy|sell|purchase|sale)/.test(c)) return 'insider';
-  if (/medical|fda|health|drug|trial|phase (1|2|3)/.test(c)) return 'medical';
-  if (/patent|intellectual property|\bip\b/.test(c)) return 'patent';
-  if (/lawsuit|legal|court|sue/.test(c)) return 'lawsuit';
-  if (/acquisition|merger|buyout|takeover/.test(c)) return 'acquisition';
-  if (/earnings|quarterly|revenue|profit|\beps\b/.test(c)) return 'earnings';
+  
+  // More specific patterns first
+  if (/public offering|secondary|atm|shelf|registered direct|follow-?on|stock offering|equity offering/.test(c)) return 'offering';
+  if (/guidance|outlook|raises guidance|lowers guidance|updates guidance|earnings guidance|revenue guidance/.test(c)) return 'guidance';
+  if (/downgrade|downgraded|price target cut|analyst downgrade|rating downgrade/.test(c)) return 'downgrade';
+  if (/upgrade|upgraded|price target raised|analyst upgrade|rating upgrade/.test(c)) return 'upgrade';
+  if (/partnership|collaborat(e|ion)|alliance|joint venture|strategic partnership/.test(c)) return 'partnership';
+  if (/\bproduct\b|launch|rollout|introduces|new product|product announcement/.test(c)) return 'product';
+  if (/sec filing|\b8-k\b|\b10-q\b|\b10-k\b|\bs-1\b|\bs-3\b|form 4|form 13f/.test(c)) return 'sec';
+  if (/insider (buy|sell|purchase|sale)|insider trading|executive (buy|sell)/.test(c)) return 'insider';
+  if (/medical|fda|health|drug|trial|phase (1|2|3)|clinical trial|medical device|pharmaceutical/.test(c)) return 'medical';
+  if (/patent|intellectual property|\bip\b|patent filing|patent approval|patent granted/.test(c)) return 'patent';
+  if (/lawsuit|legal|court|sue|litigation|legal action|legal dispute/.test(c)) return 'lawsuit';
+  if (/acquisition|merger|buyout|takeover|acquisition agreement|merger agreement/.test(c)) return 'acquisition';
+  if (/earnings|quarterly|revenue|profit|\beps\b|earnings report|quarterly results|financial results/.test(c)) return 'earnings';
+  
   return 'general';
 }
