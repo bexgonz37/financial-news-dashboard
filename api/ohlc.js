@@ -1,6 +1,7 @@
 // /api/ohlc.js
-// Returns OHLC candles for a ticker using Finnhub
-// Works intraday even when market is closed by widening the lookback
+// Robust OHLC for intraday mini-charts & modal charts.
+// Tries current session, then previous session (last=1), widens lookback,
+// falls back to 5m/15m if 1m is empty, and finally to daily candles.
 
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -11,23 +12,19 @@ export default async function handler(req, res) {
   if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' });
 
   try {
-    const { ticker, interval = '1min', limit = 120, last = '0' } = req.query;
+    const { ticker, interval = '1min', limit = 180, last = '0' } = req.query;
     if (!ticker) return res.status(400).json({ error: 'Ticker required' });
 
     const apiKey = process.env.FINNHUB_KEY;
     if (!apiKey) return res.status(500).json({ error: 'Missing FINNHUB_KEY' });
 
-    const resMap = { '1min':'1', '5min':'5', '15min':'15', '30min':'30', '60min':'60', day:'D' };
-    const resolution = resMap[interval] || '1';
-
+    // Map UI interval to Finnhub resolution
+    const resMap = { '1min': '1', '5min': '5', '15min': '15', '30min': '30', '60min': '60', day: 'D' };
+    const wantRes = resMap[interval] || '1';
     const now = Math.floor(Date.now() / 1000);
 
-    // base lookback (minutes); widen if last=1 to capture prior session
-    const minsBack = Math.max(10, parseInt(limit, 10));
-    const back1 = minsBack * 60;
-    const back2 = Math.max(back1, 2 * 24 * 60 * 60); // fallback ~2 days
-
-    async function fetchCandles(fromTs, toTs) {
+    // Helper: call Finnhub
+    async function fetchCandles(resolution, fromTs, toTs) {
       const url = `https://finnhub.io/api/v1/stock/candle?symbol=${encodeURIComponent(
         ticker.toUpperCase()
       )}&resolution=${resolution}&from=${fromTs}&to=${toTs}&token=${apiKey}`;
@@ -45,12 +42,36 @@ export default async function handler(req, res) {
       }));
     }
 
-    // Try recent window first
-    let candles = await fetchCandles(now - back1, now);
+    // Choose a generous lookback so we have “today” even if closed right now
+    // base minutes back equals limit; ensure at least 180 minutes
+    const minsBack = Math.max(180, parseInt(limit, 10) || 180);
+    const from1 = now - minsBack * 60;
+    const from2 = now - 3 * 24 * 60 * 60; // 3 days back to catch prior sessions/weekends
 
-    // If closed / empty, try a wider window (yesterday/last session)
+    // 1) Try requested resolution around now
+    let candles = await fetchCandles(wantRes, from1, now);
+
+    // 2) If empty and last=1 (or empty anyway), widen to prior days
     if ((!candles || candles.length < 2) && last === '1') {
-      candles = await fetchCandles(now - back2, now);
+      candles = await fetchCandles(wantRes, from2, now);
+    }
+
+    // 3) If still empty, try coarser intraday resolutions (5m, 15m)
+    if (!candles || candles.length < 2) {
+      const tryRes = wantRes === '1' ? ['5', '15'] : wantRes === '5' ? ['15'] : [];
+      for (const r of tryRes) {
+        const alt = await fetchCandles(r, from2, now);
+        if (alt && alt.length >= 2) { candles = alt; break; }
+      }
+    }
+
+    // 4) As a last resort, pull daily and return a short series
+    if (!candles || candles.length < 2) {
+      const daily = await fetchCandles('D', from2, now);
+      // Convert daily to simple line “candles” (close-only)
+      if (daily && daily.length >= 2) {
+        candles = daily.map(d => ({ t: d.t, o: d.c, h: d.c, l: d.c, c: d.c, v: d.v || 0 }));
+      }
     }
 
     return res.status(200).json({ candles: candles || [] });
@@ -59,3 +80,4 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: err.message });
   }
 }
+
