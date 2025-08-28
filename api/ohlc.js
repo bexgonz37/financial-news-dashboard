@@ -1,3 +1,4 @@
+// /api/ohlc.js
 // Robust OHLC for intraday mini-charts & modal charts.
 // Tries current session, then previous session (last=1), widens lookback,
 // falls back to 5m/15m if 1m is empty, and finally to daily candles.
@@ -17,10 +18,12 @@ export default async function handler(req, res) {
     const apiKey = process.env.FINNHUB_KEY;
     if (!apiKey) return res.status(500).json({ error: 'Missing FINNHUB_KEY' });
 
+    // Map UI interval to Finnhub resolution
     const resMap = { '1min': '1', '5min': '5', '15min': '15', '30min': '30', '60min': '60', day: 'D' };
     const wantRes = resMap[interval] || '1';
     const now = Math.floor(Date.now() / 1000);
 
+    // Helper: call Finnhub
     async function fetchCandles(resolution, fromTs, toTs) {
       const url = `https://finnhub.io/api/v1/stock/candle?symbol=${encodeURIComponent(
         ticker.toUpperCase()
@@ -39,9 +42,10 @@ export default async function handler(req, res) {
       }));
     }
 
+    // generous lookback (covers closed hours/weekends)
     const minsBack = Math.max(180, parseInt(limit, 10) || 180);
     const from1 = now - minsBack * 60;
-    const from2 = now - 3 * 24 * 60 * 60; // 3 days back
+    const from2 = now - 3 * 24 * 60 * 60; // 3 days back to catch prior sessions/weekends
 
     // 1) Try requested resolution around now
     let candles = await fetchCandles(wantRes, from1, now);
@@ -51,7 +55,7 @@ export default async function handler(req, res) {
       candles = await fetchCandles(wantRes, from2, now);
     }
 
-    // 3) If still empty, try coarser intraday resolutions (5m, 15m)
+    // 3) If still empty, try coarser intraday resolutions
     if (!candles || candles.length < 2) {
       const tryRes = wantRes === '1' ? ['5', '15'] : wantRes === '5' ? ['15'] : [];
       for (const r of tryRes) {
@@ -60,7 +64,7 @@ export default async function handler(req, res) {
       }
     }
 
-    // 4) As a last resort, pull daily and return a short series
+    // 4) Last resort: daily candles
     if (!candles || candles.length < 2) {
       const daily = await fetchCandles('D', from2, now);
       if (daily && daily.length >= 2) {
@@ -74,5 +78,3 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: err.message });
   }
 }
-
-
