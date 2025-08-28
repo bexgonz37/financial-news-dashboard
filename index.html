@@ -1,19 +1,21 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
   <title>NewsPulse — Financial News & Momentum</title>
   <style>
     :root{
       --bg:#0b0f17; --card:#121826; --border:#20273a; --text:#e6e8ee; --muted:#9aa3b2;
-      --accent:#b167ff; --accent-2:#8f6cff; --up:#24e39c; --down:#ff5b6e;
+      --accent:#b167ff; --accent-2:#8f6cff; --up:#24e39c; --down:#ff5b6e; --chip:#1a2132;
     }
     *{ box-sizing:border-box }
     body{ margin:0; font-family: system-ui,-apple-system,Segoe UI,Roboto,Inter,Arial,sans-serif; background:var(--bg); color:var(--text); }
+    a{ color:var(--accent) }
+
     .container{ max-width:1200px; margin:0 auto; padding:20px; }
 
-    .topbar{ display:flex; gap:12px; align-items:center; justify-content:space-between; margin-bottom:16px; }
+    .topbar{ display:flex; gap:12px; align-items:center; justify-content:space-between; margin-bottom:16px; flex-wrap:wrap }
     .brand{ font-weight:900; letter-spacing:.2px; }
     .rightTop{ display:flex; gap:12px; align-items:center; flex-wrap:wrap; justify-content:flex-end }
     .clock{ color:var(--muted); font-size:.95rem }
@@ -23,7 +25,7 @@
     .donateCta{ display:flex; align-items:center; gap:8px; color:var(--muted); font-size:.9rem }
     .donateCta strong{ color:#fff }
     .donateBar{ display:flex; gap:8px; flex-wrap:wrap; }
-    .donateBar button{
+    .btn-pill{
       background:linear-gradient(90deg, var(--accent), var(--accent-2));
       color:#fff; border:1px solid rgba(255,255,255,.12);
       padding:8px 12px; border-radius:999px; font-weight:800; cursor:pointer; font-size:.9rem;
@@ -37,206 +39,170 @@
     }
     .disclaimer strong{ color:var(--accent); }
 
-    .tabs{ display:flex; gap:10px; margin:12px 0 18px }
+    .tabs{ display:flex; gap:10px; margin:12px 0 18px; flex-wrap:wrap }
     .tab{ border:1px solid var(--border); background:var(--card); color:var(--text); padding:10px 16px; border-radius:999px; cursor:pointer; }
     .tab.active{ border-color:var(--accent); box-shadow:0 0 0 3px rgba(177,103,255,.15) inset }
 
     .panel{ background:var(--card); border:1px solid var(--border); border-radius:14px; padding:16px; }
 
-    /* Top controls */
-    .controls { display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-bottom:14px; }
-    .filter-btn {
-      background:linear-gradient(90deg, var(--accent), var(--accent-2));
-      color:#fff; border:1px solid rgba(255,255,255,.12);
-      padding:10px 12px; border-radius:10px; cursor:pointer; font-weight:700;
+    .toolbar{ display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-bottom:12px }
+    .input, .select, .btn{
+      background:var(--card); color:var(--text); border:1px solid var(--border); padding:10px 12px; border-radius:10px; outline:none;
     }
-    .input-ctl{
-      background:var(--card); color:var(--text); border:1px solid var(--border);
-      padding:10px 12px; border-radius:10px; outline:none;
-    }
+    .btn{ cursor:pointer; }
+    .meta{ color:var(--muted); font-size:.85rem }
 
-    /* Compact dropdown */
-    .dropdown { position:relative; }
-    .dropdown-menu{
-      position:absolute; top:110%; left:0; min-width:260px; z-index:50;
-      background:var(--card); border:1px solid var(--border); border-radius:12px;
-      padding:10px; display:none; box-shadow:0 10px 24px rgba(0,0,0,.35);
+    /* Filters popover */
+    .filter-chip{ display:flex; align-items:center; gap:6px; padding:8px 12px; border-radius:10px; border:1px solid var(--border); background:var(--chip); cursor:pointer }
+    .popover{ position:relative; display:inline-block }
+    .popover-panel{
+      position:absolute; top:110%; left:0; z-index:20; min-width:260px;
+      background:var(--card); border:1px solid var(--border); border-radius:10px; padding:10px; box-shadow:0 10px 30px rgba(0,0,0,.35);
+      display:none;
     }
-    .dropdown[data-open="true"] .dropdown-menu{ display:block; }
-    .dropdown-menu h4{ margin:6px 6px 8px; font-size:.9rem; color:#e6e8ee }
-    .dropdown-menu .row{ display:flex; flex-wrap:wrap; gap:8px; padding:0 6px 8px; }
-    .dropdown-chip{
-      display:flex; align-items:center; gap:6px; padding:6px 10px; border-radius:999px;
-      border:1px solid var(--border); background:#0b0f17; color:#e6e8ee; font-size:.85rem;
-    }
-    .dropdown-actions{ display:flex; gap:8px; justify-content:flex-end; padding:6px; }
-    .dropdown-actions button{
-      background:#2a3350; color:#e6e8ee; border:1px solid #394368; border-radius:8px; padding:6px 10px; cursor:pointer;
-    }
+    .popover.open .popover-panel{ display:block }
+    .checks{ display:grid; grid-template-columns:1fr 1fr; gap:6px 12px; margin:6px 0 10px }
+    .checks label{ display:flex; gap:8px; align-items:center; color:var(--text); font-size:.9rem }
 
-    /* Watchlist */
-    .wl-btn{ background:#1a2132; border:1px solid var(--border); color:#e6e8ee; border-radius:10px; padding:10px 12px; cursor:pointer }
-    .wl-panel{ display:none; margin-bottom:10px; }
-    .wl-panel.active{ display:block; }
-    .wl-badges{ display:flex; gap:8px; flex-wrap:wrap }
-    .wl-badge{ background:#0f1421; border:1px solid var(--border); color:#e6e8ee; padding:6px 10px; border-radius:999px; }
-    .wl-badge a{ color:#e6e8ee; text-decoration:none }
-    .wl-clear{ margin-left:auto; background:#2a3350; border:1px solid #394368; color:#e6e8ee; border-radius:8px; padding:6px 10px; cursor:pointer }
-
-    /* News list */
     .news-list{ display:grid; gap:12px; }
     .news-item{ border:1px solid var(--border); border-radius:12px; padding:12px; background:linear-gradient(180deg, rgba(32,39,58,.6), rgba(18,24,38,.9)); }
     .item-top{ display:flex; align-items:center; gap:10px; flex-wrap:wrap }
     .ticker{ background:rgba(177,103,255,.16); border:1px solid var(--accent); color:#fff; padding:4px 10px; border-radius:999px; font-weight:700; cursor:pointer; text-decoration:none }
-    .star{ cursor:pointer; user-select:none; font-size:18px; line-height:1; color:#b3b7c5 }
-    .star.on{ color:#ffd76a }
+    .star{ background:none; border:1px solid var(--border); color:var(--muted); border-radius:8px; padding:4px 8px; cursor:pointer }
+    .star.active{ color:#ffd84e; border-color:#ffd84e }
     .pct{ font-weight:700 } .pct.up{ color:var(--up) } .pct.down{ color:var(--down) }
-    .meta{ color:var(--muted); font-size:.85rem } .title{ margin-top:8px; font-weight:800; color:#fff }
+    .title{ margin-top:8px; font-weight:800; color:#fff }
     .summary{ color:var(--muted); margin-top:6px; line-height:1.5 }
-    .mini-row{ display:flex; align-items:center; justify-content:space-between; gap:10px; margin-top:8px }
-
-    /* Mini chart */
+    .mini-row{ display:flex; align-items:center; justify-content:space-between; gap:10px; margin-top:8px; flex-wrap:wrap }
     .mini-chart{ width:220px; height:60px }
-    @media (max-width:700px){ .mini-chart{ width:100%; height:60px } }
+    .src{ color:var(--muted); font-size:.85rem }
+
+    /* Scanner */
+    .grid{ display:grid; grid-template-columns:repeat(auto-fill,minmax(280px,1fr)); gap:12px }
+    .card{ background:var(--card); border:1px solid var(--border); border-radius:12px; padding:12px }
+    .kpi{ display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap }
+    .change.up{ color:var(--up); font-weight:800 } .change.down{ color:var(--down); font-weight:800 }
+
+    /* Watchlist */
+    .wl-row{ display:flex; align-items:center; gap:12px; justify-content:space-between; border:1px solid var(--border); border-radius:10px; padding:10px; margin-bottom:10px; background:rgba(32,39,58,.6) }
+    .wl-tools{ display:flex; align-items:center; gap:8px }
 
     .loading{ text-align:center; color:var(--muted); padding:28px }
 
-    /* Modal */
-    #chartModal{ position:fixed; inset:0; display:none; align-items:center; justify-content:center; z-index:9999; background:rgba(0,0,0,.55); padding:20px }
-    .modal{ width:min(920px,95vw); height:min(600px,85vh); background:var(--card); border:1px solid var(--border); border-radius:14px; display:flex; flex-direction:column; }
-    .modal-head{ display:flex; align-items:center; justify-content:space-between; padding:10px 14px; border-bottom:1px solid var(--border) }
-    .modal-title{ font-weight:900 }
-    .modal-tools{ display:flex; align-items:center; gap:10px; flex-wrap:wrap }
-    .modal label{ color:var(--muted); font-size:.9rem }
-    .close{ background:none; border:1px solid var(--border); color:#text; padding:6px 10px; border-radius:8px; cursor:pointer }
-    .modal-body{ flex:1 }
-
-    /* Scanner */
-    .grid{ display:grid; grid-template-columns:repeat(auto-fill,minmax(260px,1fr)); gap:12px }
-    .card{ background:var(--card); border:1px solid var(--border); border-radius:12px; padding:12px }
-    .kpi{ display:flex; align-items:center; justify-content:space-between; gap:10px }
-    .change.up{ color:var(--up); font-weight:800 } .change.down{ color:var(--down); font-weight:800 }
+    @media (max-width:900px){
+      .rightTop{ justify-content:flex-start }
+    }
+    @media (max-width:700px){
+      .mini-row{ flex-direction:column; align-items:flex-start }
+      .mini-chart{ width:100%; height:56px }
+      .donateCta{ display:none }
+    }
   </style>
 </head>
 <body>
   <div class="container">
+    <!-- Top -->
     <div class="topbar">
       <div class="brand">NewsPulse</div>
       <div class="rightTop">
         <div class="donateCta">Please consider <strong>donating</strong> so we can add paid data & grow this into a full app.</div>
         <div class="donateBar">
-          <button id="donate-once">Donate Once</button>
-          <button id="donate-monthly">Donate Monthly</button>
-          <button id="manage-subscription">Manage Subscription</button>
+          <button class="btn-pill" id="donate-once">Donate Once</button>
+          <button class="btn-pill" id="donate-monthly">Donate Monthly</button>
+          <button class="btn-pill" id="manage-subscription">Manage Subscription</button>
         </div>
         <div class="clock" id="etClock">—:— ET</div>
         <div class="session" id="sessionBadge">Session: —</div>
       </div>
     </div>
 
+    <!-- Disclaimer -->
     <div class="disclaimer">
       <strong>Educational Purposes Only.</strong> The content on this site (including news, data, and any analysis) is provided for informational and educational purposes only and does not constitute investment, financial, or trading advice. Nothing on this website is a recommendation or endorsement to buy or sell any security. Market data may be delayed, inaccurate, or incomplete. Trading involves substantial risk, including the risk of loss. You are solely responsible for your trading decisions. Consider consulting a licensed financial professional. We make no warranties and assume no liability for any losses arising from use of this site.
     </div>
 
+    <!-- Tabs -->
     <div class="tabs">
       <button class="tab active" data-tab="news">News</button>
       <button class="tab" data-tab="scanners">Scanners</button>
+      <button class="tab" data-tab="watchlist">Watchlist</button>
     </div>
 
-    <!-- NEWS VIEW -->
+    <!-- NEWS -->
     <div id="view-news" class="panel">
-      <!-- Watchlist panel -->
-      <div class="wl-panel" id="wlPanel">
-        <div style="display:flex; align-items:center; gap:10px; margin-bottom:6px">
-          <strong>Watchlist</strong>
-          <button class="wl-clear" id="wlClear">Clear all</button>
-        </div>
-        <div id="wlBadges" class="wl-badges"></div>
-      </div>
-
-      <div class="controls">
-        <!-- Filters dropdown -->
-        <div class="dropdown" id="catDropdown">
-          <button class="filter-btn" id="openFilters">Filters ▾</button>
-          <div class="dropdown-menu" id="filtersMenu">
-            <h4>Categories</h4>
-            <div class="row">
-              <label class="dropdown-chip"><input type="checkbox" value="medical" /> Medical/FDA</label>
-              <label class="dropdown-chip"><input type="checkbox" value="patent" /> Patent</label>
-              <label class="dropdown-chip"><input type="checkbox" value="lawsuit" /> Lawsuit</label>
-              <label class="dropdown-chip"><input type="checkbox" value="acquisition" /> M&amp;A</label>
-              <label class="dropdown-chip"><input type="checkbox" value="earnings" /> Earnings</label>
-              <label class="dropdown-chip"><input type="checkbox" value="offering" /> Public Offering</label>
-              <label class="dropdown-chip"><input type="checkbox" value="guidance" /> Guidance</label>
-              <label class="dropdown-chip"><input type="checkbox" value="upgrade" /> Upgrade</label>
-              <label class="dropdown-chip"><input type="checkbox" value="downgrade" /> Downgrade</label>
-              <label class="dropdown-chip"><input type="checkbox" value="partnership" /> Partnership</label>
-              <label class="dropdown-chip"><input type="checkbox" value="product" /> Product</label>
-              <label class="dropdown-chip"><input type="checkbox" value="sec" /> SEC Filing</label>
-              <label class="dropdown-chip"><input type="checkbox" value="insider" /> Insider</label>
+      <div class="toolbar">
+        <!-- Filters popover -->
+        <div class="popover" id="filtersPopover">
+          <button class="filter-chip" id="filtersBtn">Filters <span class="meta" id="filtersCount">(All)</span></button>
+          <div class="popover-panel">
+            <div class="checks" id="catChecks">
+              <!-- checkboxes injected by JS -->
             </div>
-            <div class="dropdown-actions">
-              <button id="applyFilters">Apply</button>
-              <button id="clearFilters">Clear</button>
-              <button id="closeFilters">Close</button>
+            <div style="display:flex; gap:8px; justify-content:flex-end">
+              <button class="btn" id="filtersClear">Clear</button>
+              <button class="btn" id="filtersApply" style="background:var(--accent);border:1px solid rgba(255,255,255,.12);color:#fff">Apply</button>
             </div>
           </div>
         </div>
 
-        <!-- Ticker & keyword -->
-        <input id="ticker" class="input-ctl" placeholder="Ticker (optional)" />
-        <input id="keyword" class="input-ctl" placeholder="Keyword (optional)" />
-
-        <!-- Watchlist controls -->
-        <button class="wl-btn" id="toggleWL">Show watchlist</button>
-        <label style="display:flex; align-items:center; gap:6px; color:var(--muted)">
-          <input type="checkbox" id="onlyWatchlist" /> Watchlist only
-        </label>
-
-        <!-- Refresh & Auto -->
-        <button class="filter-btn" id="run">Refresh Now</button>
-        <label style="display:flex; align-items:center; gap:6px; color:var(--muted)">
-          <input type="checkbox" id="autoRefresh" checked /> Auto (60s)
+        <input class="input" id="ticker" placeholder="Ticker (optional)" />
+        <input class="input" id="keyword" placeholder="Keyword (optional)" />
+        <button class="btn" id="run">Search</button>
+        <button class="btn" id="manualRefresh" title="Refresh now">Refresh</button>
+        <label class="meta" style="display:flex;align-items:center;gap:6px">
+          <input type="checkbox" id="autoRefresh" checked />
+          Auto (60s)
         </label>
       </div>
 
       <div id="news-feed" class="news-list">
-        <div class="loading"><span>Loading financial news…</span></div>
+        <div class="loading">Loading financial news…</div>
       </div>
     </div>
 
-    <!-- SCANNERS VIEW -->
+    <!-- SCANNERS -->
     <div id="view-scanners" class="panel" style="display:none">
-      <div class="controls">
-        <span class="input-ctl">High Momentum</span>
-        <span class="input-ctl">Top % Gainers</span>
-        <span class="input-ctl">High RVOL</span>
-        <input id="minPct" class="input-ctl" type="number" step="0.1" placeholder="Min % (e.g. 2)" />
-        <input id="minRVOL" class="input-ctl" type="number" step="0.1" placeholder="Min RVOL (e.g. 1.5)" />
-        <input id="minMentions" class="input-ctl" type="number" step="1" placeholder="Min news mentions" />
-        <button class="filter-btn" id="rescore">Recalculate</button>
+      <div class="toolbar">
+        <select class="select" id="scannerPreset">
+          <option value="momentum">High Momentum</option>
+          <option value="big_movers">Biggest % Movers</option>
+          <option value="rvol">High Relative Volume</option>
+        </select>
+        <input class="input" id="minPct" type="number" step="0.1" placeholder="Min % (e.g. 2)"/>
+        <input class="input" id="minRVOL" type="number" step="0.1" placeholder="Min RVOL (e.g. 1.5)"/>
+        <input class="input" id="minMentions" type="number" step="1" placeholder="Min mentions (e.g. 2)"/>
+        <button class="btn" id="rescore">Recalculate</button>
       </div>
       <div id="scanner-grid" class="grid">
         <div class="card">Run a news load, then click Recalculate to see high-momentum movers.</div>
       </div>
     </div>
+
+    <!-- WATCHLIST -->
+    <div id="view-watchlist" class="panel" style="display:none">
+      <div class="toolbar">
+        <input class="input" id="wlAdd" placeholder="Add ticker (e.g., NVDA)"/>
+        <button class="btn" id="wlAddBtn">Add</button>
+      </div>
+      <div id="wlList"></div>
+    </div>
   </div>
 
-  <!-- CHART MODAL -->
-  <div id="chartModal">
-    <div class="modal">
-      <div class="modal-head">
-        <div class="modal-title" id="chartTitle">Chart</div>
-        <div class="modal-tools">
-          <label>Indicators:</label>
+  <!-- Chart Modal -->
+  <div id="chartModal" style="position:fixed; inset:0; display:none; align-items:center; justify-content:center; z-index:9999; background:rgba(0,0,0,.55); padding:20px">
+    <div class="modal" style="width:min(920px,95vw); height:min(600px,85vh); background:var(--card); border:1px solid var(--border); border-radius:14px; display:flex; flex-direction:column;">
+      <div class="modal-head" style="display:flex; align-items:center; justify-content:space-between; padding:10px 14px; border-bottom:1px solid var(--border)">
+        <div class="modal-title" id="chartTitle" style="font-weight:900">Chart</div>
+        <div class="modal-tools" style="display:flex; align-items:center; gap:8px">
+          <span class="meta">Indicators:</span>
           <label><input type="checkbox" class="ind" value="vwap" checked /> VWAP</label>
           <label><input type="checkbox" class="ind" value="sma20" /> SMA 20</label>
           <label><input type="checkbox" class="ind" value="ema9" /> EMA 9</label>
           <label><input type="checkbox" class="ind" value="rsi14" /> RSI 14</label>
-          <button class="close" onclick="closeChart()">Close</button>
+          <button class="btn" onclick="closeChart()">Close</button>
         </div>
       </div>
-      <div id="chartBody" class="modal-body"></div>
+      <div id="chartBody" class="modal-body" style="flex:1"></div>
     </div>
   </div>
 
@@ -244,67 +210,22 @@
   <script src="https://unpkg.com/lightweight-charts@4.2.0/dist/lightweight-charts.standalone.production.js"></script>
   <script>
     // ---------- STATE ----------
+    const CATEGORIES = [
+      ['medical','Medical / FDA'], ['patent','Patent / IP'], ['lawsuit','Lawsuit / Legal'],
+      ['acquisition','Acquisition / M&A'], ['earnings','Earnings'], ['offering','Public Offering'],
+      ['guidance','Guidance'], ['upgrade','Analyst Upgrade'], ['downgrade','Analyst Downgrade'],
+      ['partnership','Partnership'], ['product','Product Launch'], ['sec','SEC Filing'], ['insider','Insider Activity']
+    ];
     const RETAIN_DAYS = 7;
-    let allNewsStore = new Map();        // id -> article (persisted)
-    let newsData = [];                   // derived (sorted)
+    let allNewsStore = new Map();  // id -> article
+    let newsData = [];             // sorted derived
     let filteredNews = [];
-    const stockCache = new Map();        // ticker -> { changePercent, change, ts }
-    const selectedCategories = new Set();
-    const etFmt = new Intl.DateTimeFormat('en-US',{ timeZone:'America/New_York', hour:'2-digit', minute:'2-digit' });
-
-    // Watchlist
-    const wl = new Set();
-    function loadWatchlist(){ try{ (JSON.parse(localStorage.getItem('watchlistV1')||'[]')).forEach(t=>wl.add(t)); }catch{} renderWatchlist(); }
-    function saveWatchlist(){ try{ localStorage.setItem('watchlistV1', JSON.stringify([...wl])); }catch{} renderWatchlist(); }
-    function toggleWatch(t){
-      if(!t) return;
-      if(wl.has(t)) wl.delete(t); else wl.add(t);
-      saveWatchlist();
-      document.querySelectorAll(`[data-star="${t}"]`).forEach(el=>{ el.classList.toggle('on', wl.has(t)); });
-      applyFilter();
-    }
-    function renderWatchlist(){
-      const panel=document.getElementById('wlPanel');
-      const box=document.getElementById('wlBadges');
-      if(!wl.size){ panel.classList.remove('active'); box.innerHTML=''; return; }
-      panel.classList.add('active');
-      box.innerHTML = [...wl].sort().map(t=>`<span class="wl-badge"><a href="#" data-open-chart="${t}">${t}</a></span>`).join('');
-    }
-
-    // Persisted news store
-    (function loadStore(){
-      try {
-        const raw = localStorage.getItem('newsStoreV1');
-        const keptUntil = Date.now() - RETAIN_DAYS*24*3600*1000;
-        if (raw) {
-          const arr = JSON.parse(raw);
-          for (const a of arr) {
-            const t = Date.parse(a.publishedAt||0);
-            if (!t || t < keptUntil) continue;
-            allNewsStore.set(a.id, a);
-          }
-        }
-      } catch {}
-    })();
-    loadWatchlist();
-    function persistStore(){ try { localStorage.setItem('newsStoreV1', JSON.stringify(Array.from(allNewsStore.values()))); } catch {} }
-    function mergeNews(newItems){
-      let added=0;
-      for(const a of (newItems||[])){
-        if(!a || !a.id) continue;
-        if(!allNewsStore.has(a.id)){ allNewsStore.set(a.id, a); added++; }
-        else allNewsStore.set(a.id, { ...allNewsStore.get(a.id), ...a });
-      }
-      if (added) persistStore();
-      return added;
-    }
-    function currentNewsArray(){
-      const arr = Array.from(allNewsStore.values());
-      arr.sort((a,b)=> (Date.parse(b.publishedAt||0) - Date.parse(a.publishedAt||0)));
-      return arr;
-    }
+    const stockCache = new Map();  // ticker -> { changePercent, change, ts }
+    let selectedCats = new Set();  // multi-select categories
+    let watchlist = new Set();
 
     // ---------- CLOCK + SESSION ----------
+    const etFmt = new Intl.DateTimeFormat('en-US',{ timeZone:'America/New_York', hour:'2-digit', minute:'2-digit' });
     function updateClockAndSession(){
       const now = new Date();
       document.getElementById('etClock').textContent = etFmt.format(now) + ' ET';
@@ -320,7 +241,48 @@
     }
     setInterval(updateClockAndSession, 15000); updateClockAndSession();
 
+    // ---------- PERSIST ----------
+    (function loadStore(){
+      try {
+        const raw = localStorage.getItem('newsStoreV1');
+        const keptUntil = Date.now() - RETAIN_DAYS*24*3600*1000;
+        if (raw) {
+          const arr = JSON.parse(raw);
+          for (const a of arr) {
+            const t = Date.parse(a.publishedAt||0);
+            if (!t || t < keptUntil) continue;
+            allNewsStore.set(a.id, a);
+          }
+        }
+      } catch {}
+      try {
+        const wl = JSON.parse(localStorage.getItem('watchlistV1')||'[]');
+        for(const t of wl) watchlist.add(String(t).toUpperCase());
+      } catch {}
+    })();
+    function persistStore(){
+      try { localStorage.setItem('newsStoreV1', JSON.stringify(Array.from(allNewsStore.values()))); } catch {}
+    }
+    function persistWatchlist(){
+      try { localStorage.setItem('watchlistV1', JSON.stringify(Array.from(watchlist.values()))); } catch {}
+    }
+
     // ---------- HELPERS ----------
+    function mergeNews(newItems){
+      let added=0;
+      for(const a of (newItems||[])){
+        if(!a || !a.id) continue;
+        if(!allNewsStore.has(a.id)){ allNewsStore.set(a.id, a); added++; }
+        else allNewsStore.set(a.id, { ...allNewsStore.get(a.id), ...a });
+      }
+      if (added) persistStore();
+      return added;
+    }
+    function currentNewsArray(){
+      const arr = Array.from(allNewsStore.values());
+      arr.sort((a,b)=> (Date.parse(b.publishedAt||0) - Date.parse(a.publishedAt||0)));
+      return arr;
+    }
     function timeAgo(iso){
       const t = Date.parse(iso||''); if(!t) return '';
       const s = Math.floor((Date.now()-t)/1000);
@@ -329,6 +291,7 @@
       const h = Math.floor(m/60); if(h<24) return `${h}h ago`;
       const d = Math.floor(h/24); return `${d}d ago`;
     }
+
     async function getQuote(ticker){
       const key = ticker.toUpperCase();
       const cached = stockCache.get(key);
@@ -349,14 +312,22 @@
       if(!m || !m.volume || !m.avgVolume) return null;
       return m.volume / m.avgVolume;
     }
+
     async function drawSparkline(el, ticker){
       try{
-        const r = await fetch(`/api/ohlc?ticker=${encodeURIComponent(ticker)}&interval=1min&limit=120&last=1`);
-        const payload = await r.json();
-        const candles = payload.candles||[];
+        // show last session (or current) so you always see “today”
+        let r = await fetch(`/api/ohlc?ticker=${encodeURIComponent(ticker)}&interval=1min&limit=180&last=1`);
+        if (!r.ok) throw new Error('last session fetch failed');
+        let payload = await r.json();
+        let candles = payload.candles || [];
+        if (candles.length < 2) {
+          r = await fetch(`/api/ohlc?ticker=${encodeURIComponent(ticker)}&interval=1min&limit=180`);
+          payload = await r.json();
+          candles = payload.candles || [];
+        }
         const closes = candles.map(c=>c.c);
         if(closes.length<2){ el.innerHTML=''; return; }
-        const w=220,h=60,pad=5;
+        const w=el.clientWidth||220, h=el.clientHeight||60, pad=5;
         const min=Math.min(...closes), max=Math.max(...closes);
         const xStep=(w-2*pad)/(closes.length-1);
         const y=v=> h-pad-((v-min)/(max-min||1))*(h-2*pad);
@@ -366,11 +337,33 @@
       }catch{ el.innerHTML=''; }
     }
 
-    // ---------- FETCH ----------
+    // ---------- FILTER UI ----------
+    function renderFilterChecks(){
+      const wrap = document.getElementById('catChecks');
+      wrap.innerHTML = CATEGORIES.map(([val,label])=>{
+        const checked = selectedCats.has(val) ? 'checked' : '';
+        return `<label><input type="checkbox" value="${val}" ${checked}/> ${label}</label>`;
+      }).join('');
+      updateFiltersCount();
+    }
+    function updateFiltersCount(){
+      const span = document.getElementById('filtersCount');
+      if(!selectedCats.size) span.textContent = '(All)';
+      else span.textContent = `(${selectedCats.size} selected)`;
+    }
+    function closeAllPopovers(e){
+      if(!e) return;
+      const pop = document.getElementById('filtersPopover');
+      if (!pop.contains(e.target)) pop.classList.remove('open');
+    }
+    document.addEventListener('click', closeAllPopovers);
+
+    // ---------- FETCH + APPLY ----------
     async function fetchData(){
       const params = new URLSearchParams();
       const t = (document.getElementById('ticker').value||'').trim();
       const k = (document.getElementById('keyword').value||'').trim();
+      // backend only accepts one category; if multiple selected, we pass none and filter client-side.
       if (t) params.set('ticker', t.toUpperCase());
       if (k) params.set('search', k);
 
@@ -381,52 +374,47 @@
         const incoming = data?.data?.news || [];
         mergeNews(incoming);
         newsData = currentNewsArray();
-        applyFilter(true);
+        applyFilter();
       }catch(e){
         console.error(e);
         newsData = currentNewsArray();
-        applyFilter(true);
+        applyFilter();
       }
     }
 
-    // ---------- FILTERS ----------
-    function applyFilter(forceDraw=false){
+    function applyFilter(){
       const k = (document.getElementById('keyword').value||'').toLowerCase();
-      const onlyWL = document.getElementById('onlyWatchlist').checked;
-
+      const multipleCats = Array.from(selectedCats.values());
       filteredNews = newsData.filter(n=>{
-        const t = (n.ticker||'').toUpperCase();
-        const inWL = !onlyWL || wl.has(t);
-        const catOk = (!selectedCategories.size) ? true : (
-          selectedCategories.has(n.category) ||
-          [...selectedCategories].some(c=> (n.title||'').toLowerCase().includes(c) || (n.summary||'').toLowerCase().includes(c))
-        );
-        const keyOk = !k || ( (n.title||'').toLowerCase().includes(k) || (n.summary||'').toLowerCase().includes(k) );
-        return inWL && catOk && keyOk;
+        const cat = (n.category||'').toLowerCase();
+        const byCat = !multipleCats.length || multipleCats.includes(cat) ||
+          multipleCats.some(c => (n.title||'').toLowerCase().includes(c) || (n.summary||'').toLowerCase().includes(c));
+        const byKey = !k || ( (n.title||'').toLowerCase().includes(k) || (n.summary||'').toLowerCase().includes(k) );
+        return byCat && byKey;
       });
-      renderNews(forceDraw);
+      renderNews();
     }
 
     // ---------- RENDER NEWS ----------
-    function renderNews(forceDraw=false){
+    function renderNews(){
       const feed = document.getElementById('news-feed');
       if (!filteredNews.length){
-        feed.innerHTML = `<div class="loading">No news found for the selected filter.</div>`;
+        feed.innerHTML = `<div class="loading">No news found for the selected filters.</div>`;
         return;
       }
       feed.innerHTML = filteredNews.map(n=>{
         const t = (n.ticker||'').toUpperCase();
         const when = n.publishedAt ? timeAgo(n.publishedAt) : '';
         const source = n.source ? n.source : '';
-        const starred = wl.has(t) ? 'on' : '';
+        const starred = watchlist.has(t) ? 'active' : '';
         return `
           <div class="news-item">
             <div class="item-top">
               <a class="ticker" href="#" data-open-chart="${t}">${t || 'GENERAL'}</a>
-              <span class="star ${starred}" title="Add to watchlist" data-star="${t}">★</span>
-              <span class="pct"><span class="arrow">⏳</span><span class="val">…</span></span>
+              <span class="pct"><span class="arrow">⏳</span> <span class="val">…</span></span>
               <span class="meta rvol"></span>
-              <span class="meta">${source ? source : ''}${when ? ` · ${when}` : ''}</span>
+              <span class="src">${source ? source : ''}${when ? ` · ${when}` : ''}</span>
+              <button class="star ${starred}" data-star="${t}">${starred?'★':'☆'}</button>
             </div>
             <div class="title">${n.title||''}</div>
             <div class="summary">${n.summary||''} ${n.url?`<a href="${n.url}" target="_blank" rel="noopener">Read</a>`:''}</div>
@@ -438,7 +426,7 @@
         `;
       }).join('');
 
-      // hydrate each card when it appears
+      // hydrate each card lazily
       const cards = feed.querySelectorAll('.news-item');
       const io = new IntersectionObserver((entries)=>{
         entries.forEach(async e=>{
@@ -465,7 +453,7 @@
             if (rv) card.querySelector('.rvol').textContent = `RVOL ${rv.toFixed(2)}x`;
           }catch{}
 
-          // mini chart
+          // sparkline
           drawSparkline(card.querySelector('.mini-chart'), t);
 
           io.unobserve(card);
@@ -484,26 +472,32 @@
         const ts = n.publishedAt?Date.parse(n.publishedAt):0; if(ts> (s.latest||0)) s.latest = ts;
         stats.set(t,s);
       }
-      const list = [...stats.keys()].slice(0,50);
+      const list = [...stats.keys()].slice(0,80);
       const rows = [];
       for(const t of list){
         let pct=0, rvol=0, rec=0;
         try{ const q=await getQuote(t); pct = q?.changePercent||0; }catch{}
         try{ const rv=await getRVOL(t); rvol = rv||0; }catch{}
         const minsOld = stats.get(t)?.latest ? (Date.now()-stats.get(t).latest)/60000 : 999;
-        rec = Math.max(0, 30 - Math.min(30, minsOld)); // 0..30
+        rec = Math.max(0, 30 - Math.min(30, minsOld)); // 0..30 recent boost
         const score = (pct*1.0) + (stats.get(t).mentions*0.6) + (rvol*5) + (rec*0.35);
         rows.push({ ticker:t, pct, mentions:stats.get(t).mentions, rvol, recency:rec, score });
       }
-      rows.sort((a,b)=> b.score-a.score);
+
+      // presets
+      const preset = document.getElementById('scannerPreset').value;
+      if (preset==='big_movers') rows.sort((a,b)=> Math.abs(b.pct)-Math.abs(a.pct));
+      else if (preset==='rvol') rows.sort((a,b)=> b.rvol-a.rvol);
+      else rows.sort((a,b)=> b.score-a.score);
+
       const minPct = parseFloat(document.getElementById('minPct').value||'NaN');
       const minRVOL = parseFloat(document.getElementById('minRVOL').value||'NaN');
       const minMent = parseFloat(document.getElementById('minMentions').value||'NaN');
       const filt = rows.filter(r=>{
-        return (isNaN(minPct) || r.pct>=minPct) &&
+        return (isNaN(minPct) || Math.abs(r.pct)>=minPct) &&
                (isNaN(minRVOL) || r.rvol>=minRVOL) &&
                (isNaN(minMent) || r.mentions>=minMent);
-      }).slice(0,12);
+      }).slice(0,18);
 
       const grid = document.getElementById('scanner-grid');
       if(!filt.length){ grid.innerHTML = `<div class="card">No results match the thresholds.</div>`; return; }
@@ -514,19 +508,67 @@
               <div style="font-weight:900">${r.ticker}</div>
               <div class="meta">Mentions: ${r.mentions} · RVOL: ${r.rvol?r.rvol.toFixed(2):'—'} · Recency: ${r.recency.toFixed(0)}</div>
             </div>
-            <div class="change ${r.pct>0?'up':'down'}">${r.pct>0?'↗':'↘'} ${r.pct.toFixed(2)}%</div>
+            <div class="change ${r.pct>=0?'up':'down'}">${r.pct>=0?'↗':'↘'} ${r.pct.toFixed(2)}%</div>
           </div>
           <div class="mini-chart" data-ticker="${r.ticker}" style="margin-top:8px"></div>
           <div class="meta" style="margin-top:6px">
             <a href="#" data-open-chart="${r.ticker}">Open chart</a>
+            <button class="star ${watchlist.has(r.ticker)?'active':''}" data-star="${r.ticker}" style="margin-left:8px">${watchlist.has(r.ticker)?'★':'☆'}</button>
           </div>
         </div>
       `).join('');
 
-      // draw small chart in each scanner card automatically
+      // auto draw charts
       grid.querySelectorAll('.mini-chart').forEach(slot=>{
         const t = slot.getAttribute('data-ticker');
         if (t) drawSparkline(slot, t);
+      });
+    }
+
+    // ---------- WATCHLIST ----------
+    function toggleWatchlist(t){
+      const key = String(t||'').toUpperCase();
+      if(!key) return;
+      if(watchlist.has(key)) watchlist.delete(key); else watchlist.add(key);
+      persistWatchlist();
+      // update stars live
+      document.querySelectorAll(`[data-star="${key}"]`).forEach(btn=>{
+        const on = watchlist.has(key);
+        btn.classList.toggle('active', on);
+        btn.textContent = on ? '★' : '☆';
+      });
+      renderWatchlist();
+    }
+    function renderWatchlist(){
+      const wrap = document.getElementById('wlList');
+      const list = Array.from(watchlist.values()).sort();
+      if (!list.length){ wrap.innerHTML = `<div class="loading">No tickers yet. Star items from News or add tickers above.</div>`; return; }
+      wrap.innerHTML = list.map(t=>`
+        <div class="wl-row">
+          <div>
+            <div style="font-weight:900">${t}</div>
+            <div class="meta pct" data-wl-pct="${t}">—</div>
+          </div>
+          <div class="mini-chart" data-ticker="${t}"></div>
+          <div class="wl-tools">
+            <a href="#" data-open-chart="${t}">Chart</a>
+            <button class="btn" data-remove="${t}">Remove</button>
+          </div>
+        </div>
+      `).join('');
+      // hydrate % + sparkline
+      wrap.querySelectorAll('.wl-row').forEach(async row=>{
+        const t = row.querySelector('.mini-chart').dataset.ticker;
+        drawSparkline(row.querySelector('.mini-chart'), t);
+        try{
+          const q = await getQuote(t);
+          const node = row.querySelector(`[data-wl-pct="${t}"]`);
+          if (q && node){
+            node.textContent = `${q.changePercent>=0?'+':''}${q.changePercent.toFixed(2)}%`;
+            node.classList.toggle('up', q.changePercent>=0);
+            node.classList.toggle('down', q.changePercent<0);
+          }
+        }catch{}
       });
     }
 
@@ -555,6 +597,13 @@
       return out;
     }
 
+    function getIndPrefs(){
+      try { return JSON.parse(localStorage.getItem('indPrefsV1')||'{}'); } catch { return {}; }
+    }
+    function setIndPrefs(obj){
+      try { localStorage.setItem('indPrefsV1', JSON.stringify(obj||{})); } catch {}
+    }
+
     async function openChart(ticker){
       const modal = document.getElementById('chartModal');
       const body = document.getElementById('chartBody');
@@ -562,6 +611,7 @@
       title.textContent = `${ticker} — intraday (1m)`;
       body.innerHTML = '';
 
+      // candles
       const r = await fetch(`/api/ohlc?ticker=${encodeURIComponent(ticker)}&interval=1min&limit=300&last=1`);
       const payload = await r.json();
       const candles = payload.candles||[];
@@ -573,7 +623,6 @@
         grid:{ vertLines:{color:'#1a2132'}, horzLines:{color:'#1a2132'} },
         rightPriceScale:{ borderColor:'#20273a' }, timeScale:{ borderColor:'#20273a' }, autoSize:true
       });
-
       const candleSeries = chart.addCandlestickSeries({
         upColor:'#24e39c', downColor:'#ff5b6e', borderUpColor:'#24e39c', borderDownColor:'#ff5b6e', wickUpColor:'#24e39c', wickDownColor:'#ff5b6e'
       });
@@ -584,29 +633,23 @@
       chart.priceScale('').applyOptions({ scaleMargins:{ top:0.8, bottom:0 } });
 
       // indicators with saved prefs
-      function getIndPrefs(){ try { return JSON.parse(localStorage.getItem('indPrefsV1')||'{}'); } catch { return {}; } }
-      function setIndPrefs(obj){ try { localStorage.setItem('indPrefsV1', JSON.stringify(obj||{})); } catch {} }
+      let vwap=null,sma20=null,ema9=null,rsiPane=null;
       const checks = Array.from(document.querySelectorAll('.modal .ind'));
-      const pref = getIndPrefs(); checks.forEach(ch => { ch.checked = pref[ch.value] ?? ch.checked; });
+      const pref = getIndPrefs(); checks.forEach(ch=> ch.checked = !!pref[ch.value] || ch.checked);
 
-      let vwap=null,sma20=null,ema9s=null,rsiPane=null;
       function renderIndicators(){
         const chosen = new Set(checks.filter(c=>c.checked).map(c=>c.value));
         setIndPrefs(Object.fromEntries([...chosen].map(k=>[k,true])));
-
         if(chosen.has('vwap')){
           if(!vwap) vwap = chart.addLineSeries({ color:'#b167ff', lineWidth:2 });
           let cumPV=0,cumV=0;
           const v = data.map(k=>{ const typ=(k.high+k.low+k.close)/3; cumPV+=typ*(k.volume||0); cumV+=(k.volume||0)||1; return {time:k.time,value:cumPV/cumV}; });
           vwap.setData(v);
         } else if(vwap){ vwap.setData([]); }
-
         if(chosen.has('sma20')){ if(!sma20) sma20=chart.addLineSeries({color:'#8f6cff',lineWidth:2}); sma20.setData(sma(data,20)); }
         else if(sma20){ sma20.setData([]); }
-
-        if(chosen.has('ema9')){ if(!ema9s) ema9s=chart.addLineSeries({color:'#c08bff',lineWidth:2}); ema9s.setData(ema(data,9)); }
-        else if(ema9s){ ema9s.setData([]); }
-
+        if(chosen.has('ema9')){ if(!ema9) ema9=chart.addLineSeries({color:'#c08bff',lineWidth:2}); ema9.setData(ema(data,9)); }
+        else if(ema9){ ema9.setData([]); }
         if(chosen.has('rsi14')){
           if(!rsiPane){ rsiPane=chart.addLineSeries({ color:'#b167ff', lineWidth:2, priceScaleId:'rsi' }); chart.priceScale('rsi').applyOptions({ scaleMargins:{ top:0.02, bottom:0.65 } }); }
           rsiPane.setData(rsi(data,14));
@@ -616,22 +659,28 @@
       renderIndicators();
 
       try{ const q=await getQuote(ticker); if(q && typeof q.changePercent==='number'){ title.textContent += ` • ${q.changePercent>0?'↗':'↘'} ${q.changePercent.toFixed(2)}%`; } }catch{}
-      document.getElementById('chartModal').style.display='flex';
+      modal.style.display='flex';
     }
     function closeChart(){ document.getElementById('chartModal').style.display='none'; }
 
-    // ---------- STRIPE (front-end calls) ----------
+    // ---------- STRIPE (front-end triggers) ----------
     async function postJSON(url, body){
       const r = await fetch(url, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body||{}) });
-      if(!r.ok) throw new Error(`HTTP ${r.status}`);
-      return r.json();
+      if(!r.ok) throw new Error(`HTTP ${r.status}`); return r.json();
     }
-    document.getElementById('donate-once').addEventListener('click', async ()=>{ try{ const { url } = await postJSON('/api/checkout', { mode:'payment' }); if(url) window.location.href = url; }catch(e){ alert('Unable to start checkout.'); } });
-    document.getElementById('donate-monthly').addEventListener('click', async ()=>{ try{ const { url } = await postJSON('/api/checkout', { mode:'subscription' }); if(url) window.location.href = url; }catch(e){ alert('Unable to start checkout.'); } });
-    document.getElementById('manage-subscription').addEventListener('click', async ()=>{ try{ const { url } = await postJSON('/api/portal', {}); if(url) window.location.href = url; }catch(e){ alert('Unable to open portal.'); } });
+    document.getElementById('donate-once').addEventListener('click', async ()=>{
+      try{ const { url } = await postJSON('/api/checkout', { mode:'payment' }); if(url) window.location.href = url; }catch(e){ alert('Unable to start checkout.'); }
+    });
+    document.getElementById('donate-monthly').addEventListener('click', async ()=>{
+      try{ const { url } = await postJSON('/api/checkout', { mode:'subscription' }); if(url) window.location.href = url; }catch(e){ alert('Unable to start checkout.'); }
+    });
+    document.getElementById('manage-subscription').addEventListener('click', async ()=>{
+      try{ const { url } = await postJSON('/api/portal', {}); if(url) window.location.href = url; }catch(e){ alert('Unable to open portal.'); }
+    });
 
     // ---------- EVENTS ----------
     document.addEventListener('click', (e)=>{
+      // tabs
       const tab = e.target.closest('.tab');
       if(tab){
         document.querySelectorAll('.tab').forEach(b=>b.classList.remove('active'));
@@ -639,59 +688,73 @@
         const v = tab.dataset.tab;
         document.getElementById('view-news').style.display = (v==='news')?'block':'none';
         document.getElementById('view-scanners').style.display = (v==='scanners')?'block':'none';
-        if(v==='scanners') buildScanners();
+        document.getElementById('view-watchlist').style.display = (v==='watchlist')?'block':'none';
+        if (v==='scanners') buildScanners();
+        if (v==='watchlist') renderWatchlist();
       }
+      // chart open
       const chartLink = e.target.closest('[data-open-chart]');
       if(chartLink){ e.preventDefault(); const t = chartLink.getAttribute('data-open-chart'); if(t && t!=='GENERAL') openChart(t); }
+      // star/watchlist toggle
       const star = e.target.closest('[data-star]');
-      if(star){ const t = star.getAttribute('data-star'); toggleWatch(t); }
+      if (star){ const t=star.getAttribute('data-star'); toggleWatchlist(t); }
+      // remove from watchlist
+      const rem = e.target.closest('[data-remove]');
+      if(rem){ const t=rem.getAttribute('data-remove'); watchlist.delete(t); persistWatchlist(); renderWatchlist(); document.querySelectorAll(`[data-star="${t}"]`).forEach(btn=>{ btn.classList.remove('active'); btn.textContent='☆'; }); }
+      // filters popover toggle
+      if (e.target.id==='filtersBtn' || e.target.closest('#filtersBtn')){
+        document.getElementById('filtersPopover').classList.toggle('open');
+      }
     });
 
-    // Dropdown
-    const dd = document.getElementById('catDropdown');
-    document.getElementById('openFilters').addEventListener('click', ()=> dd.dataset.open = dd.dataset.open==='true'?'false':'true');
-    document.getElementById('closeFilters').addEventListener('click', ()=> dd.dataset.open='false');
-    document.getElementById('applyFilters').addEventListener('click', ()=>{
-      selectedCategories.clear();
-      dd.querySelectorAll('input[type="checkbox"]').forEach(c=>{ if(c.checked) selectedCategories.add(c.value); });
-      dd.dataset.open='false'; applyFilter(true);
+    // filters logic
+    document.getElementById('filtersClear').addEventListener('click', ()=>{
+      selectedCats.clear(); renderFilterChecks();
     });
-    document.getElementById('clearFilters').addEventListener('click', ()=>{
-      dd.querySelectorAll('input[type="checkbox"]').forEach(c=> c.checked=false);
-      selectedCategories.clear(); applyFilter(true);
+    document.getElementById('filtersApply').addEventListener('click', ()=>{
+      document.getElementById('filtersPopover').classList.remove('open'); applyFilter();
     });
-
-    // Watchlist UI toggles
-    document.getElementById('toggleWL').addEventListener('click', ()=>{
-      const panel=document.getElementById('wlPanel');
-      panel.classList.toggle('active');
-    });
-    document.getElementById('wlClear').addEventListener('click', ()=>{
-      wl.clear(); saveWatchlist(); applyFilter();
-    });
-    document.getElementById('onlyWatchlist').addEventListener('change', ()=> applyFilter());
-
     document.getElementById('run').addEventListener('click', ()=>fetchData());
+    document.getElementById('manualRefresh').addEventListener('click', ()=>fetchData());
+
+    // auto refresh
+    let autoTimer = null;
+    function setAutoRefresh(on){
+      if (autoTimer) { clearInterval(autoTimer); autoTimer = null; }
+      if (on) autoTimer = setInterval(()=>fetchData(), 60000);
+    }
+    const autoBox = document.getElementById('autoRefresh');
+    autoBox.addEventListener('change', ()=> setAutoRefresh(autoBox.checked));
+    setAutoRefresh(autoBox.checked);
+
+    // scanner controls
     document.getElementById('rescore').addEventListener('click', buildScanners);
 
-    // Auto refresh (60s)
-    let autoTimer=null;
-    function setAuto(on){ if(autoTimer) clearInterval(autoTimer); if(on) autoTimer=setInterval(fetchData, 60000); }
-    const autoBox=document.getElementById('autoRefresh');
-    autoBox.addEventListener('change', ()=> setAuto(autoBox.checked));
-    setAuto(autoBox.checked);
+    // watchlist controls
+    document.getElementById('wlAddBtn').addEventListener('click', ()=>{
+      const v = (document.getElementById('wlAdd').value||'').trim().toUpperCase();
+      if(!v) return; watchlist.add(v); persistWatchlist(); renderWatchlist(); document.getElementById('wlAdd').value='';
+    });
 
     // ---------- INIT ----------
+    function initFiltersUI(){
+      renderFilterChecks();
+      document.getElementById('catChecks').addEventListener('change', (e)=>{
+        if(e.target && e.target.type==='checkbox'){
+          const v = e.target.value;
+          if(e.target.checked) selectedCats.add(v); else selectedCats.delete(v);
+          updateFiltersCount();
+        }
+      });
+    }
+
     async function init(){
+      initFiltersUI();
       document.getElementById('news-feed').innerHTML = `<div class="loading">Fetching live financial news…</div>`;
-      await fetchData();               // first load (merges into store)
-      setTimeout(()=>buildScanners(), 1000); // give quotes a moment
+      await fetchData();
+      buildScanners(); // first pass
     }
     init();
-
-    // Clock badge
-    function refreshClock(){ updateClockAndSession(); }
-    setInterval(refreshClock, 15000); refreshClock();
   </script>
 </body>
 </html>
