@@ -117,7 +117,7 @@
 
     <!-- Disclaimer -->
     <div class="disclaimer">
-      <strong>Educational Purposes Only.</strong> The content on this site (including news, data, and any analysis) is provided for informational and educational purposes only and does not constitute investment, financial, or trading advice. Nothing on this website is a recommendation or endorsement to buy or sell any security. Market data may be delayed, inaccurate, or incomplete. Trading involves substantial risk, including the risk of loss. You are solely responsible for your trading decisions. Consider consulting a licensed financial professional. We make no warranties and assume no liability for any losses arising from use of this site.
+      <strong>Educational Purposes Only.</strong> The content on this site (including news, data, and any analysis) is provided for informational and educational purposes only and does not constitute investment, financial, or trading advice.
     </div>
 
     <!-- Tabs -->
@@ -147,17 +147,14 @@
         <button class="btn" id="run">Search</button>
         <button class="btn" id="manualRefresh" title="Refresh now">Refresh</button>
         <label class="meta" style="display:flex;align-items:center;gap:6px">
-          <input type="checkbox" id="autoRefresh" checked />
-          Auto (60s)
+          <input type="checkbox" id="autoRefresh" checked /> Auto (60s)
         </label>
         <!-- Optional metrics toggles -->
         <label class="meta" style="display:flex;align-items:center;gap:6px">
-          <input type="checkbox" id="showPct" checked />
-          Show % change
+          <input type="checkbox" id="showPct" checked /> Show % change
         </label>
         <label class="meta" style="display:flex;align-items:center;gap:6px">
-          <input type="checkbox" id="showRVOL" />
-          Show RVOL
+          <input type="checkbox" id="showRVOL" /> Show RVOL
         </label>
       </div>
 
@@ -180,16 +177,13 @@
         <button class="btn" id="rescore">Recalculate</button>
         <!-- Optional metrics toggles -->
         <label class="meta" style="display:flex;align-items:center;gap:6px">
-          <input type="checkbox" id="scanShowRVOL" />
-          Show RVOL
+          <input type="checkbox" id="scanShowRVOL" /> Show RVOL
         </label>
         <label class="meta" style="display:flex;align-items:center;gap:6px">
-          <input type="checkbox" id="scanShowMentions" />
-          Show Mentions
+          <input type="checkbox" id="scanShowMentions" /> Show Mentions
         </label>
         <label class="meta" style="display:flex;align-items:center;gap:6px">
-          <input type="checkbox" id="scanShowChart" checked />
-          Show mini chart
+          <input type="checkbox" id="scanShowChart" checked /> Show mini chart
         </label>
       </div>
       <div id="scanner-grid" class="grid">
@@ -296,19 +290,12 @@
         scanOptShowChart = prefs.scanChart ?? true;
       } catch {}
     })();
-    function persistStore(){
-      try { localStorage.setItem('newsStoreV1', JSON.stringify(Array.from(allNewsStore.values()))); } catch {}
-    }
-    function persistWatchlist(){
-      try { localStorage.setItem('watchlistV1', JSON.stringify(Array.from(watchlist.values()))); } catch {}
-    }
+    function persistStore(){ try { localStorage.setItem('newsStoreV1', JSON.stringify(Array.from(allNewsStore.values()))); } catch {} }
+    function persistWatchlist(){ try { localStorage.setItem('watchlistV1', JSON.stringify(Array.from(watchlist.values()))); } catch {} }
     function persistMetricPrefs(){
-      try {
-        localStorage.setItem('metricPrefsV1', JSON.stringify({
-          newsPct: optShowPct, newsRVOL: optShowRVOL,
-          scanRVOL: scanOptShowRVOL, scanMentions: scanOptShowMentions, scanChart: scanOptShowChart
-        }));
-      } catch {}
+      try { localStorage.setItem('metricPrefsV1', JSON.stringify({
+        newsPct: optShowPct, newsRVOL: optShowRVOL, scanRVOL: scanOptShowRVOL, scanMentions: scanOptShowMentions, scanChart: scanOptShowChart
+      })); } catch {}
     }
 
     // ---------- HELPERS ----------
@@ -357,33 +344,26 @@
       return m.volume / m.avgVolume;
     }
 
-    // *** FIXED sparkline: works closed hours via last-session -> 5m -> daily ***
+    // S P A R K L I N E  (last session -> 5m -> daily)
     async function drawSparkline(el, ticker){
-      if (!el || !ticker || ticker === 'GENERAL' || !/^[A-Z]{1,5}$/.test(ticker)) {
-        el.innerHTML = ''; 
-        return;
-      }
+      if (!el || !ticker || ticker === 'GENERAL' || !/^[A-Z]{1,5}$/.test(ticker)) { el.innerHTML=''; return; }
       try{
         let r = await fetch(`/api/ohlc?ticker=${encodeURIComponent(ticker)}&interval=1min&limit=180&last=1`);
-        let ok = r.ok; 
-        let payload = ok ? await r.json() : { candles: [] };
-        let candles = payload?.candles || [];
+        let payload = r.ok ? await r.json() : {candles:[]};
+        let candles = payload.candles || [];
 
         if (candles.length < 2) {
           r = await fetch(`/api/ohlc?ticker=${encodeURIComponent(ticker)}&interval=5min&limit=180&last=1`);
-          ok = r.ok; payload = ok ? await r.json() : { candles: [] };
-          candles = payload?.candles || [];
+          payload = r.ok ? await r.json() : {candles:[]};
+          candles = payload.candles || [];
         }
         if (candles.length < 2) {
           r = await fetch(`/api/ohlc?ticker=${encodeURIComponent(ticker)}&interval=day&limit=60&last=1`);
-          ok = r.ok; payload = ok ? await r.json() : { candles: [] };
-          candles = payload?.candles || [];
+          payload = r.ok ? await r.json() : {candles:[]};
+          candles = payload.candles || [];
         }
 
-        if (!Array.isArray(candles) || candles.length < 2) {
-          el.innerHTML = '';
-          return;
-        }
+        if (!Array.isArray(candles) || candles.length < 2) { el.innerHTML=''; return; }
 
         const closes = candles.map(c=>c.c);
         const w = el.clientWidth || 220, h = el.clientHeight || 60, pad = 5;
@@ -391,31 +371,24 @@
         const xStep = (w - 2*pad) / (closes.length - 1);
         const y = v => h - pad - ((v - min) / (max - min || 1)) * (h - 2*pad);
 
-        let d = '';
-        closes.forEach((v, i) => {
-          const x = pad + i * xStep;     // <— critical fix
-          const yy = y(v);
-          d += (i ? `L${x},${yy}` : `M${x},${yy}`);
-        });
-
-        const color = closes[closes.length - 1] >= closes[0] ? '#24e39c' : '#ff5b6e';
-        el.innerHTML = `<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">
-          <path d="${d}" fill="none" stroke="${color}" stroke-width="2"/>
-        </svg>`;
-      }catch(err){
-        console.error('sparkline error', ticker, err);
-        el.innerHTML = '';
-      }
+        let d=''; closes.forEach((v,i)=>{ const x = pad + i * xStep; const yy = y(v); d += (i?`L${x},${yy}`:`M${x},${yy}`); });
+        const color = closes[closes.length-1] >= closes[0] ? '#24e39c' : '#ff5b6e';
+        el.innerHTML = `<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}"><path d="${d}" fill="none" stroke="${color}" stroke-width="2"/></svg>`;
+      }catch{ el.innerHTML=''; }
     }
 
     // ---------- FILTER UI ----------
     function renderFilterChecks(){
       const wrap = document.getElementById('catChecks');
-      wrap.innerHTML = CATEGORIES.map(([val,label])=>{
-        const checked = selectedCats.has(val) ? 'checked' : '';
-        return `<label><input type="checkbox" value="${val}" ${checked}/> ${label}</label>`;
-      }).join('');
+      wrap.innerHTML = CATEGORIES.map(([val,label])=>`<label><input type="checkbox" value="${val}"/> ${label}</label>`).join('');
       updateFiltersCount();
+      wrap.addEventListener('change', (e)=>{
+        if(e.target && e.target.type==='checkbox'){
+          const v = e.target.value;
+          if(e.target.checked) selectedCats.add(v); else selectedCats.delete(v);
+          updateFiltersCount();
+        }
+      });
     }
     function updateFiltersCount(){
       const span = document.getElementById('filtersCount');
@@ -465,7 +438,7 @@
       renderNews();
     }
 
-    // ---------- RENDER NEWS (eager mini-charts) ----------
+    // ---------- RENDER NEWS (always draw mini-charts) ----------
     function renderNews(){
       const feed = document.getElementById('news-feed');
       if (!filteredNews.length){
@@ -502,7 +475,7 @@
       document.querySelectorAll('[data-optional="pct"]').forEach(n=> n.style.display = optShowPct ? '' : 'none');
       document.querySelectorAll('[data-optional="rvol"]').forEach(n=> n.style.display = optShowRVOL ? '' : 'none');
 
-      // hydrate every card (no lazy—always draw)
+      // hydrate every card (no lazy)
       document.querySelectorAll('#news-feed .news-item').forEach(async (card)=>{
         const t = (card.querySelector('.mini-chart')?.dataset?.ticker||'').toUpperCase();
         if(!t || t==='GENERAL') return;
@@ -684,9 +657,21 @@
       title.textContent = `${ticker} — intraday (1m)`;
       body.innerHTML = '';
 
-      const r = await fetch(`/api/ohlc?ticker=${encodeURIComponent(ticker)}&interval=1min&limit=300&last=1`);
-      const payload = await r.json();
-      const candles = payload.candles||[];
+      // try last session, then 5m, then daily (same ladder as sparkline)
+      let r = await fetch(`/api/ohlc?ticker=${encodeURIComponent(ticker)}&interval=1min&limit=300&last=1`);
+      let payload = r.ok ? await r.json() : {candles:[]};
+      let candles = payload.candles||[];
+      if (candles.length < 2){
+        r = await fetch(`/api/ohlc?ticker=${encodeURIComponent(ticker)}&interval=5min&limit=300&last=1`);
+        payload = r.ok ? await r.json() : {candles:[]};
+        candles = payload.candles||[];
+      }
+      if (candles.length < 2){
+        r = await fetch(`/api/ohlc?ticker=${encodeURIComponent(ticker)}&interval=day&limit=120&last=1`);
+        payload = r.ok ? await r.json() : {candles:[]};
+        candles = payload.candles||[];
+      }
+
       const data = candles.map(k=>({ time:Math.floor(new Date(k.t).getTime()/1000), open:k.o, high:k.h, low:k.l, close:k.c, volume:k.v }));
 
       const container = document.createElement('div'); container.style.width='100%'; container.style.height='100%'; body.appendChild(container);
@@ -704,6 +689,7 @@
       volSeries.setData(data.map(k=>({ time:k.time, value:k.volume, color: k.close>=k.open?'#24e39c':'#ff5b6e' })));
       chart.priceScale('').applyOptions({ scaleMargins:{ top:0.8, bottom:0 } });
 
+      // indicators with saved prefs
       let vwap=null,sma20=null,ema9=null,rsiPane=null;
       const checks = Array.from(document.querySelectorAll('.modal .ind'));
       const pref = getIndPrefs(); checks.forEach(ch=> ch.checked = !!pref[ch.value] || ch.checked);
@@ -717,10 +703,8 @@
           const v = data.map(k=>{ const typ=(k.high+k.low+k.close)/3; cumPV+=typ*(k.volume||0); cumV+=(k.volume||0)||1; return {time:k.time,value:cumPV/cumV}; });
           vwap.setData(v);
         } else if(vwap){ vwap.setData([]); }
-        if(chosen.has('sma20')){ if(!sma20) sma20=chart.addLineSeries({color:'#8f6cff',lineWidth:2}); sma20.setData(sma(data,20)); }
-        else if(sma20){ sma20.setData([]); }
-        if(chosen.has('ema9')){ if(!ema9) ema9=chart.addLineSeries({color:'#c08bff',lineWidth:2}); ema9.setData(ema(data,9)); }
-        else if(ema9){ ema9.setData([]); }
+        if(chosen.has('sma20')){ if(!sma20) sma20=chart.addLineSeries({color:'#8f6cff',lineWidth:2}); sma20.setData(sma(data,20)); } else if(sma20){ sma20.setData([]); }
+        if(chosen.has('ema9')){ if(!ema9) ema9=chart.addLineSeries({color:'#c08bff',lineWidth:2}); ema9.setData(ema(data,9)); } else if(ema9){ ema9.setData([]); }
         if(chosen.has('rsi14')){
           if(!rsiPane){ rsiPane=chart.addLineSeries({ color:'#b167ff', lineWidth:2, priceScaleId:'rsi' }); chart.priceScale('rsi').applyOptions({ scaleMargins:{ top:0.02, bottom:0.65 } }); }
           rsiPane.setData(rsi(data,14));
@@ -746,7 +730,7 @@
       try{ const { url } = await postJSON('/api/checkout', { mode:'subscription' }); if(url) window.location.href = url; }catch(e){ alert('Unable to start checkout.'); }
     });
     document.getElementById('manage-subscription').addEventListener('click', async ()=>{
-      try{ const { url } = await postJSON('/api/portal', {}); if(url) window.location.href = url; }catch(e){ alert('Unable to open portal.'); }
+      try{ const { url } = await postJSON('/api/portal', {}); ifurl) window.location.href = url; }catch(e){ alert('Unable to open portal.'); }
     });
 
     // ---------- EVENTS ----------
@@ -779,12 +763,8 @@
     });
 
     // filters logic
-    document.getElementById('filtersClear').addEventListener('click', ()=>{
-      selectedCats.clear(); renderFilterChecks();
-    });
-    document.getElementById('filtersApply').addEventListener('click', ()=>{
-      document.getElementById('filtersPopover').classList.remove('open'); applyFilter();
-    });
+    document.getElementById('filtersClear').addEventListener('click', ()=>{ selectedCats.clear(); renderFilterChecks(); });
+    document.getElementById('filtersApply').addEventListener('click', ()=>{ document.getElementById('filtersPopover').classList.remove('open'); applyFilter(); });
     document.getElementById('run').addEventListener('click', ()=>fetchData());
     document.getElementById('manualRefresh').addEventListener('click', ()=>fetchData());
 
@@ -809,44 +789,24 @@
 
     // auto refresh
     let autoTimer = null;
-    function setAutoRefresh(on){
-      if (autoTimer) { clearInterval(autoTimer); autoTimer = null; }
-      if (on) autoTimer = setInterval(()=>fetchData(), 60000);
-    }
+    function setAutoRefresh(on){ if (autoTimer) { clearInterval(autoTimer); autoTimer = null; } if (on) autoTimer = setInterval(()=>fetchData(), 60000); }
     const autoBox = document.getElementById('autoRefresh');
     autoBox.addEventListener('change', ()=> setAutoRefresh(autoBox.checked));
     setAutoRefresh(autoBox.checked);
 
-    // scanner controls
+    // scanner + watchlist controls
     document.getElementById('rescore').addEventListener('click', buildScanners);
-
-    // watchlist controls
     document.getElementById('wlAddBtn').addEventListener('click', ()=>{
       const v = (document.getElementById('wlAdd').value||'').trim().toUpperCase();
       if(!v) return; watchlist.add(v); persistWatchlist(); renderWatchlist(); document.getElementById('wlAdd').value='';
     });
 
-    // init filters UI
-    function renderFilterChecksInit(){
-      const wrap = document.getElementById('catChecks');
-      wrap.innerHTML = CATEGORIES.map(([val,label])=>`<label><input type="checkbox" value="${val}"/> ${label}</label>`).join('');
-      wrap.addEventListener('change', (e)=>{
-        if(e.target && e.target.type==='checkbox'){
-          const v = e.target.value;
-          if(e.target.checked) selectedCats.add(v); else selectedCats.delete(v);
-          updateFiltersCount();
-        }
-      });
-      updateFiltersCount();
-    }
-
     // ---------- INIT ----------
     async function init(){
-      renderFilterChecksInit();
+      renderFilterChecks();
       document.getElementById('news-feed').innerHTML = `<div class="loading">Fetching live financial news…</div>`;
       await fetchData();
       buildScanners();
-      // persist UI prefs now that controls exist
       persistMetricPrefs();
     }
     init();
