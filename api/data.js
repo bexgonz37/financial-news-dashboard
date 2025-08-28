@@ -30,9 +30,9 @@ export default async function handler(req, res) {
 
     const {
       ticker,
-      category,        // optional: maps to topics for AV + used in front-end filter
-      limit = 30,      // news articles to request
-      search           // optional: client side filter
+      category,        // optional: AV "topics" (we still apply client filters on frontend)
+      limit = 30,
+      search
     } = req.query;
 
     const [newsData, stockData, marketData] = await Promise.allSettled([
@@ -79,7 +79,6 @@ async function fetchNewsData(apiKey, ticker, category, search, limit) {
   });
 
   if (ticker) params.set('tickers', ticker.toUpperCase());
-  // Alpha Vantage "topics": e.g., 'financial_markets', 'technology', etc.
   if (category && category !== 'all') params.set('topics', category);
 
   const url = `https://www.alphavantage.co/query?${params.toString()}`;
@@ -89,7 +88,6 @@ async function fetchNewsData(apiKey, ticker, category, search, limit) {
   const data = await r.json();
   const feed = Array.isArray(data.feed) ? data.feed : [];
 
-  // Optional keyword filter (client side)
   const rows = search
     ? feed.filter(a =>
         (a.title || '').toLowerCase().includes(search.toLowerCase()) ||
@@ -98,10 +96,11 @@ async function fetchNewsData(apiKey, ticker, category, search, limit) {
     : feed;
 
   return rows.map(a => {
-    const iso = normalizeAVTime(a.time_published); // "YYYYMMDDTHHMMSS" -> ISO
-    const tkr = (Array.isArray(a.ticker_sentiment) && a.ticker_sentiment.length)
-      ? (a.ticker_sentiment[0].ticker || extractTickerFromTitle(a.title) || 'GENERAL')
-      : (extractTickerFromTitle(a.title) || 'GENERAL');
+    const iso = normalizeAVTime(a.time_published);
+    const fromAV = Array.isArray(a.ticker_sentiment) && a.ticker_sentiment.length
+      ? (a.ticker_sentiment[0].ticker || '')
+      : '';
+    const tkr = sanitizeTicker(fromAV) || extractTickerFromTitle(a.title) || 'GENERAL';
 
     return {
       id: a.url,
@@ -120,13 +119,16 @@ async function fetchNewsData(apiKey, ticker, category, search, limit) {
   });
 }
 
-// "20250101T134522" -> "2025-01-01T13:45:22Z"
 function normalizeAVTime(s) {
   if (!s || typeof s !== 'string' || s.length < 15) return null;
-  // AV times are UTC
   const y = s.slice(0, 4), m = s.slice(4, 6), d = s.slice(6, 8);
   const H = s.slice(9, 11), M = s.slice(11, 13), S = s.slice(13, 15);
   return `${y}-${m}-${d}T${H}:${M}:${S}Z`;
+}
+function sanitizeTicker(t) {
+  if (!t) return '';
+  const m = (t.toUpperCase().match(/^[A-Z]{1,5}$/) || [])[0];
+  return m || '';
 }
 
 // ---------- Finnhub Quote ----------
@@ -149,7 +151,7 @@ async function fetchStockData(apiKey, ticker) {
   };
 }
 
-// ---------- FMP Market Stats (for RVOL inputs, etc.) ----------
+// ---------- FMP Market Stats ----------
 async function fetchMarketData(apiKey, ticker) {
   if (!ticker) return null;
   const url = `https://financialmodelingprep.com/api/v3/quote/${ticker.toUpperCase()}?apikey=${apiKey}`;
@@ -179,22 +181,15 @@ async function fetchMarketData(apiKey, ticker) {
 // ---------- Helpers ----------
 function extractTickerFromTitle(title) {
   if (!title) return null;
-  const pats = [
-    /\(([A-Z]{1,5})\)/,
-    /\b([A-Z]{1,5})\b/,
-    /([A-Z]{1,5}) stock/i,
-    /([A-Z]{1,5}) shares/i
-  ];
-  for (const p of pats) {
-    const m = title.match(p);
-    if (m && m[1] && /^[A-Z]+$/.test(m[1])) return m[1];
-  }
+  // prefer parenthetical tickers like "(NVDA)" but reject common words
+  const paren = title.match(/\(([A-Z]{1,5})\)/);
+  if (paren && paren[1]) return paren[1];
+  const m = title.match(/\b([A-Z]{1,5})\b/);
+  if (m && m[1] && !['CEO','USA','NYSE','SEC','ETF','IPO','AI','FDA','EPS','QEQ','QOQ','YOY','USD'].includes(m[1])) return m[1];
   return null;
 }
-
 function categorizeNews(title, description = '') {
   const c = `${title || ''} ${description || ''}`.toLowerCase();
-
   if (/public offering|secondary|atm|shelf|registered direct|follow-?on/.test(c)) return 'offering';
   if (/guidance|outlook|raises guidance|lowers guidance|updates guidance/.test(c)) return 'guidance';
   if (/downgrade|downgraded|price target cut/.test(c)) return 'downgrade';
@@ -203,12 +198,10 @@ function categorizeNews(title, description = '') {
   if (/\bproduct\b|launch|rollout|introduces/.test(c)) return 'product';
   if (/sec filing|\b8-k\b|\b10-q\b|\b10-k\b|\bs-1\b|\bs-3\b/.test(c)) return 'sec';
   if (/insider (buy|sell|purchase|sale)/.test(c)) return 'insider';
-
   if (/medical|fda|health|drug|trial|phase (1|2|3)/.test(c)) return 'medical';
   if (/patent|intellectual property|\bip\b/.test(c)) return 'patent';
   if (/lawsuit|legal|court|sue/.test(c)) return 'lawsuit';
   if (/acquisition|merger|buyout|takeover/.test(c)) return 'acquisition';
   if (/earnings|quarterly|revenue|profit|\beps\b/.test(c)) return 'earnings';
-
   return 'general';
 }
