@@ -280,4 +280,93 @@ function identifyTradingOpportunity(news, ticker) {
 function assessRiskLevel(news, ticker) {
   if (ticker === 'GENERAL') return 'Low';
   
-  const text = `${news.title} ${news.summary}`
+  const text = `${news.title} ${news.summary}`.toLowerCase();
+  
+  if (text.includes('risk') || text.includes('warning') || text.includes('caution')) {
+    return 'High';
+  } else if (text.includes('uncertainty') || text.includes('volatile')) {
+    return 'Medium';
+  }
+  
+  return 'Low';
+}
+
+function extractSectorFromContent(news) {
+  const text = `${news.title} ${news.summary}`.toLowerCase();
+  
+  const sectors = {
+    'technology': ['tech', 'software', 'ai', 'artificial intelligence', 'cloud', 'cybersecurity'],
+    'healthcare': ['health', 'medical', 'pharma', 'biotech', 'clinical', 'fda'],
+    'finance': ['bank', 'financial', 'investment', 'trading', 'fintech', 'crypto'],
+    'energy': ['oil', 'gas', 'renewable', 'solar', 'wind', 'energy'],
+    'consumer': ['retail', 'consumer', 'ecommerce', 'shopping', 'brand'],
+    'industrial': ['manufacturing', 'industrial', 'automotive', 'aerospace', 'construction']
+  };
+  
+  for (const [sector, keywords] of Object.entries(sectors)) {
+    for (const keyword of keywords) {
+      if (text.includes(keyword)) {
+        return sector;
+      }
+    }
+  }
+  
+  return 'Other';
+}
+
+function categorizeMarketCap(news) {
+  // This would integrate with market cap data
+  return 'Unknown';
+}
+
+function assessVolatilityImpact(news) {
+  const text = `${news.title} ${news.summary}`.toLowerCase();
+  
+  if (text.includes('volatile') || text.includes('swing') || text.includes('jump')) {
+    return 'High';
+  } else if (text.includes('stable') || text.includes('steady')) {
+    return 'Low';
+  }
+  
+  return 'Medium';
+}
+
+function assessEarningsImpact(news) {
+  const text = `${news.title} ${news.summary}`.toLowerCase();
+  
+  if (text.includes('earnings') || text.includes('quarterly') || text.includes('annual')) {
+    return 'Direct';
+  }
+  
+  return 'Indirect';
+}
+
+function assessRegulatoryImpact(news) {
+  const text = `${news.title} ${news.summary}`.toLowerCase();
+  
+  if (text.includes('regulation') || text.includes('fda') || text.includes('sec') || text.includes('government')) {
+    return 'High';
+  }
+  
+  return 'Low';
+}
+
+function assessCompetitiveImpact(news) {
+  const text = `${news.title} ${news.summary}`.toLowerCase();
+  
+  if (text.includes('competitor') || text.includes('rival') || text.includes('market share')) {
+    return 'High';
+  }
+  
+  return 'Low';
+}
+
+function assessGlobalImpact(news) {
+  const text = `${news.title} ${news.summary}`.toLowerCase();
+  
+  if (text.includes('global') || text.includes('international') || text.includes('china') || text.includes('europe')) {
+    return 'High';
+  }
+  
+  return 'Low';
+}
