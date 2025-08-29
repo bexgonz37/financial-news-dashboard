@@ -1,8 +1,4 @@
-// /api/ohlc.js
-// Robust OHLC for intraday mini-charts & modal charts.
-// Tries current session, then previous session (last=1), widens lookback,
-// falls back to 5m/15m if 1m is empty, and finally to daily candles.
-
+// OHLC Data API - Enhanced with better error handling
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
@@ -12,69 +8,120 @@ export default async function handler(req, res) {
   if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' });
 
   try {
-    const { ticker, interval = '1min', limit = 180, last = '0' } = req.query;
-    if (!ticker) return res.status(400).json({ error: 'Ticker required' });
+    const { ticker, interval = '5min', limit = 100, last } = req.query;
 
-    const apiKey = process.env.FINNHUB_KEY;
-    if (!apiKey) return res.status(500).json({ error: 'Missing FINNHUB_KEY' });
-
-    // Map UI interval to Finnhub resolution
-    const resMap = { '1min': '1', '5min': '5', '15min': '15', '30min': '30', '60min': '60', day: 'D' };
-    const wantRes = resMap[interval] || '1';
-    const now = Math.floor(Date.now() / 1000);
-
-    // Helper: call Finnhub
-    async function fetchCandles(resolution, fromTs, toTs) {
-      const url = `https://finnhub.io/api/v1/stock/candle?symbol=${encodeURIComponent(
-        ticker.toUpperCase()
-      )}&resolution=${resolution}&from=${fromTs}&to=${toTs}&token=${apiKey}`;
-      const r = await fetch(url);
-      if (!r.ok) throw new Error(`Finnhub error ${r.status}`);
-      const data = await r.json();
-      if (data.s !== 'ok' || !Array.isArray(data.t) || !data.t.length) return [];
-      return data.t.map((t, i) => ({
-        t: new Date(t * 1000).toISOString(),
-        o: data.o[i],
-        h: data.h[i],
-        l: data.l[i],
-        c: data.c[i],
-        v: data.v[i]
-      }));
+    if (!ticker) {
+      return res.status(400).json({ error: 'Ticker parameter is required' });
     }
 
-    // generous lookback (covers closed hours/weekends)
-    const minsBack = Math.max(180, parseInt(limit, 10) || 180);
-    const from1 = now - minsBack * 60;
-    const from2 = now - 3 * 24 * 60 * 60; // 3 days back to catch prior sessions/weekends
+    const candles = await fetchCandles(ticker, interval, limit, last);
 
-    // 1) Try requested resolution around now
-    let candles = await fetchCandles(wantRes, from1, now);
-
-    // 2) If empty and last=1 (or empty anyway), widen to prior days
-    if ((!candles || candles.length < 2) && last === '1') {
-      candles = await fetchCandles(wantRes, from2, now);
-    }
-
-    // 3) If still empty, try coarser intraday resolutions
-    if (!candles || candles.length < 2) {
-      const tryRes = wantRes === '1' ? ['5', '15'] : wantRes === '5' ? ['15'] : [];
-      for (const r of tryRes) {
-        const alt = await fetchCandles(r, from2, now);
-        if (alt && alt.length >= 2) { candles = alt; break; }
+    return res.status(200).json({
+      success: true,
+      data: {
+        ticker: ticker.toUpperCase(),
+        interval,
+        candles,
+        timestamp: new Date().toISOString()
       }
-    }
+    });
 
-    // 4) Last resort: daily candles
-    if (!candles || candles.length < 2) {
-      const daily = await fetchCandles('D', from2, now);
-      if (daily && daily.length >= 2) {
-        candles = daily.map(d => ({ t: d.t, o: d.c, h: d.c, l: d.c, c: d.c, v: d.v || 0 }));
-      }
-    }
-
-    return res.status(200).json({ candles: candles || [] });
-  } catch (err) {
-    console.error('OHLC error', err);
-    return res.status(500).json({ error: err.message });
+  } catch (error) {
+    console.error('OHLC API Error:', error);
+    return res.status(500).json({ 
+      success: false, 
+      error: 'Failed to fetch OHLC data',
+      message: error.message 
+    });
   }
+}
+
+async function fetchCandles(ticker, interval, limit, last) {
+  const apiKey = process.env.FINNHUB_KEY;
+  if (!apiKey) {
+    throw new Error('Finnhub API key not configured');
+  }
+
+  try {
+    // Try different intervals if the requested one fails
+    const intervals = [interval, '5min', '1hour', '1day'];
+    
+    for (const currentInterval of intervals) {
+      try {
+        const response = await fetch(
+          `https://finnhub.io/api/v1/stock/candle?symbol=${ticker.toUpperCase()}&resolution=${currentInterval}&from=${getFromTimestamp(currentInterval, limit)}&to=${Math.floor(Date.now() / 1000)}&token=${apiKey}`
+        );
+
+        if (!response.ok) {
+          throw new Error(`Finnhub API error: ${response.status}`);
+        }
+
+        const data = await response.json();
+        
+        if (data.s === 'ok' && data.c && data.c.length > 0) {
+          const candles = formatCandles(data, currentInterval);
+          
+          // Apply limit and last filters
+          let filteredCandles = candles;
+          if (last) {
+            filteredCandles = candles.slice(-parseInt(last));
+          } else if (limit) {
+            filteredCandles = candles.slice(-parseInt(limit));
+          }
+          
+          return filteredCandles;
+        } else {
+          console.warn(`No data for ${ticker} with interval ${currentInterval}`);
+          continue;
+        }
+      } catch (intervalError) {
+        console.warn(`Failed to fetch ${ticker} with interval ${currentInterval}:`, intervalError);
+        continue;
+      }
+    }
+    
+    // If all intervals fail, return empty array
+    console.warn(`All intervals failed for ${ticker}`);
+    return [];
+    
+  } catch (error) {
+    console.error(`Error fetching candles for ${ticker}:`, error);
+    return [];
+  }
+}
+
+function getFromTimestamp(interval, limit) {
+  const now = Math.floor(Date.now() / 1000);
+  const limitNum = parseInt(limit) || 100;
+  
+  let secondsPerCandle;
+  switch (interval) {
+    case '1min': secondsPerCandle = 60; break;
+    case '5min': secondsPerCandle = 300; break;
+    case '15min': secondsPerCandle = 900; break;
+    case '30min': secondsPerCandle = 1800; break;
+    case '1hour': secondsPerCandle = 3600; break;
+    case '1day': secondsPerCandle = 86400; break;
+    default: secondsPerCandle = 300; // Default to 5min
+  }
+  
+  return now - (limitNum * secondsPerCandle);
+}
+
+function formatCandles(data, interval) {
+  const { t, o, h, l, c, v } = data;
+  const candles = [];
+  
+  for (let i = 0; i < t.length; i++) {
+    candles.push({
+      t: t[i] * 1000, // Convert to milliseconds
+      o: o[i],
+      h: h[i],
+      l: l[i],
+      c: c[i],
+      v: v[i]
+    });
+  }
+  
+  return candles;
 }
