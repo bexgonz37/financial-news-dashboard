@@ -1,8 +1,8 @@
 // Financial News Data API - Enhanced with Comprehensive Company Matching
-import { findCompanyMatches } from './company-matcher.js';
-import { findCompanyByTicker, findCompaniesByName } from './company-database-dynamic.js';
+const { findCompanyMatches } = require('./company-matcher.js');
+const { findCompanyByTicker, findCompaniesByName } = require('./company-database-dynamic.js');
 
-export default async function handler(req, res) {
+module.exports = async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
@@ -98,179 +98,109 @@ async function processNewsWithCompanyMatching(newsData, title, summary, text) {
               ticker = 'GENERAL'; // Low confidence match
             }
           } else {
-            // Multiple companies mentioned - mark as GENERAL
-            ticker = 'GENERAL';
-          }
-        } else {
-          // Try dynamic company matching
-          const matches = await findCompanyMatches(articleText);
-          
-          if (matches && matches.length > 0) {
-            const companyCount = matches.length;
+            // Multiple companies - use the most relevant one
+            const bestCompany = companies.reduce((best, current) => {
+              const bestScore = calculateExactMatchScore(articleText, best);
+              const currentScore = calculateExactMatchScore(articleText, current);
+              return currentScore > bestScore ? current : best;
+            });
             
-            if (companyCount === 1) {
-              const match = matches[0];
-              if (match.confidence >= 0.7) {
-                ticker = match.ticker;
-                sentimentScore = match.confidence;
-              } else {
-                ticker = 'GENERAL';
-              }
-            } else {
-              ticker = 'GENERAL';
+            const matchScore = calculateExactMatchScore(articleText, bestCompany);
+            if (matchScore >= 0.6) {
+              ticker = bestCompany.ticker;
+              sentimentScore = 0.4; // Lower confidence for multiple matches
             }
-          } else {
-            // Fallback to regex extraction
-            ticker = extractTickerFromTitle(news.title);
           }
         }
       }
 
-      // Categorize news
-      category = categorizeNews(news.title, news.summary);
+      // Determine category based on ticker and content
+      if (ticker !== 'GENERAL') {
+        category = 'Company Specific';
+      } else if (news.topics && news.topics.length > 0) {
+        category = news.topics[0];
+      } else {
+        category = 'General Market';
+      }
 
-      processedNews.push({
+      // Enhanced sentiment analysis
+      let overallSentiment = 'neutral';
+      let sentimentLabel = 'Neutral';
+      
+      if (news.overall_sentiment_label) {
+        overallSentiment = news.overall_sentiment_label.toLowerCase();
+        sentimentLabel = news.overall_sentiment_label;
+      } else if (sentimentScore > 0.6) {
+        overallSentiment = 'positive';
+        sentimentLabel = 'Positive';
+      } else if (sentimentScore < 0.4) {
+        overallSentiment = 'negative';
+        sentimentLabel = 'Negative';
+      }
+
+      // Calculate relevance score
+      let relevanceScore = 0;
+      if (news.relevance_score) {
+        relevanceScore = parseFloat(news.relevance_score);
+      } else if (ticker !== 'GENERAL') {
+        relevanceScore = 0.7; // Default relevance for company-specific news
+      } else {
+        relevanceScore = 0.5; // Default relevance for general news
+      }
+
+      // Enhanced news processing
+      const processedNewsItem = {
+        id: news.id || `news_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
         title: news.title,
         summary: news.summary,
         url: news.url,
-        publishedAt: news.time_published,
-        source: news.source,
+        time_published: news.time_published,
+        authors: news.authors || [],
         ticker: ticker,
         category: category,
-        sentimentScore: sentimentScore
-      });
+        sentiment: {
+          overall: overallSentiment,
+          label: sentimentLabel,
+          score: sentimentScore,
+          relevance: relevanceScore
+        },
+        source: news.source,
+        banner_image: news.banner_image,
+        summary_short: news.summary_short || news.summary?.substring(0, 150) + '...',
+        ticker_sentiment: news.ticker_sentiment || [],
+        topics: news.topics || [],
+        overall_sentiment_score: news.overall_sentiment_score || 0,
+        overall_sentiment_label: news.overall_sentiment_label || 'Neutral',
+        relevance_score: relevanceScore,
+        source_domain: news.source_domain || extractDomain(news.url),
+        published_time: news.time_published || news.published_time,
+        // Additional fields for enhanced functionality
+        market_impact: calculateMarketImpact(news, ticker),
+        trading_opportunity: identifyTradingOpportunity(news, ticker),
+        risk_level: assessRiskLevel(news, ticker),
+        sector: extractSectorFromContent(news),
+        market_cap_category: categorizeMarketCap(news),
+        volatility_impact: assessVolatilityImpact(news),
+        earnings_impact: assessEarningsImpact(news),
+        regulatory_impact: assessRegulatoryImpact(news),
+        competitive_impact: assessCompetitiveImpact(news),
+        global_impact: assessGlobalImpact(news)
+      };
+
+      processedNews.push(processedNewsItem);
 
     } catch (error) {
       console.error('Error processing news item:', error);
-      // Add news item with default values
-      processedNews.push({
-        title: news.title,
-        summary: news.summary,
-        url: news.url,
-        publishedAt: news.time_published,
-        source: news.source,
-        ticker: 'GENERAL',
-        category: 'General',
-        sentimentScore: 0
-      });
+      // Continue with next news item
     }
   }
 
   return processedNews;
 }
 
-function extractTickerFromTitle(title) {
-  if (!title) return 'GENERAL';
-
-  // First, look for tickers in parentheses (most reliable)
-  const parenMatch = title.match(/\(([A-Z]{1,5})\)/);
-  if (parenMatch) {
-    const ticker = parenMatch[1];
-    if (!isCommonWord(ticker)) {
-      return ticker;
-    }
-  }
-
-  // Look for ticker patterns
-  const tickerMatch = title.match(/\b([A-Z]{1,5})\b/g);
-  if (tickerMatch) {
-    for (const match of tickerMatch) {
-      if (!isCommonWord(match)) {
-        return match;
-      }
-    }
-  }
-
-  return 'GENERAL';
-}
-
-function isCommonWord(word) {
-  const commonWords = new Set([
-    'CEO', 'USA', 'NYSE', 'NASDAQ', 'AI', 'FDA', 'EPS', 'IPO', 'SPAC', 'M&A',
-    'SEC', 'IRS', 'GDP', 'CPI', 'PCE', 'FOMC', 'ETF', 'IRA', '401K', 'ROI',
-    'P/E', 'P/B', 'EV', 'EBITDA', 'CFO', 'CTO', 'COO', 'CFO', 'VP', 'SVP'
-  ]);
-  return commonWords.has(word);
-}
-
-function categorizeNews(title, summary) {
-  const text = `${title} ${summary}`.toLowerCase();
-  
-  if (text.includes('earnings') || text.includes('eps') || text.includes('revenue')) return 'Earnings';
-  if (text.includes('fda') || text.includes('approval') || text.includes('clinical')) return 'FDA';
-  if (text.includes('merger') || text.includes('acquisition') || text.includes('m&a')) return 'Merger';
-  if (text.includes('insider') || text.includes('executive') || text.includes('ceo')) return 'Insider';
-  if (text.includes('short') || text.includes('squeeze') || text.includes('hedge')) return 'Short Interest';
-  if (text.includes('options') || text.includes('call') || text.includes('put')) return 'Options';
-  if (text.includes('analyst') || text.includes('rating') || text.includes('upgrade')) return 'Analyst';
-  if (text.includes('sec') || text.includes('filing') || text.includes('regulatory')) return 'SEC';
-  if (text.includes('dividend') || text.includes('payout') || text.includes('yield')) return 'Dividend';
-  if (text.includes('bankruptcy') || text.includes('chapter') || text.includes('liquidation')) return 'Bankruptcy';
-  if (text.includes('ipo') || text.includes('spac') || text.includes('debut')) return 'IPO/SPAC';
-  if (text.includes('crypto') || text.includes('bitcoin') || text.includes('blockchain')) return 'Crypto';
-  if (text.includes('meme') || text.includes('reddit') || text.includes('social')) return 'Meme Stock';
-  if (text.includes('biotech') || text.includes('pharma') || text.includes('drug')) return 'Biotech';
-  if (text.includes('ai') || text.includes('artificial intelligence') || text.includes('machine learning')) return 'AI';
-  if (text.includes('ev') || text.includes('electric vehicle') || text.includes('tesla')) return 'EV';
-  if (text.includes('cannabis') || text.includes('marijuana') || text.includes('weed')) return 'Cannabis';
-  if (text.includes('gaming') || text.includes('esports') || text.includes('console')) return 'Gaming';
-  if (text.includes('social media') || text.includes('facebook') || text.includes('twitter')) return 'Social Media';
-  if (text.includes('retail') || text.includes('ecommerce') || text.includes('amazon')) return 'Retail';
-  
-  return 'General';
-}
-
-// ---------- Helpers ----------
-function extractCompanyNames(text) {
-  if (!text) return [];
-  
-  // More strict regex patterns for company names
-  const patterns = [
-    /\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+){1,3})\b/g, // 2-4 word company names
-    /\b([A-Z][a-z]+\s+[A-Z][a-z]+)\b/g, // 2 word company names
-    /\b([A-Z][a-z]+)\b/g // Single word company names
-  ];
-  
-  const companies = new Set();
-  
-  patterns.forEach(pattern => {
-    const matches = text.match(pattern);
-    if (matches) {
-      matches.forEach(match => {
-        if (isValidCompanyName(match) && !isCommonFalsePositive(match)) {
-          companies.add(match);
-        }
-      });
-    }
-  });
-  
-  return Array.from(companies).filter(company => company.length >= 3);
-}
-
-function isValidCompanyName(name) {
-  if (!name || name.length < 3) return false;
-  
-  // Filter out common false positives
-  const falsePositives = [
-    'United States', 'New York', 'Los Angeles', 'San Francisco', 'Wall Street',
-    'Federal Reserve', 'White House', 'Congress', 'Senate', 'House',
-    'Department of', 'Ministry of', 'Central Bank', 'European Union'
-  ];
-  
-  return !falsePositives.some(fp => name.toLowerCase().includes(fp.toLowerCase()));
-}
-
-function isCommonFalsePositive(word) {
-  const falsePositives = [
-    'Market', 'Trading', 'Investment', 'Financial', 'Economic', 'Business',
-    'Company', 'Corporation', 'Inc', 'Ltd', 'LLC', 'Group', 'Holdings',
-    'International', 'Global', 'American', 'European', 'Asian', 'Pacific'
-  ];
-  
-  return falsePositives.some(fp => word.toLowerCase().includes(fp.toLowerCase()));
-}
-
 function calculateExactMatchScore(text, company) {
+  if (!text || !company) return 0;
+  
   const textLower = text.toLowerCase();
   const companyNameLower = company.name.toLowerCase();
   const tickerLower = company.ticker.toLowerCase();
@@ -284,25 +214,70 @@ function calculateExactMatchScore(text, company) {
   
   // Partial name match
   const nameWords = companyNameLower.split(' ');
-  const matchedWords = nameWords.filter(word => textLower.includes(word));
-  if (matchedWords.length > 0) {
-    score += (matchedWords.length / nameWords.length) * 0.4;
+  let partialMatches = 0;
+  for (const word of nameWords) {
+    if (word.length > 2 && textLower.includes(word)) {
+      partialMatches++;
+    }
   }
+  score += (partialMatches / nameWords.length) * 0.4;
   
   // Ticker match
   if (textLower.includes(tickerLower)) {
-    score += 0.3;
+    score += 0.6;
   }
   
-  // Alias matches
-  if (company.aliases) {
-    const aliasMatches = company.aliases.filter(alias => 
-      alias && textLower.includes(alias.toLowerCase())
-    );
-    if (aliasMatches.length > 0) {
-      score += 0.2;
-    }
+  // Sector match
+  if (company.sector && textLower.includes(company.sector.toLowerCase())) {
+    score += 0.2;
   }
   
-  return Math.min(1.0, score);
+  return Math.min(score, 1.0); // Cap at 1.0
 }
+
+function extractDomain(url) {
+  if (!url) return '';
+  try {
+    const urlObj = new URL(url);
+    return urlObj.hostname;
+  } catch {
+    return '';
+  }
+}
+
+function calculateMarketImpact(news, ticker) {
+  if (ticker === 'GENERAL') return 'Low';
+  
+  const text = `${news.title} ${news.summary}`.toLowerCase();
+  
+  if (text.includes('earnings') || text.includes('revenue') || text.includes('profit')) {
+    return 'High';
+  } else if (text.includes('partnership') || text.includes('acquisition') || text.includes('merger')) {
+    return 'Medium';
+  } else if (text.includes('product') || text.includes('launch') || text.includes('update')) {
+    return 'Medium';
+  }
+  
+  return 'Low';
+}
+
+function identifyTradingOpportunity(news, ticker) {
+  if (ticker === 'GENERAL') return 'None';
+  
+  const text = `${news.title} ${news.summary}`.toLowerCase();
+  
+  if (text.includes('beat') || text.includes('exceed') || text.includes('surge')) {
+    return 'Long';
+  } else if (text.includes('miss') || text.includes('decline') || text.includes('drop')) {
+    return 'Short';
+  } else if (text.includes('volatile') || text.includes('uncertainty')) {
+    return 'Wait';
+  }
+  
+  return 'Monitor';
+}
+
+function assessRiskLevel(news, ticker) {
+  if (ticker === 'GENERAL') return 'Low';
+  
+  const text = `${news.title} ${news.summary}`
