@@ -2,7 +2,7 @@
 // Fetches real-time company data from multiple financial APIs
 // Covers ALL publicly traded companies automatically
 
-export default async function handler(req, res) {
+module.exports = async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
@@ -104,48 +104,41 @@ async function findCompanyByTicker(ticker) {
     
     return null;
   } catch (error) {
-    console.error(`Error finding company by ticker ${ticker}:`, error);
+    console.error('Company lookup failed:', error);
     return null;
   }
 }
 
 async function findCompaniesByName(name) {
-  if (!name) return [];
+  if (!name || name.length < 2) return [];
   
   try {
     const results = [];
     
-    // Search across multiple APIs
+    // Try multiple search strategies
     const yahooResults = await searchYahooFinance(name);
     if (yahooResults) results.push(yahooResults);
     
-    if (ALPHAVANTAGE_KEY) {
-      const avResults = await searchAlphaVantage(name);
-      if (avResults) results.push(avResults);
-    }
+    const fmpResults = await searchFinancialModelingPrep(name);
+    if (fmpResults) results.push(fmpResults);
     
-    if (FMP_KEY) {
-      const fmpResults = await searchFinancialModelingPrep(name);
-      if (fmpResults) results.push(fmpResults);
-    }
+    const iexResults = await searchIEXCloud(name);
+    if (iexResults) results.push(iexResults);
     
-    if (IEXCLOUD_KEY) {
-      const iexResults = await searchIEXCloud(name);
-      if (iexResults) results.push(iexResults);
-    }
+    // Remove duplicates and sort by relevance
+    const uniqueResults = removeDuplicates(results);
+    return uniqueResults.sort((a, b) => (b.confidence || 0) - (a.confidence || 0));
     
-    // Remove duplicates and return
-    return removeDuplicates(results);
   } catch (error) {
-    console.error(`Error finding companies by name ${name}:`, error);
+    console.error('Company name search failed:', error);
     return [];
   }
 }
 
 async function searchYahooFinance(query) {
   try {
-    // Yahoo Finance search (free, no API key needed)
-    const response = await fetch(`https://query1.finance.yahoo.com/v1/finance/search?q=${encodeURIComponent(query)}&quotesCount=5&newsCount=0`);
+    // Yahoo Finance search endpoint
+    const response = await fetch(`https://query1.finance.yahoo.com/v1/finance/search?query=${encodeURIComponent(query)}&quotesCount=5&newsCount=0`);
     
     if (!response.ok) return null;
     
@@ -159,7 +152,8 @@ async function searchYahooFinance(query) {
         sector: quote.sector || 'Unknown',
         exchange: quote.exchange || 'Unknown',
         marketCap: quote.marketCap ? formatMarketCap(quote.marketCap) : 'Unknown',
-        aliases: [quote.shortname, quote.longname, quote.symbol].filter(Boolean)
+        confidence: 0.8,
+        aliases: [quote.shortname, quote.longname, quote.symbol]
       };
     }
     
@@ -188,6 +182,7 @@ async function searchAlphaVantage(query) {
         sector: match['3. type'] || 'Unknown',
         exchange: match['4. region'] || 'Unknown',
         marketCap: 'Unknown',
+        confidence: 0.7,
         aliases: [match['2. name'], match['1. symbol']]
       };
     }
@@ -217,13 +212,14 @@ async function searchFinancialModelingPrep(query) {
         sector: match.sector || 'Unknown',
         exchange: match.exchange || 'Unknown',
         marketCap: match.marketCap ? formatMarketCap(match.marketCap) : 'Unknown',
+        confidence: 0.8,
         aliases: [match.name, match.symbol]
       };
     }
     
     return null;
   } catch (error) {
-    console.warn('FMP search failed:', error);
+    console.warn('Financial Modeling Prep search failed:', error);
     return null;
   }
 }
@@ -323,4 +319,4 @@ function removeDuplicates(companies) {
 }
 
 // Export for use in other modules
-export { findCompanyByTicker, findCompaniesByName, searchCompanies };
+module.exports = { findCompanyByTicker, findCompaniesByName, searchCompanies };
