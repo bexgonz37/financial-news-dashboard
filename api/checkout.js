@@ -1,32 +1,32 @@
-// /api/checkout.js
-import Stripe from 'stripe';
+const Stripe = require('stripe');
 
-export default async function handler(req, res) {
+module.exports = async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
   try {
-    const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, { apiVersion: '2024-06-20' });
-    const { mode } = req.body || {}; // "payment" (one-time) or "subscription" (monthly)
-
-    const priceId =
-      mode === 'subscription'
-        ? process.env.STRIPE_PRICE_MONTHLY
-        : process.env.STRIPE_PRICE_ONE_TIME;
-
-    if (!priceId) return res.status(500).json({ error: 'Stripe price not configured' });
-
-    const session = await stripe.checkout.sessions.create({
-      mode: mode === 'subscription' ? 'subscription' : 'payment',
-      line_items: [{ price: priceId, quantity: 1 }],
-      success_url: process.env.STRIPE_SUCCESS_URL,
-      cancel_url: process.env.STRIPE_CANCEL_URL,
-      billing_address_collection: 'auto',
-      allow_promotion_codes: true,
+    const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
+    
+    const { amount, currency = 'usd', description } = req.body;
+    
+    if (!amount) {
+      return res.status(400).json({ error: 'Amount is required' });
+    }
+    
+    const paymentIntent = await stripe.paymentIntents.create({
+      amount,
+      currency,
+      description: description || 'Financial Dashboard Subscription',
+      automatic_payment_methods: {
+        enabled: true,
+      },
     });
-
-    res.status(200).json({ url: session.url });
-  } catch (err) {
-    console.error('Stripe checkout error:', err);
-    res.status(500).json({ error: 'Unable to create checkout session' });
+    
+    return res.status(200).json({
+      clientSecret: paymentIntent.client_secret,
+    });
+    
+  } catch (error) {
+    console.error('Checkout error:', error);
+    return res.status(500).json({ error: 'Checkout failed' });
   }
 }
