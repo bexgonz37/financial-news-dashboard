@@ -13,8 +13,8 @@ module.exports = async function handler(req, res) {
     const { ticker, search } = req.query;
     const { title, summary, text } = req.body || {};
 
-    // Get news data
-    const newsData = await fetchNewsData(ticker, search);
+    // Get enhanced news data from multiple sources
+    const newsData = await fetchEnhancedNewsData(ticker, search);
     
     // Process news with enhanced company matching
     const processedNews = await processNewsWithCompanyMatching(newsData, title, summary, text);
@@ -37,29 +37,44 @@ module.exports = async function handler(req, res) {
   }
 }
 
-async function fetchNewsData(ticker, search) {
-  const apiKey = process.env.ALPHAVANTAGE_KEY;
-  if (!apiKey) {
-    throw new Error('Alpha Vantage API key not configured');
-  }
+async function fetchEnhancedNewsData(ticker, search) {
+  try {
+    // Use the enhanced news API that pulls from multiple sources
+    const response = await fetch(`${process.env.VERCEL_URL || 'http://localhost:3000'}/api/enhanced-news?ticker=${ticker || ''}&search=${search || ''}&limit=200`);
+    
+    if (!response.ok) {
+      throw new Error(`Enhanced news API error: ${response.status}`);
+    }
+    
+    const data = await response.json();
+    return data.data?.news || [];
+  } catch (error) {
+    console.warn('Enhanced news failed, falling back to Alpha Vantage:', error);
+    
+    // Fallback to original Alpha Vantage API
+    const apiKey = process.env.ALPHAVANTAGE_KEY;
+    if (!apiKey) {
+      throw new Error('Alpha Vantage API key not configured');
+    }
 
-  let url = `https://www.alphavantage.co/query?function=NEWS_SENTIMENT&apikey=${apiKey}&limit=200`;
-  
-  if (ticker) {
-    url += `&tickers=${ticker}`;
-  }
-  
-  if (search) {
-    url += `&topics=${search}`;
-  }
+    let url = `https://www.alphavantage.co/query?function=NEWS_SENTIMENT&apikey=${apiKey}&limit=200`;
+    
+    if (ticker) {
+      url += `&tickers=${ticker}`;
+    }
+    
+    if (search) {
+      url += `&topics=${search}`;
+    }
 
-  const response = await fetch(url);
-  if (!response.ok) {
-    throw new Error(`Alpha Vantage API error: ${response.status}`);
-  }
+    const response = await fetch(url);
+    if (!response.ok) {
+      throw new Error(`Alpha Vantage API error: ${response.status}`);
+    }
 
-  const data = await response.json();
-  return data.feed || [];
+    const data = await response.json();
+    return data.feed || [];
+  }
 }
 
 async function processNewsWithCompanyMatching(newsData, title, summary, text) {

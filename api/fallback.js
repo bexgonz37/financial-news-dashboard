@@ -8,10 +8,10 @@ module.exports = async function handler(req, res) {
   if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' });
 
   try {
-    const { ticker, type = 'quote' } = req.query;
-    const symbol = ticker; // Map ticker to symbol for compatibility
+    const { ticker, symbol, type = 'quote' } = req.query;
+    const searchSymbol = ticker || symbol; // Support both parameter names
     
-    if (!symbol) {
+    if (!searchSymbol) {
       return res.status(400).json({ error: 'Ticker parameter is required' });
     }
 
@@ -19,13 +19,13 @@ module.exports = async function handler(req, res) {
     
     switch (type) {
       case 'quote':
-        result = await getQuote(symbol);
+        result = await getQuote(searchSymbol);
         break;
       case 'chart':
-        result = await getChart(symbol);
+        result = await getChart(searchSymbol);
         break;
       case 'search':
-        result = await searchSymbol(symbol);
+        result = await searchSymbol(searchSymbol);
         break;
       default:
         return res.status(400).json({ error: 'Invalid type parameter' });

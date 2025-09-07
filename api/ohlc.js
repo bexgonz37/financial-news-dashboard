@@ -32,7 +32,7 @@ module.exports = async function handler(req, res) {
       success: true,
       symbol: symbol.toUpperCase(),
       interval,
-      data: ohlcData,
+      candles: ohlcData.candles,
       timestamp: new Date().toISOString()
     });
 
