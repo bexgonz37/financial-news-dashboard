@@ -38,25 +38,13 @@ module.exports = async function handler(req, res) {
 }
 
 async function fetchEnhancedNewsData(ticker, search) {
-  try {
-    // Use the enhanced news API that pulls from multiple sources
-    const response = await fetch(`${process.env.VERCEL_URL || 'http://localhost:3000'}/api/enhanced-news?ticker=${ticker || ''}&search=${search || ''}&limit=200`);
-    
-    if (!response.ok) {
-      throw new Error(`Enhanced news API error: ${response.status}`);
-    }
-    
-    const data = await response.json();
-    return data.data?.news || [];
-  } catch (error) {
-    console.warn('Enhanced news failed, falling back to Alpha Vantage:', error);
-    
-    // Fallback to original Alpha Vantage API
-    const apiKey = process.env.ALPHAVANTAGE_KEY;
-    if (!apiKey) {
-      throw new Error('Alpha Vantage API key not configured');
-    }
+  // Direct Alpha Vantage implementation for reliability
+  const apiKey = process.env.ALPHAVANTAGE_KEY;
+  if (!apiKey) {
+    throw new Error('Alpha Vantage API key not configured');
+  }
 
+  try {
     let url = `https://www.alphavantage.co/query?function=NEWS_SENTIMENT&apikey=${apiKey}&limit=200`;
     
     if (ticker) {
@@ -73,7 +61,34 @@ async function fetchEnhancedNewsData(ticker, search) {
     }
 
     const data = await response.json();
-    return data.feed || [];
+    
+    // Check for API errors
+    if (data['Error Message']) {
+      throw new Error(data['Error Message']);
+    }
+    
+    if (data['Note']) {
+      throw new Error('API rate limit exceeded. Please try again later.');
+    }
+
+    const news = data.feed || [];
+    
+    // Enhance the news with additional data
+    return news.map(item => ({
+      ...item,
+      id: item.id || `news_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      source: item.source || 'Alpha Vantage',
+      source_domain: extractDomain(item.url),
+      publishedAt: item.time_published,
+      category: categorizeNews(item.title, item.summary),
+      sentimentScore: parseFloat(item.overall_sentiment_score) || 0,
+      relevanceScore: parseFloat(item.relevance_score) || 0.5,
+      ticker: item.ticker_sentiment?.[0]?.ticker || 'GENERAL'
+    }));
+    
+  } catch (error) {
+    console.error('News fetch error:', error);
+    throw error;
   }
 }
 
@@ -187,7 +202,32 @@ async function processNewsWithCompanyMatching(newsData, title, summary, text) {
   return processedNews;
 }
 
-// Removed calculateExactMatchScore function - using simplified matching
+function categorizeNews(title, summary) {
+  const text = `${title} ${summary}`.toLowerCase();
+  
+  if (text.includes('earnings') || text.includes('revenue') || text.includes('profit')) return 'earnings';
+  if (text.includes('fda') || text.includes('approval') || text.includes('clinical')) return 'fda';
+  if (text.includes('merger') || text.includes('acquisition') || text.includes('buyout')) return 'merger';
+  if (text.includes('insider') || text.includes('insider trading')) return 'insider';
+  if (text.includes('short') || text.includes('short interest')) return 'short';
+  if (text.includes('options') || text.includes('calls') || text.includes('puts')) return 'options';
+  if (text.includes('analyst') || text.includes('rating') || text.includes('upgrade')) return 'analyst';
+  if (text.includes('sec') || text.includes('filing') || text.includes('10-k')) return 'sec';
+  if (text.includes('dividend') || text.includes('payout')) return 'dividend';
+  if (text.includes('bankruptcy') || text.includes('chapter 11')) return 'bankruptcy';
+  if (text.includes('ipo') || text.includes('spac') || text.includes('public offering')) return 'ipo';
+  if (text.includes('crypto') || text.includes('bitcoin') || text.includes('ethereum')) return 'crypto';
+  if (text.includes('meme') || text.includes('reddit') || text.includes('wallstreetbets')) return 'meme';
+  if (text.includes('biotech') || text.includes('pharma') || text.includes('drug')) return 'biotech';
+  if (text.includes('ai') || text.includes('artificial intelligence') || text.includes('machine learning')) return 'ai';
+  if (text.includes('ev') || text.includes('electric vehicle') || text.includes('tesla')) return 'ev';
+  if (text.includes('cannabis') || text.includes('marijuana') || text.includes('weed')) return 'cannabis';
+  if (text.includes('gaming') || text.includes('video game') || text.includes('esports')) return 'gaming';
+  if (text.includes('social') || text.includes('facebook') || text.includes('twitter')) return 'social';
+  if (text.includes('retail') || text.includes('ecommerce') || text.includes('shopping')) return 'retail';
+  
+  return 'general';
+}
 
 function extractDomain(url) {
   if (!url) return '';

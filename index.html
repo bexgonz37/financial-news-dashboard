@@ -602,8 +602,88 @@
       });
     }
 
-    // ---------- ADVANCED DAY TRADER SCANNER ----------
+    // ---------- ULTRA ADVANCED DAY TRADER SCANNER ----------
     async function buildScanners(){
+      try {
+        const feed = document.getElementById('scanner-grid');
+        feed.innerHTML = '<div class="loading">Loading advanced screener data...</div>';
+        
+        // Get screener data from our advanced API
+        const response = await fetch('/api/advanced-screener?preset=momentum&limit=50');
+        if (!response.ok) {
+          throw new Error(`Screener API error: ${response.status}`);
+        }
+        
+        const data = await response.json();
+        const stocks = data.data?.stocks || [];
+        
+        if (stocks.length === 0) {
+          feed.innerHTML = '<div class="loading">No stocks found. Try adjusting your filters.</div>';
+          return;
+        }
+        
+        // Render the stocks
+        renderScreenerResults(stocks);
+        
+      } catch (error) {
+        console.error('Screener error:', error);
+        // Fallback to news-based scanner
+        buildNewsBasedScanner();
+      }
+    }
+    
+    function renderScreenerResults(stocks) {
+      const grid = document.getElementById('scanner-grid');
+      
+      grid.innerHTML = stocks.map(stock => {
+        const score = stock.momentum_score || stock.volume_score || stock.news_score || stock.overall_score || 0;
+        const category = stock.category || 'general';
+        const rvolHtml = scanOptShowRVOL ? ` · RVOL: ${stock.relativeVolume ? stock.relativeVolume.toFixed(2) : '—'}` : '';
+        const mentHtml = scanOptShowMentions ? ` · Mentions: ${stock.newsMentions || 0}` : '';
+        const volumeHtml = ` · Vol: ${stock.volume ? (stock.volume/1000000).toFixed(1)+'M' : '—'}`;
+        const sentimentHtml = ` · Sent: ${stock.sentimentScore ? (stock.sentimentScore*100).toFixed(0)+'%' : '—'}`;
+        
+        return `
+          <div class="card">
+            <div class="kpi">
+              <div>
+                <div style="font-weight:900">${stock.symbol}</div>
+                <div class="meta">$${stock.price?.toFixed(2) || '—'} · ${stock.sector || 'Unknown'}${rvolHtml}${mentHtml}${volumeHtml}${sentimentHtml}</div>
+              </div>
+              <div class="change ${stock.priceChangePercent >= 0 ? 'up' : 'down'}">
+                ${stock.priceChangePercent >= 0 ? '↗' : '↘'} ${stock.priceChangePercent?.toFixed(2) || '0.00'}%
+              </div>
+            </div>
+            <div class="meta" style="margin-top:6px">
+              <span style="background:var(--accent);color:#fff;padding:2px 6px;border-radius:4px;font-size:0.8rem">
+                ${category.toUpperCase()}
+              </span>
+              <span style="margin-left:8px;color:var(--meta)">
+                Score: ${score.toFixed(1)}
+              </span>
+            </div>
+            ${scanOptShowChart ? `<div class="mini-chart" data-ticker="${stock.symbol}" style="margin-top:8px; height:40px;"></div>` : ''}
+            <div class="meta" style="margin-top:6px">
+              <a href="#" data-open-chart="${stock.symbol}">📊 Chart</a>
+              <button class="star ${watchlist.has(stock.symbol) ? 'active' : ''}" data-star="${stock.symbol}" style="margin-left:8px">
+                ${watchlist.has(stock.symbol) ? '★' : '☆'}
+              </button>
+            </div>
+          </div>
+        `;
+      }).join('');
+      
+      // Draw mini charts if enabled
+      if (scanOptShowChart) {
+        grid.querySelectorAll('.mini-chart').forEach(async slot => {
+          const ticker = slot.getAttribute('data-ticker');
+          if (ticker) await drawSparklineWithRetry(slot, ticker);
+        });
+      }
+    }
+    
+    // Fallback news-based scanner
+    function buildNewsBasedScanner() {
       const base = filteredNews.length ? filteredNews : newsData;
       const stats = new Map(); // ticker -> {mentions, latest, sentiment, volume}
       for(const n of base){
