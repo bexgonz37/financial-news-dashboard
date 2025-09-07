@@ -1,0 +1,990 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Financial News Dashboard</title>
+  <style>
+    :root{
+      --bg:#0b0f17; --card:#1a2132; --border:#20273a; --text:#e6e8ee; --meta:#8b9bb4;
+      --accent:#b167ff; --up:#24e39c; --down:#ff5b6e; --loading:#4a5568
+    }
+    *{ box-sizing:border-box; margin:0; padding:0 }
+    body{ background:var(--bg); color:var(--text); font-family:system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif; line-height:1.6 }
+    .container{ max-width:1400px; margin:0 auto; padding:20px }
+    .header{ text-align:center; margin-bottom:30px }
+    .header h1{ font-size:2.5rem; font-weight:900; margin-bottom:10px; background:linear-gradient(135deg,var(--accent),var(--up)); -webkit-background-clip:text; -webkit-text-fill-color:transparent }
+    .header p{ color:var(--meta); font-size:1.1rem }
+    .tabs{ display:flex; gap:2px; background:var(--card); padding:4px; border-radius:12px; margin-bottom:20px; border:1px solid var(--border) }
+    .tab{ flex:1; padding:12px 20px; background:transparent; border:none; color:var(--text); cursor:pointer; border-radius:8px; transition:all 0.2s; font-weight:500 }
+    .tab:hover{ background:rgba(177,103,255,.1) }
+    .tab.active{ background:var(--accent); color:#fff; font-weight:600 }
+    .panel{ display:none }
+    .panel.active{ display:block }
+    .toolbar{ display:flex; gap:10px; margin-bottom:20px; flex-wrap:wrap; align-items:center }
+    .input{ padding:10px 14px; border:1px solid var(--border); border-radius:8px; background:var(--card); color:var(--text); font-size:.9rem; min-width:200px }
+    .input:focus{ outline:none; border-color:var(--accent) }
+    .btn{ padding:10px 20px; background:var(--accent); color:#fff; border:none; border-radius:8px; cursor:pointer; font-weight:500; transition:all 0.2s }
+    .btn:hover{ background:#9a5ce0; transform:translateY(-1px) }
+    .select{ padding:10px 14px; border:1px solid var(--border); border-radius:8px; background:var(--card); color:var(--text); font-size:.9rem; min-width:150px }
+    .grid{ display:grid; grid-template-columns:repeat(auto-fill,minmax(300px,1fr)); gap:16px }
+    .card{ background:var(--card); border:1px solid var(--border); border-radius:12px; padding:16px; transition:all 0.2s }
+    .card:hover{ border-color:var(--accent); transform:translateY(-2px) }
+    .kpi{ display:flex; justify-content:space-between; align-items:center; margin-bottom:12px }
+    .change{ font-weight:700; font-size:1.1rem }
+    .change.up{ color:var(--up) }
+    .change.down{ color:var(--down) }
+    .meta{ color:var(--meta); font-size:.85rem }
+    .loading{ text-align:center; padding:40px; color:var(--loading); font-size:1.1rem }
+    
+    /* Day Trader Filter Styling */
+    .filter-checkbox{ 
+      display:flex; 
+      gap:8px; 
+      align-items:center; 
+      color:var(--text); 
+      font-size:.9rem;
+      padding: 8px 12px;
+      border-radius: 8px;
+      background: rgba(177,103,255,.05);
+      border: 1px solid rgba(177,103,255,.1);
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+    .filter-checkbox:hover{ 
+      background: rgba(177,103,255,.1);
+      border-color: rgba(177,103,255,.2);
+    }
+    .filter-checkbox input[type="checkbox"]:checked + .filter-label{ 
+      color: var(--accent);
+      font-weight: 600;
+    }
+    .filter-label{ 
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .news-list{ display:grid; gap:12px }
+    .news-item{ border:1px solid var(--border); border-radius:12px; padding:12px; background:linear-gradient(180deg, rgba(32,39,58,.6), rgba(18,24,38,.9)) }
+    .item-top{ display:flex; align-items:center; gap:12px; margin-bottom:8px; flex-wrap:wrap }
+    .ticker{ color:var(--accent); font-weight:700; text-decoration:none; font-size:1.1rem }
+    .ticker:hover{ text-decoration:underline }
+    .title{ font-weight:600; margin-bottom:6px; line-height:1.4 }
+    .summary{ color:var(--meta); font-size:.9rem; line-height:1.5 }
+    .summary a{ color:var(--up); text-decoration:none }
+    .summary a:hover{ text-decoration:underline }
+    .mini-row{ display:flex; justify-content:space-between; align-items:center; margin-top:10px }
+    .mini-chart{ width:80px; height:30px; background:var(--bg); border-radius:4px }
+    .star{ background:none; border:none; color:var(--meta); cursor:pointer; font-size:1.2rem; transition:all 0.2s }
+    .star:hover{ color:var(--accent) }
+    .star.active{ color:var(--up) }
+    .pct{ display:flex; align-items:center; gap:4px; font-weight:600 }
+    .arrow{ font-size:1.1rem }
+    .val{ font-size:.9rem }
+    .val.up{ color:var(--up) }
+    .val.down{ color:var(--down) }
+    .rvol{ color:var(--meta); font-size:.8rem }
+    .src{ color:var(--meta); font-size:.8rem }
+    .wl-row{ display:flex; justify-content:space-between; align-items:center; padding:12px; background:var(--card); border-radius:8px; margin-bottom:8px; border:1px solid var(--border) }
+    .wl-tools{ display:flex; gap:8px; align-items:center }
+    .wl-tools a{ color:var(--accent); text-decoration:none; font-size:.9rem }
+    .wl-tools a:hover{ text-decoration:underline }
+    .wl-tools .btn{ padding:6px 12px; font-size:.8rem }
+    .checks{ display:grid; grid-template-columns:1fr 1fr; gap:6px 12px; margin:6px 0 10px }
+    .checks label{ display:flex; gap:8px; align-items:center; color:var(--text); font-size:.9rem }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>🚀 Day Trader Dashboard</h1>
+      <p>Real-time financial news, advanced scanning, and live market data</p>
+      <div style="margin-top:10px; color:var(--meta); font-size:.9rem">
+        <span id="etClock">--:-- ET</span> • 
+        <span id="sessionStatus">Loading...</span>
+      </div>
+    </div>
+
+    <div class="tabs">
+      <button class="tab active" data-view="news">📰 News</button>
+      <button class="tab" data-view="scanners">🔍 Scanner</button>
+      <button class="tab" data-view="watchlist">⭐ Watchlist</button>
+    </div>
+
+    <!-- NEWS -->
+    <div id="view-news" class="panel active">
+      <div class="toolbar">
+        <input class="input" id="ticker" placeholder="Filter by ticker (e.g., NVDA)"/>
+        <input class="input" id="keyword" placeholder="Search keywords"/>
+        <button class="btn" onclick="fetchData()">🔄 Load News</button>
+        <button class="btn" onclick="document.getElementById('filtersPopover').classList.toggle('open')">🎯 Filters</button>
+        <span class="meta" id="filtersCount">(All)</span>
+        <button class="btn" id="filtersClear">Clear</button>
+      </div>
+      
+      <div id="filtersPopover" style="position:relative; display:inline-block">
+        <div class="checks" id="catChecks" style="position:absolute; top:100%; left:0; background:var(--card); border:1px solid var(--border); border-radius:8px; padding:15px; z-index:100; min-width:400px; display:none"></div>
+      </div>
+      
+      <div id="news-feed" class="news-list">
+        <div class="loading">Click "Load News" to get started...</div>
+      </div>
+    </div>
+
+    <!-- SCANNERS -->
+    <div id="view-scanners" class="panel" style="display:none">
+      <div class="toolbar">
+        <select class="select" id="scannerPreset">
+          <option value="momentum">🚀 High Momentum</option>
+          <option value="big_movers"> Biggest % Movers</option>
+          <option value="rvol">📊 High Relative Volume</option>
+          <option value="sentiment">😊 High Sentiment</option>
+          <option value="volume">💎 High Volume</option>
+        </select>
+        <input class="input" id="minPct" type="number" step="0.1" placeholder="Min % (e.g. 2)"/>
+        <input class="input" id="minRVOL" type="number" step="0.1" placeholder="Min RVOL (e.g. 1.5)"/>
+        <input class="input" id="minMentions" type="number" step="1" placeholder="Min mentions (e.g. 2)"/>
+        <input class="input" id="minVolume" type="number" step="100000" placeholder="Min Volume (e.g. 1M)"/>
+        <input class="input" id="minPrice" type="number" step="0.01" placeholder="Min Price (e.g. 5.00)"/>
+        <button class="btn" id="rescore">🔄 Recalculate</button>
+        <!-- Optional metrics toggles -->
+        <label class="meta" style="display:flex;align-items:center;gap:6px">
+          <input type="checkbox" id="scanShowRVOL" /> Show RVOL
+        </label>
+        <label class="meta" style="display:flex;align-items:center;gap:6px">
+          <input type="checkbox" id="scanShowMentions" /> Show Mentions
+        </label>
+        <label class="meta" style="display:flex;align-items:center;gap:6px">
+          <input type="checkbox" id="scanShowChart" checked /> Show mini chart
+        </label>
+      </div>
+      <div id="scanner-grid" class="grid">
+        <div class="card">Run a news load, then click Recalculate to see high-momentum movers.</div>
+      </div>
+    </div>
+
+    <!-- WATCHLIST -->
+    <div id="view-watchlist" class="panel" style="display:none">
+      <div class="toolbar">
+        <input class="input" id="wlAdd" placeholder="Add ticker (e.g., NVDA)"/>
+        <button class="btn" id="wlAddBtn">Add</button>
+      </div>
+      <div id="wlList"></div>
+    </div>
+  </div>
+
+  <!-- Chart Modal -->
+  <div id="chartModal" style="position:fixed; inset:0; display:none; align-items:center; justify-content:center; z-index:9999; background:rgba(0,0,0,.55); padding:20px">
+    <div class="modal" style="width:min(920px,95vw); height:min(600px,85vh); background:var(--card); border:1px solid var(--border); border-radius:14px; display:flex; flex-direction:column;">
+      <div class="modal-head" style="display:flex; align-items:center; justify-content:space-between; padding:10px 14px; border-bottom:1px solid var(--border)">
+        <div class="modal-title" id="chartTitle" style="font-weight:900">Chart</div>
+        <div class="modal-tools" style="display:flex; align-items:center; gap:8px">
+          <span class="meta">Indicators:</span>
+          <label><input type="checkbox" class="ind" value="vwap" checked /> VWAP</label>
+          <label><input type="checkbox" class="ind" value="sma20" /> SMA 20</label>
+          <label><input type="checkbox" class="ind" value="ema9" /> EMA 9</label>
+          <label><input type="checkbox" class="ind" value="rsi14" /> RSI 14</label>
+          <button class="btn" onclick="closeChart()">Close</button>
+        </div>
+      </div>
+      <div id="chartBody" class="modal-body" style="flex:1"></div>
+    </div>
+  </div>
+
+  <!-- Lightweight Charts -->
+  <script src="https://unpkg.com/lightweight-charts@4.2.0/dist/lightweight-charts.standalone.production.js"></script>
+  <script>
+    // ---------- CONSTANTS ----------
+    const RETAIN_DAYS = 7;
+
+    // ---------- STATE ----------
+    let allNewsStore = new Map();
+    let newsData = [];
+    let filteredNews = [];
+    const stockCache = new Map();
+    let selectedCats = new Set();
+    let watchlist = new Set();
+    let usingFallbackData = false;
+
+    // optional metrics toggles (defaults)
+    let optShowPct = true;
+    let optShowRVOL = false;
+    let scanOptShowRVOL = false;
+    let scanOptShowMentions = false;
+    let scanOptShowChart = true;
+
+    // ---------- CLOCK + SESSION ----------
+    const etFmt = new Intl.DateTimeFormat('en-US',{ timeZone:'America/New_York', hour:'2-digit', minute:'2-digit' });
+    function updateClockAndSession(){
+      const now = new Date();
+      document.getElementById('etClock').textContent = etFmt.format(now) + ' ET';
+      const d = new Date().toLocaleString('en-US', { timeZone: 'America/New_York' });
+      const n = new Date(d); const day=n.getDay(); const hh=n.getHours(), mm=n.getMinutes(); const mins=hh*60+mm;
+      let label='Closed', live=false;
+      if(day>=1 && day<=5){
+        if(mins<570 && mins>=240) label='Premarket';
+        else if(mins<960 && mins>=570) label='Market Open';
+        else if(mins<1020 && mins>=960) label='After Hours';
+        else label='Closed';
+        live = mins>=570 && mins<960;
+      }
+      document.getElementById('sessionStatus').textContent = label;
+      document.getElementById('sessionStatus').style.color = live ? 'var(--up)' : 'var(--meta)';
+    }
+    setInterval(updateClockAndSession, 1000);
+    updateClockAndSession();
+
+    // ---------- TAB NAVIGATION ----------
+    document.querySelectorAll('.tab').forEach(tab => {
+      tab.addEventListener('click', () => {
+        const view = tab.dataset.view;
+        document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+        document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+        tab.classList.add('active');
+        document.getElementById(`view-${view}`).classList.add('active');
+        
+        if (view==='scanners') buildScanners();
+        if (view==='watchlist') renderWatchlist();
+      });
+    });
+
+    // ---------- NEWS STORAGE + MERGE ----------
+    function currentNewsArray(){
+      const cutoff = Date.now() - (RETAIN_DAYS * 24 * 60 * 60 * 1000);
+      const allNews = [];
+      for(const [key, news] of allNewsStore){
+        if(news.publishedAt && Date.parse(news.publishedAt) > cutoff){
+          allNews.push(news);
+        }
+      }
+      return allNews.sort((a,b) => Date.parse(b.publishedAt) - Date.parse(a.publishedAt));
+    }
+
+    function mergeNews(incoming){
+      for(const news of incoming){
+        const key = `${news.title}-${news.publishedAt}`;
+        if(!allNewsStore.has(key)){
+          allNewsStore.set(key, news);
+        }
+      }
+    }
+
+    // ---------- SPARKLINE CHARTS ----------
+    async function drawSparkline(container, ticker){
+      if(!container || !ticker) return;
+      
+      container.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--loading);font-size:0.8rem;">Loading...</div>';
+      
+      try {
+        const r = await fetch(`/api/ohlc?ticker=${encodeURIComponent(ticker)}&interval=5min&limit=20&last=1`);
+        const payload = r.ok ? await r.json() : {candles:[]};
+        const candles = payload.candles || [];
+        
+        if(candles.length < 2){
+          container.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--meta);font-size:0.8rem;">No data</div>';
+          return;
+        }
+
+        // Get live quote data for percentage change
+        let liveQuote = null;
+        try {
+          const quoteResponse = await fetch(`/api/fallback?ticker=${encodeURIComponent(ticker)}&type=quote`);
+          if (quoteResponse.ok) {
+            liveQuote = await quoteResponse.json();
+          }
+        } catch (e) {
+          console.warn(`Failed to get live quote for ${ticker}:`, e);
+        }
+
+        const prices = candles.map(c => c.c);
+        const minPrice = Math.min(...prices);
+        const maxPrice = Math.max(...prices);
+        const range = maxPrice - minPrice;
+        
+        if(range === 0){
+          container.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--meta);font-size:0.8rem;">Flat</div>';
+          return;
+        }
+
+        const width = container.offsetWidth || 80;
+        const height = container.offsetHeight || 30;
+        const strokeWidth = Math.max(1, Math.min(2, width / 40));
+
+        const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+        svg.setAttribute('width', width);
+        svg.setAttribute('height', height);
+        svg.style.overflow = 'visible';
+
+        const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        const points = prices.map((price, i) => {
+          const x = (i / (prices.length - 1)) * width;
+          const y = height - ((price - minPrice) / range) * height;
+          return `${i === 0 ? 'M' : 'L'} ${x} ${y}`;
+        }).join(' ');
+
+        path.setAttribute('d', points);
+        path.setAttribute('stroke', liveQuote && liveQuote.changePercent > 0 ? 'var(--up)' : liveQuote && liveQuote.changePercent < 0 ? 'var(--down)' : 'var(--accent)');
+        path.setAttribute('stroke-width', strokeWidth);
+        path.setAttribute('fill', 'none');
+        path.setAttribute('stroke-linecap', 'round');
+        path.setAttribute('stroke-linejoin', 'round');
+
+        svg.appendChild(path);
+
+        // Add percentage change text if available
+        if (liveQuote && typeof liveQuote.changePercent === 'number') {
+          const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+          text.setAttribute('x', width - 5);
+          text.setAttribute('y', height - 5);
+          text.setAttribute('text-anchor', 'end');
+          text.setAttribute('font-size', '8px');
+          text.setAttribute('fill', liveQuote.changePercent > 0 ? 'var(--up)' : 'var(--down)');
+          text.textContent = `${liveQuote.changePercent > 0 ? '+' : ''}${liveQuote.changePercent.toFixed(1)}%`;
+          svg.appendChild(text);
+        }
+
+        container.innerHTML = '';
+        container.appendChild(svg);
+
+      } catch (error) {
+        console.error(`Error drawing sparkline for ${ticker}:`, error);
+        container.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--down);font-size:0.8rem;">Error</div>';
+      }
+    }
+
+    async function drawSparklineWithRetry(container, ticker, retries = 2){
+      try {
+        await drawSparkline(container, ticker);
+      } catch (error) {
+        if (retries > 0) {
+          setTimeout(() => drawSparklineWithRetry(container, ticker, retries - 1), 1000);
+        }
+      }
+    }
+
+    // ---------- QUOTE + RVOL FETCHING ----------
+    async function getQuote(ticker){
+      if(!ticker) return null;
+      
+      const cacheKey = `quote_${ticker}`;
+      const cached = stockCache.get(cacheKey);
+      if(cached && Date.now() - cached.timestamp < 30000) return cached.data;
+      
+      try {
+        const r = await fetch(`/api/fallback?ticker=${encodeURIComponent(ticker)}&type=quote`);
+        if(!r.ok) throw new Error(`HTTP ${r.status}`);
+        
+        const data = await r.json();
+        if(data && typeof data.changePercent === 'number'){
+          stockCache.set(cacheKey, { data, timestamp: Date.now() });
+          return data;
+        }
+        throw new Error('Invalid quote data');
+      } catch(e) {
+        console.warn(`Failed to get quote for ${ticker}:`, e);
+        return null;
+      }
+    }
+
+    async function getRVOL(ticker){
+      if(!ticker) return null;
+      
+      const cacheKey = `rvol_${ticker}`;
+      const cached = stockCache.get(cacheKey);
+      if(cached && Date.now() - cached.timestamp < 30000) return cached.data;
+      
+      try {
+        const r = await fetch(`/api/fallback?ticker=${encodeURIComponent(ticker)}&type=quote`);
+        if(!r.ok) throw new Error(`HTTP ${r.status}`);
+        
+        const data = await r.json();
+        if(data && data.volume && data.averageVolume){
+          const rvol = data.volume / data.averageVolume;
+          stockCache.set(cacheKey, { data: rvol, timestamp: Date.now() });
+          return rvol;
+        }
+        throw new Error('Invalid volume data');
+      } catch(e) {
+        console.warn(`Failed to get RVOL for ${ticker}:`, e);
+        return null;
+      }
+    }
+
+    // ---------- DAY TRADER NEWS FILTERS ----------
+    function renderFilterChecks(){
+      const wrap = document.getElementById('catChecks');
+      
+      // Day trader focused categories
+      const DAY_TRADER_CATEGORIES = [
+        ['earnings', '📊 Earnings Reports'],
+        ['fda', '💊 FDA News'],
+        ['merger', '🤝 M&A Activity'],
+        ['insider', '👥 Insider Trading'],
+        ['short', ' Short Interest'],
+        ['options', '📈 Options Activity'],
+        ['analyst', '🎯 Analyst Ratings'],
+        ['sec', '📋 SEC Filings'],
+        ['dividend', '💰 Dividend News'],
+        ['bankruptcy', '💸 Bankruptcy'],
+        ['ipo', '🚀 IPO/SPAC News'],
+        ['crypto', '₿ Crypto Related'],
+        ['meme', '🎭 Meme Stock News'],
+        ['biotech', '🧬 Biotech Breakthroughs'],
+        ['ai', '🤖 AI Technology'],
+        ['ev', '⚡ Electric Vehicles'],
+        ['cannabis', '🌿 Cannabis News'],
+        ['gaming', '🎮 Gaming Industry'],
+        ['social', '📱 Social Media'],
+        ['retail', '🛍️ Retail News']
+      ];
+      
+      wrap.innerHTML = DAY_TRADER_CATEGORIES.map(([val,label])=>`
+        <label class="filter-checkbox">
+          <input type="checkbox" value="${val}"/> 
+          <span class="filter-label">${label}</span>
+        </label>
+      `).join('');
+      
+      updateFiltersCount();
+      wrap.addEventListener('change', (e)=>{
+        if(e.target && e.target.type==='checkbox'){
+          const v = e.target.value;
+          if(e.target.checked) selectedCats.add(v); else selectedCats.delete(v);
+          updateFiltersCount();
+        }
+      });
+    }
+    
+    function updateFiltersCount(){
+      const span = document.getElementById('filtersCount');
+      if(!selectedCats.size) span.textContent = '(All)';
+      else span.textContent = `(${selectedCats.size} selected)`;
+    }
+    
+    document.addEventListener('click', (e)=>{
+      const pop = document.getElementById('filtersPopover');
+      if (!pop.contains(e.target)) pop.classList.remove('open');
+    });
+        // ---------- FETCH + APPLY ----------
+    async function fetchData(){
+      const params = new URLSearchParams();
+      const t = (document.getElementById('ticker').value||'').trim();
+      const k = (document.getElementById('keyword').value||'').trim();
+      if (t) params.set('ticker', t.toUpperCase());
+      if (k) params.set('search', k);
+
+      try{
+        const feed = document.getElementById('news-feed');
+        feed.innerHTML = '<div class="loading">Fetching live financial news…</div>';
+        
+        const r = await fetch(`/api/data?${params.toString()}`);
+        if(!r.ok) {
+          throw new Error(`API error: ${r.status} ${r.statusText}`);
+        }
+        
+        const data = await r.json();
+        const incoming = data?.data?.news || [];
+        
+        if (incoming.length === 0) {
+          console.warn('No news data received from API');
+        } else {
+          console.log(`Received ${incoming.length} news items`);
+        }
+        
+        mergeNews(incoming);
+        newsData = currentNewsArray();
+        applyFilter();
+        
+        // Show success message briefly
+        if (incoming.length > 0) {
+          const successMsg = document.createElement('div');
+          successMsg.style.cssText = 'text-align:center;color:var(--up);padding:8px;font-size:0.9rem;';
+          successMsg.textContent = `✓ Updated ${incoming.length} news items`;
+          feed.insertBefore(successMsg, feed.firstChild);
+          setTimeout(() => successMsg.remove(), 3000);
+        }
+        
+      }catch(e){
+        console.error('Fetch error:', e);
+        const feed = document.getElementById('news-feed');
+        feed.innerHTML = `<div class="loading" style="color:var(--down);">
+          Error fetching news: ${e.message}. <button onclick="fetchData()" style="background:var(--accent);border:none;color:#fff;padding:4px 8px;border-radius:4px;cursor:pointer;margin-left:8px;">Retry</button>
+        </div>`;
+        
+        // Fall back to cached data
+        newsData = currentNewsArray();
+        applyFilter();
+      }
+    }
+
+    function applyFilter(){
+      const k = (document.getElementById('keyword').value||'').toLowerCase();
+      const multipleCats = Array.from(selectedCats.values());
+      filteredNews = newsData.filter(n=>{
+        const cat = (n.category||'').toLowerCase();
+        const byCat = !multipleCats.length || multipleCats.includes(cat) ||
+          multipleCats.some(c => (n.title||'').toLowerCase().includes(c) || (n.summary||'').toLowerCase().includes(c));
+        const byKey = !k || ( (n.title||'').toLowerCase().includes(k) || (n.summary||'').toLowerCase().includes(k) );
+        return byCat && byKey;
+      });
+      renderNews();
+    }
+
+    // ---------- RENDER NEWS ----------
+    function renderNews(){
+      const feed = document.getElementById('news-feed');
+      if (!filteredNews.length){
+        feed.innerHTML = `<div class="loading">No news found for the selected filters.</div>`;
+        return;
+      }
+      feed.innerHTML = filteredNews.map(n=>{
+        const t = (n.ticker||'').toUpperCase();
+        const when = n.publishedAt ? timeAgo(n.publishedAt) : '';
+        const source = n.source ? n.source : '';
+        const starred = watchlist.has(t) ? 'active' : '';
+        const pctNode = `<span class="pct" data-optional="pct"><span class="arrow">⏳</span> <span class="val">…</span></span>`;
+        const rvolNode = `<span class="meta rvol" data-optional="rvol"></span>`;
+        return `
+          <div class="news-item">
+            <div class="item-top">
+              <a class="ticker" href="#" data-open-chart="${t}">${t || 'GENERAL'}</a>
+              ${pctNode}
+              ${rvolNode}
+              <span class="src">${source ? source : ''}${when ? ` · ${when}` : ''}</span>
+              <button class="star ${starred}" data-star="${t}">${starred?'★':'☆'}</button>
+            </div>
+            <div class="title">${n.title||''}</div>
+            <div class="summary">${n.summary||''} ${n.url?`<a href="${n.url}" target="_blank" rel="noopener">Read</a>`:''}</div>
+            <div class="mini-row">
+              <div class="meta">${n.category ? n.category : ''}</div>
+              <div class="mini-chart" data-ticker="${t}"></div>
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      // show/hide optional metrics
+      document.querySelectorAll('[data-optional="pct"]').forEach(n=> n.style.display = optShowPct ? '' : 'none');
+      document.querySelectorAll('[data-optional="rvol"]').forEach(n=> n.style.display = optShowRVOL ? '' : 'none');
+
+      // hydrate cards (always draw mini-charts)
+      document.querySelectorAll('#news-feed .news-item').forEach(async (card)=>{
+        const t = (card.querySelector('.mini-chart')?.dataset?.ticker||'').toUpperCase();
+        if(!t || t==='GENERAL') return;
+
+        if (optShowPct){
+          try{
+            const q = await getQuote(t);
+            if(q && typeof q.changePercent==='number'){
+              const val = card.querySelector('.val');
+              const arrow = card.querySelector('.arrow');
+              if (val){ val.textContent = `${q.changePercent>0?'+':''}${q.changePercent.toFixed(2)}%`; val.className = 'val ' + (q.changePercent>0?'up':'down'); }
+              if (arrow) arrow.textContent = q.changePercent>0 ? '↗' : '↘';
+            }
+          }catch(e){
+            console.warn(`Failed to get quote for ${t}:`, e);
+          }
+        }
+        if (optShowRVOL){
+          try{
+            const rv = await getRVOL(t);
+            if (rv){
+              const node = card.querySelector('.rvol');
+              if (node) node.textContent = `RVOL ${rv.toFixed(2)}x`;
+            }
+          }catch(e){
+            console.warn(`Failed to get RVOL for ${t}:`, e);
+          }
+        }
+        
+        // Draw mini chart with retry logic
+        await drawSparklineWithRetry(card.querySelector('.mini-chart'), t);
+      });
+    }
+
+    // ---------- ADVANCED DAY TRADER SCANNER ----------
+    async function buildScanners(){
+      const base = filteredNews.length ? filteredNews : newsData;
+      const stats = new Map(); // ticker -> {mentions, latest, sentiment, volume}
+      for(const n of base){
+        const t = (n.ticker||'').toUpperCase(); if(!t || t==='GENERAL') continue;
+        const s = stats.get(t)||{mentions:0, latest:0, sentiment:0, volume:0};
+        s.mentions++;
+        s.sentiment += (n.sentimentScore || 0);
+        const ts = n.publishedAt?Date.parse(n.publishedAt):0; 
+        if(ts > (s.latest||0)) s.latest = ts;
+        stats.set(t,s);
+      }
+      
+      const list = [...stats.keys()].slice(0,100); // Increased from 80
+      const rows = [];
+      
+      for(const t of list){
+        let pct=0, rvol=0, rec=0, volume=0, price=0, marketCap='Unknown';
+        try{ 
+          const q=await getQuote(t); 
+          pct = q?.changePercent||0; 
+          price = q?.currentPrice || 0;
+          volume = q?.volume || 0;
+        }catch{}
+        try{ const rv=await getRVOL(t); rvol = rv||0; }catch{}
+        
+        const minsOld = stats.get(t)?.latest ? (Date.now()-stats.get(t).latest)/60000 : 999;
+        rec = Math.max(0, 30 - Math.min(30, minsOld)); // 0..30 recent boost
+        
+        // Enhanced scoring for day traders
+        const avgSentiment = stats.get(t).sentiment / stats.get(t).mentions;
+        const sentimentScore = avgSentiment * 2; // Sentiment bonus
+        const volumeScore = volume > 1000000 ? 10 : volume > 500000 ? 5 : 0; // Volume bonus
+        const priceScore = price > 50 ? 5 : price > 10 ? 3 : 1; // Price tier bonus
+        
+        const score = (pct*1.5) + (stats.get(t).mentions*0.8) + (rvol*8) + (rec*0.5) + sentimentScore + volumeScore + priceScore;
+        
+        rows.push({ 
+          ticker:t, 
+          pct, 
+          mentions:stats.get(t).mentions, 
+          rvol, 
+          recency:rec, 
+          score,
+          price,
+          volume,
+          sentiment: avgSentiment
+        });
+      }
+
+      const preset = document.getElementById('scannerPreset').value;
+      if (preset==='big_movers') rows.sort((a,b)=> Math.abs(b.pct)-Math.abs(a.pct));
+      else if (preset==='rvol') rows.sort((a,b)=> b.rvol-a.rvol);
+      else if (preset==='sentiment') rows.sort((a,b)=> b.sentiment-a.sentiment);
+      else if (preset==='volume') rows.sort((a,b)=> b.volume-a.volume);
+      else rows.sort((a,b)=> b.score-a.score);
+
+      const minPct = parseFloat(document.getElementById('minPct').value||'NaN');
+      const minRVOL = parseFloat(document.getElementById('minRVOL').value||'NaN');
+      const minMent = parseFloat(document.getElementById('minMentions').value||'NaN');
+      const minVolume = parseFloat(document.getElementById('minVolume')?.value||'NaN');
+      const minPrice = parseFloat(document.getElementById('minPrice')?.value||'NaN');
+      
+      const filt = rows.filter(r=>{
+        return (isNaN(minPct) || Math.abs(r.pct)>=minPct) &&
+               (isNaN(minRVOL) || r.rvol>=minRVOL) &&
+               (isNaN(minMent) || r.mentions>=minMent) &&
+               (isNaN(minVolume) || r.volume>=minVolume) &&
+               (isNaN(minPrice) || r.price>=minPrice);
+      }).slice(0,24); // Increased from 18
+
+      const grid = document.getElementById('scanner-grid');
+      if(!filt.length){ grid.innerHTML = `<div class="card">No results match the thresholds.</div>`; return; }
+
+      grid.innerHTML = filt.map(r=>{
+        const rvolHtml = scanOptShowRVOL ? ` · RVOL: ${r.rvol?r.rvol.toFixed(2):'—'}` : '';
+        const mentHtml = scanOptShowMentions ? ` · Mentions: ${r.mentions}` : '';
+        const volumeHtml = ` · Vol: ${r.volume ? (r.volume/1000000).toFixed(1)+'M' : '—'}`;
+        const sentimentHtml = ` · Sent: ${r.sentiment ? (r.sentiment*100).toFixed(0)+'%' : '—'}`;
+        
+        return `
+          <div class="card">
+            <div class="kpi">
+              <div>
+                <div style="font-weight:900">${r.ticker}</div>
+                <div class="meta">$${r.price?.toFixed(2) || '—'} · ${r.recency.toFixed(0)}m ago${rvolHtml}${mentHtml}${volumeHtml}${sentimentHtml}</div>
+              </div>
+              <div class="change ${r.pct>=0?'up':'down'}">${r.pct>=0?'↗':'↘'} ${r.pct.toFixed(2)}%</div>
+            </div>
+            ${scanOptShowChart ? `<div class="mini-chart" data-ticker="${r.ticker}" style="margin-top:8px; height:40px;"></div>` : ``}
+            <div class="meta" style="margin-top:6px">
+              <a href="#" data-open-chart="${r.ticker}">📊 Chart</a>
+              <button class="star ${watchlist.has(r.ticker)?'active':''}" data-star="${r.ticker}" style="margin-left:8px">${watchlist.has(r.ticker)?'★':'☆'}</button>
+            </div>
+          </div>
+        `;
+      });
+
+      if (scanOptShowChart){
+        grid.querySelectorAll('.mini-chart').forEach(async slot=>{
+          const t = slot.getAttribute('data-ticker');
+          if (t) await drawSparklineWithRetry(slot, t);
+        });
+      }
+    }
+
+    // ---------- WATCHLIST ----------
+    function toggleWatchlist(t){
+      const key = String(t||'').toUpperCase();
+      if(!key) return;
+      if(watchlist.has(key)) watchlist.delete(key); else watchlist.add(key);
+      persistWatchlist();
+      document.querySelectorAll(`[data-star="${key}"]`).forEach(btn=>{
+        const on = watchlist.has(key);
+        btn.classList.toggle('active', on);
+        btn.textContent = on ? '★' : '☆';
+      });
+      renderWatchlist();
+    }
+    
+    function renderWatchlist(){
+      const wrap = document.getElementById('wlList');
+      const list = Array.from(watchlist.values()).sort();
+      if (!list.length){ wrap.innerHTML = `<div class="loading">No tickers yet. Star items from News or add tickers above.</div>`; return; }
+      wrap.innerHTML = list.map(t=>`
+        <div class="wl-row">
+          <div>
+            <div style="font-weight:900">${t}</div>
+            <div class="meta pct" data-wl-pct="${t}">—</div>
+          </div>
+          <div class="mini-chart" data-ticker="${t}"></div>
+          <div class="wl-tools">
+            <a href="#" data-open-chart="${t}">Chart</a>
+            <button class="btn" data-remove="${t}">Remove</button>
+          </div>
+        </div>
+      `).join('');
+      wrap.querySelectorAll('.wl-row').forEach(async row=>{
+        const t = row.querySelector('.mini-chart').dataset.ticker;
+        if (t) await drawSparklineWithRetry(row.querySelector('.mini-chart'), t);
+        
+        try{
+          const q = await getQuote(t);
+          if(q && typeof q.changePercent==='number'){
+            const node = row.querySelector(`[data-wl-pct="${t}"]`);
+            if (node){
+              node.textContent = `${q.changePercent>=0?'+':''}${q.changePercent.toFixed(2)}%`;
+              node.classList.toggle('up', q.changePercent>=0);
+              node.classList.toggle('down', q.changePercent<0);
+            }
+          }
+        }catch(e){
+          console.warn(`Failed to get quote for watchlist ${t}:`, e);
+        }
+      });
+    }
+
+    // ---------- CHART MODAL ----------
+    function sma(data, period){
+      const out=[]; let sum=0;
+      for(let i=0;i<data.length;i++){ sum+=data[i].close; if(i>=period) sum-=data[i-period].close; if(i>=period-1) out.push({time:data[i].time,value:sum/period}); }
+      return out;
+    }
+    function ema(data, period){
+      const out=[]; const k=2/(period+1); let prev=data[0]?.close||0;
+      out.push({time:data[0]?.time,value:prev});
+      for(let i=1;i<data.length;i++){ const v=data[i].close*k + prev*(1-k); out.push({time:data[i].time,value:v}); prev=v; }
+      return out;
+    }
+    function rsi(data, period){
+      const out=[]; let g=0,l=0;
+      for(let i=1;i<=period;i++){ const ch=data[i].close - data[i-1].close; if(ch>=0) g+=ch; else l-=ch; }
+      let avgG=g/period, avgL=l/period; let rs=avgL===0?100:avgG/avgL;
+      out.push({time:data[period].time,value:100-100/(1+rs)});
+      for(let i=period+1;i<data.length;i++){
+        const ch=data[i].close - data[i-1].close; const gg=Math.max(0,ch), ll=Math.max(0,-ch);
+        avgG=(avgG*(period-1)+gg)/period; avgL=(avgL*(period-1)+ll)/period; rs=avgL===0?100:avgG/avgL;
+        out.push({time:data[i].time,value:100-100/(1+rs)});
+      }
+      return out;
+    }
+
+    function getIndPrefs(){ try { return JSON.parse(localStorage.getItem('indPrefsV1')||'{}'); } catch { return {}; } }
+    function setIndPrefs(obj){ try { localStorage.setItem('indPrefsV1', JSON.stringify(obj)); } catch{} }
+    
+    async function openChart(ticker){
+      if(!ticker) return;
+      
+      const modal = document.getElementById('chartModal');
+      const title = document.getElementById('chartTitle');
+      const body = document.getElementById('chartBody');
+      
+      title.textContent = `${ticker} Chart`;
+      modal.style.display = 'flex';
+      body.innerHTML = '<div class="loading">Loading chart...</div>';
+      
+      try {
+        const r = await fetch(`/api/ohlc?ticker=${encodeURIComponent(ticker)}&interval=5min&limit=200&last=1`);
+        const payload = r.ok ? await r.json() : {candles:[]};
+        const candles = payload.candles || [];
+        
+        if(candles.length < 10){
+          body.innerHTML = '<div class="loading" style="color:var(--down);">Insufficient data for chart</div>';
+          return;
+        }
+        
+        const chart = LightweightCharts.createChart(body, {
+          width: body.offsetWidth,
+          height: body.offsetHeight,
+          layout: { background: { color: 'transparent' }, textColor: '#e6e8ee' },
+          grid: { vertLines: { color: '#20273a' }, horzLines: { color: '#20273a' } },
+          crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
+          rightPriceScale: { borderColor: '#20273a' },
+          timeScale: { borderColor: '#20273a' }
+        });
+        
+        const candlestickSeries = chart.addCandlestickSeries({
+          upColor: '#24e39c', downColor: '#ff5b6e', borderVisible: false,
+          wickUpColor: '#24e39c', wickDownColor: '#ff5b6e'
+        });
+        
+        const volumeSeries = chart.addHistogramSeries({
+          color: '#b167ff', priceFormat: { type: 'volume' },
+          priceScaleId: '', scaleMargins: { top: 0.8, bottom: 0 }
+        });
+        
+        const data = candles.map(c => ({
+          time: c.t / 1000, open: c.o, high: c.h, low: c.l, close: c.c
+        }));
+        const volData = candles.map(c => ({
+          time: c.t / 1000, value: c.v, color: c.c >= c.o ? '#24e39c' : '#ff5b6e'
+        }));
+        
+        candlestickSeries.setData(data);
+        volumeSeries.setData(volData);
+        
+        // Indicators
+        const indPrefs = getIndPrefs();
+        if(indPrefs.vwap !== false) {
+          const vwapData = data.map((d, i) => {
+            const slice = data.slice(0, i + 1);
+            const sum = slice.reduce((acc, bar) => acc + (bar.high + bar.low + bar.close) / 3, 0);
+            return { time: d.time, value: sum / slice.length };
+          });
+          const vwapSeries = chart.addLineSeries({ color: '#b167ff', lineWidth: 1 });
+          vwapSeries.setData(vwapData);
+        }
+        
+        if(indPrefs.sma20) {
+          const smaData = sma(data, 20);
+          const smaSeries = chart.addLineSeries({ color: '#ff9500', lineWidth: 1 });
+          smaSeries.setData(smaData);
+        }
+        
+        if(indPrefs.ema9) {
+          const emaData = ema(data, 9);
+          const emaSeries = chart.addLineSeries({ color: '#00d4ff', lineWidth: 1 });
+          emaSeries.setData(emaData);
+        }
+        
+        if(indPrefs.rsi14) {
+          const rsiData = rsi(data, 14);
+          const rsiSeries = chart.addLineSeries({ 
+            color: '#b167ff', lineWidth: 1,
+            priceScaleId: 'right', scaleMargins: { top: 0, bottom: 0.8 }
+          });
+          rsiSeries.setData(rsiData);
+          
+          // RSI overbought/oversold lines
+          const overboughtSeries = chart.addLineSeries({ 
+            color: '#ff5b6e', lineWidth: 1, lineStyle: 2,
+            priceScaleId: 'right', scaleMargins: { top: 0, bottom: 0.8 }
+          });
+          const oversoldSeries = chart.addLineSeries({ 
+            color: '#24e39c', lineWidth: 1, lineStyle: 2,
+            priceScaleId: 'right', scaleMargins: { top: 0, bottom: 0.8 }
+          });
+          overboughtSeries.setData(rsiData.map(d => ({ time: d.time, value: 70 })));
+          oversoldSeries.setData(rsiData.map(d => ({ time: d.time, value: 30 })));
+        }
+        
+        chart.timeScale().fitContent();
+        
+        // Handle indicator toggles
+        document.querySelectorAll('.ind').forEach(ind => {
+          ind.onchange = () => {
+            const prefs = getIndPrefs();
+            prefs[ind.value] = ind.checked;
+            setIndPrefs(prefs);
+            openChart(ticker); // Reload chart
+          };
+        });
+        
+        // Set initial checkbox states
+        document.querySelectorAll('.ind').forEach(ind => {
+          ind.checked = getIndPrefs()[ind.value] !== false;
+        });
+        
+      } catch (error) {
+        console.error('Chart error:', error);
+        body.innerHTML = '<div class="loading" style="color:var(--down);">Error loading chart</div>';
+      }
+    }
+    
+    function closeChart(){
+      document.getElementById('chartModal').style.display = 'none';
+    }
+    
+    // ---------- UTILITIES ----------
+    function timeAgo(dateStr){
+      if(!dateStr) return '';
+      const now = new Date();
+      const then = new Date(dateStr);
+      const diff = now - then;
+      const mins = Math.floor(diff / 60000);
+      if(mins < 1) return 'just now';
+      if(mins < 60) return `${mins}m ago`;
+      const hrs = Math.floor(mins / 60);
+      if(hrs < 24) return `${hrs}h ago`;
+      const days = Math.floor(hrs / 24);
+      return `${days}d ago`;
+    }
+    
+    function persistWatchlist(){
+      try { localStorage.setItem('watchlistV1', JSON.stringify(Array.from(watchlist))); } catch{}
+    }
+    
+    function loadWatchlist(){
+      try { 
+        const saved = localStorage.getItem('watchlistV1');
+        if(saved) watchlist = new Set(JSON.parse(saved));
+      } catch{}
+    }
+    
+    // ---------- EVENT HANDLERS ----------
+    document.addEventListener('click', async (e)=>{
+      if(e.target.matches('[data-star]')){
+        e.preventDefault();
+        toggleWatchlist(e.target.dataset.star);
+      }
+      if(e.target.matches('[data-open-chart]')){
+        e.preventDefault();
+        openChart(e.target.dataset.openChart);
+      }
+      if(e.target.matches('[data-remove]')){
+        e.preventDefault();
+        watchlist.delete(e.target.dataset.remove);
+        persistWatchlist();
+        renderWatchlist();
+      }
+    });
+    
+    document.getElementById('wlAddBtn').addEventListener('click', ()=>{
+      const input = document.getElementById('wlAdd');
+      const ticker = input.value.trim().toUpperCase();
+      if(ticker && !watchlist.has(ticker)){
+        watchlist.add(ticker);
+        persistWatchlist();
+        renderWatchlist();
+        input.value = '';
+      }
+    });
+    
+    document.getElementById('wlAdd').addEventListener('keypress', (e)=>{
+      if(e.key === 'Enter') document.getElementById('wlAddBtn').click();
+    });
+    
+    document.getElementById('rescore').addEventListener('click', buildScanners);
+    
+    document.getElementById('filtersClear').addEventListener('click', ()=>{
+      selectedCats.clear();
+      document.querySelectorAll('#catChecks input[type="checkbox"]').forEach(cb => cb.checked = false);
+      updateFiltersCount();
+      applyFilter();
+    });
+    
+    // ---------- INITIALIZATION ----------
+    loadWatchlist();
+    renderFilterChecks();
+    
+    // Load initial data
+    setTimeout(fetchData, 100);
+  </script>
+</body>
+</html>

@@ -1,0 +1,29 @@
+{
+  "name": "financial-news-dashboard",
+  "version": "1.0.0",
+  "description": "Advanced day trader dashboard with real-time financial news, company matching, and live charts",
+  "main": "index.html",
+  "scripts": {
+    "start": "vercel dev",
+    "build": "echo 'No build step required'",
+    "deploy": "vercel --prod"
+  },
+  "keywords": [
+    "financial",
+    "trading",
+    "news",
+    "dashboard",
+    "day-trading",
+    "stocks",
+    "charts"
+  ],
+  "author": "Your Name",
+  "license": "MIT",
+  "dependencies": {
+    "stripe": "^14.0.0"
+  },
+  "devDependencies": {},
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
