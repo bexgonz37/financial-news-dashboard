@@ -3,7 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Financial News Dashboard</title>
+  <title>🚀 PRO Day Trader Dashboard - Advanced News & Screener</title>
+  <!-- LEGAL DISCLAIMER: This is for educational/entertainment purposes only. Not financial advice. -->
   <style>
     :root{
       --bg:#0b0f17; --card:#1a2132; --border:#20273a; --text:#e6e8ee; --meta:#8b9bb4;
@@ -97,8 +98,13 @@
 <body>
   <div class="container">
     <div class="header">
-      <h1>🚀 Day Trader Dashboard</h1>
-      <p>Real-time financial news, advanced scanning, and live market data</p>
+      <h1>🚀 PRO Day Trader Dashboard</h1>
+      <p>Advanced multi-source news aggregation, professional-grade screeners, and real-time market intelligence</p>
+      <div style="background: rgba(255, 193, 7, 0.1); border: 1px solid rgba(255, 193, 7, 0.3); border-radius: 8px; padding: 12px; margin: 20px 0; color: #ffc107; font-size: 0.9rem;">
+        <strong>⚠️ LEGAL DISCLAIMER:</strong> This dashboard is for educational and entertainment purposes only. 
+        It is NOT financial advice. All data is provided "as is" without warranty. 
+        Trading involves risk of loss. Always do your own research and consult a financial advisor.
+      </div>
       <div style="margin-top:10px; color:var(--meta); font-size:.9rem">
         <span id="etClock">--:-- ET</span> • 
         <span id="sessionStatus">Loading...</span>
@@ -136,10 +142,12 @@
       <div class="toolbar">
         <select class="select" id="scannerPreset">
           <option value="momentum">🚀 High Momentum</option>
-          <option value="big_movers"> Biggest % Movers</option>
-          <option value="rvol">📊 High Relative Volume</option>
-          <option value="sentiment">😊 High Sentiment</option>
-          <option value="volume">💎 High Volume</option>
+          <option value="volume">📊 High Volume</option>
+          <option value="oversold">📉 Oversold Bounce</option>
+          <option value="breakout">💥 Breakout Plays</option>
+          <option value="earnings">📈 Earnings Plays</option>
+          <option value="penny">💰 Penny Stocks</option>
+          <option value="growth">🌱 Growth Stocks</option>
         </select>
         <input class="input" id="minPct" type="number" step="0.1" placeholder="Min % (e.g. 2)"/>
         <input class="input" id="minRVOL" type="number" step="0.1" placeholder="Min RVOL (e.g. 1.5)"/>

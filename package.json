@@ -1,7 +1,7 @@
 {
   "name": "financial-news-dashboard",
   "version": "1.0.0",
-  "description": "Advanced day trader dashboard with real-time financial news, company matching, and live charts",
+  "description": "Educational day trader dashboard with real-time financial news, company matching, and live charts - FOR ENTERTAINMENT PURPOSES ONLY",
   "main": "index.html",
   "scripts": {
     "start": "vercel dev",
@@ -17,7 +17,7 @@
     "stocks",
     "charts"
   ],
-  "author": "Your Name",
+  "author": "Educational Project - Not Financial Advice",
   "license": "MIT",
   "dependencies": {
     "node-fetch": "^2.6.7"
