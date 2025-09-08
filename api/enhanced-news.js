@@ -136,7 +136,7 @@ async function fetchMarketWatchNews(ticker, search, limit) {
 
 async function fetchFMPNews(ticker, search, limit) {
   try {
-    const apiKey = process.env.FMP_API_KEY;
+    const apiKey = process.env.FMP_KEY;
     if (!apiKey) return [];
 
     const query = ticker || search || 'market';
