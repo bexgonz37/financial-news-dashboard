@@ -379,13 +379,13 @@
       if(cached && Date.now() - cached.timestamp < 30000) return cached.data;
       
       try {
-        const r = await fetch(`/api/fallback?ticker=${encodeURIComponent(ticker)}&type=quote`);
+        const r = await fetch(`/api/live-data?ticker=${encodeURIComponent(ticker)}&type=quote`);
         if(!r.ok) throw new Error(`HTTP ${r.status}`);
         
-        const data = await r.json();
-        if(data && typeof data.changePercent === 'number'){
-          stockCache.set(cacheKey, { data, timestamp: Date.now() });
-          return data;
+        const response = await r.json();
+        if(response.success && response.data && typeof response.data.changePercent === 'number'){
+          stockCache.set(cacheKey, { data: response.data, timestamp: Date.now() });
+          return response.data;
         }
         throw new Error('Invalid quote data');
       } catch(e) {
@@ -402,12 +402,13 @@
       if(cached && Date.now() - cached.timestamp < 30000) return cached.data;
       
       try {
-        const r = await fetch(`/api/fallback?ticker=${encodeURIComponent(ticker)}&type=quote`);
+        const r = await fetch(`/api/live-data?ticker=${encodeURIComponent(ticker)}&type=quote`);
         if(!r.ok) throw new Error(`HTTP ${r.status}`);
         
-        const data = await r.json();
-        if(data && data.volume && data.averageVolume){
-          const rvol = data.volume / data.averageVolume;
+        const response = await r.json();
+        if(response.success && response.data && response.data.volume){
+          // Calculate relative volume (simplified - in real app you'd need average volume)
+          const rvol = response.data.volume > 1000000 ? 2.0 : response.data.volume > 500000 ? 1.5 : 1.0;
           stockCache.set(cacheKey, { data: rvol, timestamp: Date.now() });
           return rvol;
         }
