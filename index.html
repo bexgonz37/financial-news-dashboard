@@ -485,7 +485,7 @@
         const feed = document.getElementById('news-feed');
         feed.innerHTML = '<div class="loading">Fetching live financial news…</div>';
         
-        const r = await fetch(`/api/data?${params.toString()}`);
+        const r = await fetch(`/api/enhanced-news?${params.toString()}`);
         if(!r.ok) {
           throw new Error(`API error: ${r.status} ${r.statusText}`);
         }
@@ -612,108 +612,62 @@
 
     // ---------- ADVANCED DAY TRADER SCANNER ----------
     async function buildScanners(){
-      const base = filteredNews.length ? filteredNews : newsData;
-      const stats = new Map(); // ticker -> {mentions, latest, sentiment, volume}
-      for(const n of base){
-        const t = (n.ticker||'').toUpperCase(); if(!t || t==='GENERAL') continue;
-        const s = stats.get(t)||{mentions:0, latest:0, sentiment:0, volume:0};
-        s.mentions++;
-        s.sentiment += (n.sentimentScore || 0);
-        const ts = n.publishedAt?Date.parse(n.publishedAt):0; 
-        if(ts > (s.latest||0)) s.latest = ts;
-        stats.set(t,s);
-      }
+      const preset = document.getElementById('preset')?.value || 'momentum';
+      const limit = 50;
       
-      const list = [...stats.keys()].slice(0,100); // Increased from 80
-      const rows = [];
-      
-      for(const t of list){
-        let pct=0, rvol=0, rec=0, volume=0, price=0, marketCap='Unknown';
-        try{ 
-          const q=await getQuote(t); 
-          pct = q?.changePercent||0; 
-          price = q?.currentPrice || 0;
-          volume = q?.volume || 0;
-        }catch{}
-        try{ const rv=await getRVOL(t); rvol = rv||0; }catch{}
+      try {
+        // Call the advanced screener API
+        const response = await fetch(`/api/advanced-screener?preset=${preset}&limit=${limit}`);
+        const data = await response.json();
         
-        const minsOld = stats.get(t)?.latest ? (Date.now()-stats.get(t).latest)/60000 : 999;
-        rec = Math.max(0, 30 - Math.min(30, minsOld)); // 0..30 recent boost
-        
-        // Enhanced scoring for day traders
-        const avgSentiment = stats.get(t).sentiment / stats.get(t).mentions;
-        const sentimentScore = avgSentiment * 2; // Sentiment bonus
-        const volumeScore = volume > 1000000 ? 10 : volume > 500000 ? 5 : 0; // Volume bonus
-        const priceScore = price > 50 ? 5 : price > 10 ? 3 : 1; // Price tier bonus
-        
-        const score = (pct*1.5) + (stats.get(t).mentions*0.8) + (rvol*8) + (rec*0.5) + sentimentScore + volumeScore + priceScore;
-        
-        rows.push({ 
-          ticker:t, 
-          pct, 
-          mentions:stats.get(t).mentions, 
-          rvol, 
-          recency:rec, 
-          score,
-          price,
-          volume,
-          sentiment: avgSentiment
-        });
-      }
+        if (data.success && data.data.stocks) {
+          const stocks = data.data.stocks;
+          const grid = document.getElementById('scanner-grid');
+          
+          if (!stocks.length) {
+            grid.innerHTML = `<div class="card">No stocks match the current filters.</div>`;
+            return;
+          }
 
-      const preset = document.getElementById('scannerPreset').value;
-      if (preset==='big_movers') rows.sort((a,b)=> Math.abs(b.pct)-Math.abs(a.pct));
-      else if (preset==='rvol') rows.sort((a,b)=> b.rvol-a.rvol);
-      else if (preset==='sentiment') rows.sort((a,b)=> b.sentiment-a.sentiment);
-      else if (preset==='volume') rows.sort((a,b)=> b.volume-a.volume);
-      else rows.sort((a,b)=> b.score-a.score);
-
-      const minPct = parseFloat(document.getElementById('minPct').value||'NaN');
-      const minRVOL = parseFloat(document.getElementById('minRVOL').value||'NaN');
-      const minMent = parseFloat(document.getElementById('minMentions').value||'NaN');
-      const minVolume = parseFloat(document.getElementById('minVolume')?.value||'NaN');
-      const minPrice = parseFloat(document.getElementById('minPrice')?.value||'NaN');
-      
-      const filt = rows.filter(r=>{
-        return (isNaN(minPct) || Math.abs(r.pct)>=minPct) &&
-               (isNaN(minRVOL) || r.rvol>=minRVOL) &&
-               (isNaN(minMent) || r.mentions>=minMent) &&
-               (isNaN(minVolume) || r.volume>=minVolume) &&
-               (isNaN(minPrice) || r.price>=minPrice);
-      }).slice(0,24); // Increased from 18
-
-      const grid = document.getElementById('scanner-grid');
-      if(!filt.length){ grid.innerHTML = `<div class="card">No results match the thresholds.</div>`; return; }
-
-      grid.innerHTML = filt.map(r=>{
-        const rvolHtml = scanOptShowRVOL ? ` · RVOL: ${r.rvol?r.rvol.toFixed(2):'—'}` : '';
-        const mentHtml = scanOptShowMentions ? ` · Mentions: ${r.mentions}` : '';
-        const volumeHtml = ` · Vol: ${r.volume ? (r.volume/1000000).toFixed(1)+'M' : '—'}`;
-        const sentimentHtml = ` · Sent: ${r.sentiment ? (r.sentiment*100).toFixed(0)+'%' : '—'}`;
-        
-        return `
-          <div class="card">
-            <div class="kpi">
-              <div>
-                <div style="font-weight:900">${r.ticker}</div>
-                <div class="meta">$${r.price?.toFixed(2) || '—'} · ${r.recency.toFixed(0)}m ago${rvolHtml}${mentHtml}${volumeHtml}${sentimentHtml}</div>
+          grid.innerHTML = stocks.map(stock => {
+            const pct = stock.changePercent || 0;
+            const price = stock.price || 0;
+            const volume = stock.volume || 0;
+            const rvol = stock.relativeVolume || 0;
+            const score = stock.score || 0;
+            const rsi = stock.rsi || 0;
+            const macd = stock.macd || 0;
+            const sector = stock.sector || 'Unknown';
+            const analystRating = stock.analystRating || 'N/A';
+            
+            return `
+              <div class="card" style="cursor:pointer" onclick="openChart('${stock.symbol}')">
+                <div class="kpi">
+                  <div>
+                    <strong>${stock.symbol}</strong>
+                    <span class="change ${pct>=0?'up':'down'}">${pct>=0?'+':''}${pct.toFixed(2)}%</span>
+                  </div>
+                  <div style="text-align:right">
+                    <div class="meta">AI Score: ${score.toFixed(0)}</div>
+                    <div class="meta">$${price.toFixed(2)} · RVOL: ${rvol.toFixed(2)}x</div>
+                  </div>
+                </div>
+                <div style="margin-top:8px; display:flex; justify-content:space-between; align-items:center">
+                  <span class="meta">${sector} · RSI: ${rsi.toFixed(1)}</span>
+                  <button class="star ${watchlist.has(stock.symbol)?'active':''}" data-star="${stock.symbol}" style="margin-left:8px">${watchlist.has(stock.symbol)?'★':'☆'}</button>
+                </div>
+                <div class="meta" style="margin-top:4px; font-size:0.8rem">
+                  ${analystRating} · MACD: ${macd.toFixed(3)}
+                </div>
               </div>
-              <div class="change ${r.pct>=0?'up':'down'}">${r.pct>=0?'↗':'↘'} ${r.pct.toFixed(2)}%</div>
-            </div>
-            ${scanOptShowChart ? `<div class="mini-chart" data-ticker="${r.ticker}" style="margin-top:8px; height:40px;"></div>` : ``}
-            <div class="meta" style="margin-top:6px">
-              <a href="#" data-open-chart="${r.ticker}">📊 Chart</a>
-              <button class="star ${watchlist.has(r.ticker)?'active':''}" data-star="${r.ticker}" style="margin-left:8px">${watchlist.has(r.ticker)?'★':'☆'}</button>
-            </div>
-          </div>
-        `;
-      });
-
-      if (scanOptShowChart){
-        grid.querySelectorAll('.mini-chart').forEach(async slot=>{
-          const t = slot.getAttribute('data-ticker');
-          if (t) await drawSparklineWithRetry(slot, t);
-        });
+            `;
+          });
+        } else {
+          document.getElementById('scanner-grid').innerHTML = `<div class="card">Error loading screener data.</div>`;
+        }
+      } catch (error) {
+        console.error('Screener error:', error);
+        document.getElementById('scanner-grid').innerHTML = `<div class="card">Error loading screener data.</div>`;
       }
     }
 
