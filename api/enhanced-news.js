@@ -1,4 +1,6 @@
 const fetch = require('node-fetch');
+const { saveNews, getNews, getMarketSession } = require('./database');
+const tickerExtractor = require('./ticker-extractor');
 
 module.exports = async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -8,9 +10,28 @@ module.exports = async function handler(req, res) {
   if (req.method === 'OPTIONS') return res.status(200).end();
 
   try {
-    const { ticker, search, limit = 100 } = req.query;
+    const { ticker, search, limit = 100, dateRange = '7d', source } = req.query;
     
-    // Fetch from multiple FREE sources in parallel for LIVE data
+    // First, try to get cached news from database
+    const cachedNews = await getNews({ ticker, source, dateRange, limit });
+    
+    // If we have recent cached news, return it
+    if (cachedNews.length > 0) {
+      return res.status(200).json({
+        success: true,
+        data: {
+          news: cachedNews,
+          sources: ['cached'],
+          total: cachedNews.length,
+          marketSentiment: calculateMarketSentiment(cachedNews),
+          urgencyLevel: calculateUrgencyLevel(cachedNews),
+          timestamp: new Date().toISOString(),
+          disclaimer: "All data is for educational purposes only. Not financial advice."
+        }
+      });
+    }
+
+    // Fetch fresh news from multiple sources
     const newsPromises = [
       fetchAlphaVantageNews(ticker, search, limit),
       fetchYahooFinanceNews(ticker, search, limit),
@@ -34,10 +55,19 @@ module.exports = async function handler(req, res) {
       allNews = getFallbackNewsData(ticker);
     }
 
-    // Advanced processing
-    const processedNews = processNewsWithAI(allNews);
+    // Process news with ticker extraction and AI
+    const processedNews = await processNewsWithTickers(allNews);
     const deduplicatedNews = deduplicateNews(processedNews);
     const sortedNews = sortNewsByAdvancedRelevance(deduplicatedNews, ticker, search);
+
+    // Save to database for persistence
+    try {
+      for (const article of sortedNews) {
+        await saveNews(article);
+      }
+    } catch (dbError) {
+      console.warn('Failed to save news to database:', dbError.message);
+    }
 
     return res.status(200).json({
       success: true,
@@ -230,6 +260,50 @@ async function fetchIEXCloudNews(ticker, search, limit) {
     console.warn('IEX Cloud news error:', error.message);
     return [];
   }
+}
+
+async function processNewsWithTickers(news) {
+  const processedNews = [];
+  
+  for (const article of news) {
+    try {
+      // Extract tickers from title and summary
+      const tickers = await tickerExtractor.extractTickers(
+        `${article.title} ${article.summary || ''}`
+      );
+      
+      // Determine market session
+      const session = getMarketSession(new Date(article.publishedAt));
+      
+      const processedArticle = {
+        ...article,
+        tickers,
+        session,
+        aiScore: calculateAIScore(article),
+        tradingSignal: generateTradingSignal(article),
+        riskLevel: calculateRiskLevel(article),
+        timeToMarket: calculateTimeToMarket(article.publishedAt),
+        lastUpdated: new Date().toISOString()
+      };
+      
+      processedNews.push(processedArticle);
+    } catch (error) {
+      console.warn('Failed to process article:', article.title, error.message);
+      // Still add the article without tickers
+      processedNews.push({
+        ...article,
+        tickers: [],
+        session: getMarketSession(new Date(article.publishedAt)),
+        aiScore: calculateAIScore(article),
+        tradingSignal: generateTradingSignal(article),
+        riskLevel: calculateRiskLevel(article),
+        timeToMarket: calculateTimeToMarket(article.publishedAt),
+        lastUpdated: new Date().toISOString()
+      });
+    }
+  }
+  
+  return processedNews;
 }
 
 function processNewsWithAI(news) {

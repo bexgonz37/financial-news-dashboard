@@ -122,10 +122,28 @@
       <div class="toolbar">
         <input class="input" id="ticker" placeholder="Filter by ticker (e.g., NVDA)"/>
         <input class="input" id="keyword" placeholder="Search keywords"/>
+        <select class="select" id="dateRange">
+          <option value="today">Today</option>
+          <option value="7d" selected>7 Days</option>
+          <option value="14d">14 Days</option>
+        </select>
+        <select class="select" id="source">
+          <option value="">All Sources</option>
+          <option value="Alpha Vantage">Alpha Vantage</option>
+          <option value="Yahoo Finance">Yahoo Finance</option>
+          <option value="Financial Modeling Prep">FMP</option>
+          <option value="Finnhub">Finnhub</option>
+          <option value="IEX Cloud">IEX Cloud</option>
+        </select>
         <button class="btn" onclick="fetchData()">🔄 Load News</button>
         <button class="btn" onclick="document.getElementById('filtersPopover').classList.toggle('open')">🎯 Filters</button>
         <span class="meta" id="filtersCount">(All)</span>
         <button class="btn" id="filtersClear">Clear</button>
+      </div>
+      
+      <!-- Ticker Chips -->
+      <div id="tickerChips" style="margin-bottom: 16px; display: flex; flex-wrap: wrap; gap: 8px;">
+        <!-- Ticker chips will be populated here -->
       </div>
       
       <div id="filtersPopover" style="position:relative; display:inline-block">
@@ -479,8 +497,13 @@
       const params = new URLSearchParams();
       const t = (document.getElementById('ticker').value||'').trim();
       const k = (document.getElementById('keyword').value||'').trim();
+      const dateRange = document.getElementById('dateRange').value || '7d';
+      const source = document.getElementById('source').value || '';
+      
       if (t) params.set('ticker', t.toUpperCase());
       if (k) params.set('search', k);
+      if (dateRange) params.set('dateRange', dateRange);
+      if (source) params.set('source', source);
 
       try{
         const feed = document.getElementById('news-feed');
@@ -500,8 +523,13 @@
           console.log(`Received ${incoming.length} news items`);
         }
         
-        mergeNews(incoming);
-        newsData = currentNewsArray();
+        // For sticky news, we don't merge - we replace to show persistent news
+        newsData = incoming;
+        
+        // Update ticker chips
+        updateTickerChips(incoming);
+        
+        // Apply current filters
         applyFilter();
         
         // Show success message briefly
@@ -617,8 +645,8 @@
       const limit = 50;
       
       try {
-        // Call the advanced screener API
-        const response = await fetch(`/api/advanced-screener?preset=${preset}&limit=${limit}`);
+        // Call the after-hours scanner API
+        const response = await fetch(`/api/after-hours-scanner?preset=${preset}&limit=${limit}`);
         const data = await response.json();
         
         if (data.success && data.data.stocks) {
@@ -640,6 +668,9 @@
             const macd = stock.macd || 0;
             const sector = stock.sector || 'Unknown';
             const analystRating = stock.analystRating || 'N/A';
+            const session = stock.session || 'RTH';
+            const isStale = stock.isStale || false;
+            const lastUpdated = stock.lastUpdated ? new Date(stock.lastUpdated).toLocaleTimeString() : 'Unknown';
             
             return `
               <div class="card" style="cursor:pointer" onclick="openChart('${stock.symbol}')">
@@ -647,6 +678,7 @@
                   <div>
                     <strong>${stock.symbol}</strong>
                     <span class="change ${pct>=0?'up':'down'}">${pct>=0?'+':''}${pct.toFixed(2)}%</span>
+                    ${isStale ? '<span style="color: #ffc107; font-size: 0.7rem; margin-left: 4px;">STALE</span>' : ''}
                   </div>
                   <div style="text-align:right">
                     <div class="meta">AI Score: ${score.toFixed(0)}</div>
@@ -654,15 +686,21 @@
                   </div>
                 </div>
                 <div style="margin-top:8px; display:flex; justify-content:space-between; align-items:center">
-                  <span class="meta">${sector} · RSI: ${rsi.toFixed(1)}</span>
+                  <span class="meta">${sector} · RSI: ${rsi.toFixed(1)} · ${session}</span>
                   <button class="star ${watchlist.has(stock.symbol)?'active':''}" data-star="${stock.symbol}" style="margin-left:8px">${watchlist.has(stock.symbol)?'★':'☆'}</button>
                 </div>
                 <div class="meta" style="margin-top:4px; font-size:0.8rem">
-                  ${analystRating} · MACD: ${macd.toFixed(3)}
+                  ${analystRating} · MACD: ${macd.toFixed(3)} · Updated: ${lastUpdated}
                 </div>
               </div>
             `;
           });
+          
+          // Set up auto-refresh based on market session
+          if (data.data.refreshInterval) {
+            clearTimeout(window.scannerRefreshTimeout);
+            window.scannerRefreshTimeout = setTimeout(buildScanners, data.data.refreshInterval);
+          }
         } else {
           document.getElementById('scanner-grid').innerHTML = `<div class="card">Error loading screener data.</div>`;
         }
