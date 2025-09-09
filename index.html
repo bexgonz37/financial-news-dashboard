@@ -581,13 +581,13 @@
         return;
       }
       feed.innerHTML = filteredNews.map(n=>{
-        const t = (n.ticker||'').toUpperCase();
+        const tickers = n.tickers || [];
+        const t = tickers.length > 0 ? tickers[0].toUpperCase() : (n.ticker||'').toUpperCase();
         const when = n.publishedAt ? timeAgo(n.publishedAt) : '';
         const source = n.source ? n.source : '';
         const starred = watchlist.has(t) ? 'active' : '';
         const pctNode = `<span class="pct" data-optional="pct"><span class="arrow">⏳</span> <span class="val">…</span></span>`;
         const rvolNode = `<span class="meta rvol" data-optional="rvol"></span>`;
-        const tickers = n.tickers || [];
         const session = n.session || 'RTH';
         const isStale = n.isStale || false;
         const aiScore = n.aiScore || 0;
