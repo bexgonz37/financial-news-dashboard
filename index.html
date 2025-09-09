@@ -133,6 +133,7 @@
           <option value="Yahoo Finance">Yahoo Finance</option>
           <option value="Financial Modeling Prep">FMP</option>
           <option value="Finnhub">Finnhub</option>
+          <option value="IEX Cloud">IEX Cloud</option>
         </select>
         <button class="btn" onclick="fetchData()">🔄 Load News</button>
         <button class="btn" onclick="document.getElementById('filtersPopover').classList.toggle('open')">🎯 Filters</button>
@@ -165,6 +166,11 @@
           <option value="earnings">📈 Earnings Plays</option>
           <option value="penny">💰 Penny Stocks</option>
           <option value="growth">🌱 Growth Stocks</option>
+          <option value="after_hours">🌙 After Hours</option>
+          <option value="ai_picks">🤖 AI Picks</option>
+          <option value="insider">👥 Insider Activity</option>
+          <option value="short_squeeze">⚡ Short Squeeze</option>
+          <option value="dividend">💵 Dividend</option>
         </select>
         <input class="input" id="minPct" type="number" step="0.1" placeholder="Min % (e.g. 2)"/>
         <input class="input" id="minRVOL" type="number" step="0.1" placeholder="Min RVOL (e.g. 1.5)"/>
@@ -580,19 +586,35 @@
         const starred = watchlist.has(t) ? 'active' : '';
         const pctNode = `<span class="pct" data-optional="pct"><span class="arrow">⏳</span> <span class="val">…</span></span>`;
         const rvolNode = `<span class="meta rvol" data-optional="rvol"></span>`;
+        const tickers = n.tickers || [];
+        const session = n.session || 'RTH';
+        const isStale = n.isStale || false;
+        const aiScore = n.aiScore || 0;
+        const tradingSignal = n.tradingSignal || 'hold';
+        
         return `
-          <div class="news-item">
+          <div class="news-item" style="border-left: 4px solid ${tradingSignal === 'buy' ? 'var(--up)' : tradingSignal === 'sell' ? 'var(--down)' : 'var(--meta)'};">
             <div class="item-top">
               <a class="ticker" href="#" data-open-chart="${t}">${t || 'GENERAL'}</a>
               ${pctNode}
               ${rvolNode}
-              <span class="src">${source ? source : ''}${when ? ` · ${when}` : ''}</span>
+              <span class="src">${source ? source : ''}${when ? ` · ${when}` : ''} · ${session}${isStale ? ' · STALE' : ''}</span>
               <button class="star ${starred}" data-star="${t}">${starred?'★':'☆'}</button>
             </div>
             <div class="title">${n.title||''}</div>
             <div class="summary">${n.summary||''} ${n.url?`<a href="${n.url}" target="_blank" rel="noopener">Read</a>`:''}</div>
+            ${tickers.length > 0 ? `
+              <div style="margin: 8px 0; display: flex; flex-wrap: wrap; gap: 4px;">
+                ${tickers.map(ticker => `
+                  <span style="background: var(--accent); color: white; padding: 2px 6px; border-radius: 4px; font-size: 0.8rem; cursor: pointer;" 
+                        onclick="document.getElementById('ticker').value='${ticker}'; fetchData();">
+                    $${ticker}
+                  </span>
+                `).join('')}
+              </div>
+            ` : ''}
             <div class="mini-row">
-              <div class="meta">${n.category ? n.category : ''}</div>
+              <div class="meta">${n.category ? n.category : ''} · AI Score: ${aiScore} · Signal: ${tradingSignal.toUpperCase()}</div>
               <div class="mini-chart" data-ticker="${t}"></div>
             </div>
           </div>
@@ -640,7 +662,7 @@
 
     // ---------- ADVANCED DAY TRADER SCANNER ----------
     async function buildScanners(){
-      const preset = document.getElementById('preset')?.value || 'momentum';
+      const preset = document.getElementById('scannerPreset')?.value || 'momentum';
       const limit = 50;
       
       try {
@@ -707,6 +729,28 @@
         console.error('Screener error:', error);
         document.getElementById('scanner-grid').innerHTML = `<div class="card">Error loading screener data.</div>`;
       }
+    }
+
+    // ---------- TICKER CHIPS ----------
+    function updateTickerChips(news) {
+      const chipsContainer = document.getElementById('tickerChips');
+      const allTickers = new Set();
+      
+      news.forEach(article => {
+        if (article.tickers && Array.isArray(article.tickers)) {
+          article.tickers.forEach(ticker => allTickers.add(ticker));
+        }
+      });
+      
+      const sortedTickers = Array.from(allTickers).sort();
+      
+      chipsContainer.innerHTML = sortedTickers.map(ticker => `
+        <span class="ticker-chip" 
+              onclick="document.getElementById('ticker').value='${ticker}'; fetchData();"
+              style="background: var(--accent); color: white; padding: 4px 8px; border-radius: 6px; font-size: 0.9rem; cursor: pointer; transition: all 0.2s;">
+          $${ticker}
+        </span>
+      `).join('');
     }
 
     // ---------- WATCHLIST ----------

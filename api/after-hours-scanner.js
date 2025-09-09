@@ -178,6 +178,32 @@ function applyPresetFilters(stocks, preset) {
         Math.abs(parseFloat(stock.changePercent)) > 1
       );
     
+    case 'ai_picks':
+      return stocks.filter(stock => 
+        parseFloat(stock.score) > 80 &&
+        parseFloat(stock.relativeVolume) > 1.5
+      );
+    
+    case 'insider':
+      return stocks.filter(stock => 
+        parseFloat(stock.shortInterest) > 5 &&
+        parseFloat(stock.relativeVolume) > 2.0
+      );
+    
+    case 'short_squeeze':
+      return stocks.filter(stock => 
+        parseFloat(stock.shortInterest) > 10 &&
+        parseFloat(stock.changePercent) > 5 &&
+        parseFloat(stock.relativeVolume) > 2.5
+      );
+    
+    case 'dividend':
+      return stocks.filter(stock => 
+        parseFloat(stock.dividendYield) > 2 &&
+        parseFloat(stock.pe) < 25 &&
+        parseFloat(stock.changePercent) > 0
+      );
+    
     default:
       return stocks;
   }
