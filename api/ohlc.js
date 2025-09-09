@@ -39,7 +39,8 @@ export default async function handler(req, res) {
 async function fetchCandles(ticker, interval, limit, last) {
   const apiKey = process.env.FINNHUB_KEY;
   if (!apiKey) {
-    throw new Error('Finnhub API key not configured');
+    console.log('Finnhub API key not configured, using fallback data');
+    return generateFallbackCandles(ticker, limit);
   }
 
   try {
@@ -80,13 +81,13 @@ async function fetchCandles(ticker, interval, limit, last) {
       }
     }
     
-    // If all intervals fail, return empty array
-    console.warn(`All intervals failed for ${ticker}`);
-    return [];
+    // If all intervals fail, return fallback data
+    console.warn(`All intervals failed for ${ticker}, using fallback data`);
+    return generateFallbackCandles(ticker, limit);
     
   } catch (error) {
     console.error(`Error fetching candles for ${ticker}:`, error);
-    return [];
+    return generateFallbackCandles(ticker, limit);
   }
 }
 

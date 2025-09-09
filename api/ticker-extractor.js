@@ -8,29 +8,40 @@ class TickerExtractor {
     this.loadCommonTickers();
   }
 
-  // Load common tickers and aliases
+    // Load common tickers and aliases
   loadCommonTickers() {
     const commonTickers = {
-      'AAPL': { name: 'Apple Inc.', aliases: ['apple', 'iphone', 'ipad', 'macbook', 'app store'] },
-      'MSFT': { name: 'Microsoft Corporation', aliases: ['microsoft', 'windows', 'office', 'azure', 'xbox'] },
-      'GOOGL': { name: 'Alphabet Inc.', aliases: ['google', 'youtube', 'android', 'chrome', 'search'] },
-      'AMZN': { name: 'Amazon.com Inc.', aliases: ['amazon', 'aws', 'prime', 'alexa', 'kindle'] },
-      'TSLA': { name: 'Tesla Inc.', aliases: ['tesla', 'model s', 'model 3', 'model x', 'model y', 'cybertruck'] },
-      'META': { name: 'Meta Platforms Inc.', aliases: ['facebook', 'meta', 'instagram', 'whatsapp', 'oculus'] },
-      'NVDA': { name: 'NVIDIA Corporation', aliases: ['nvidia', 'gpu', 'cuda', 'rtx', 'gtx', 'ai chips'] },
-      'NFLX': { name: 'Netflix Inc.', aliases: ['netflix', 'streaming', 'netflix originals'] },
-      'AMD': { name: 'Advanced Micro Devices', aliases: ['amd', 'ryzen', 'radeon', 'epyc'] },
-      'INTC': { name: 'Intel Corporation', aliases: ['intel', 'core i7', 'core i5', 'xeon', 'pentium'] },
-      'CRM': { name: 'Salesforce Inc.', aliases: ['salesforce', 'crm', 'sales cloud', 'service cloud'] },
-      'ORCL': { name: 'Oracle Corporation', aliases: ['oracle', 'database', 'java', 'cloud infrastructure'] },
-      'ADBE': { name: 'Adobe Inc.', aliases: ['adobe', 'photoshop', 'illustrator', 'acrobat', 'creative cloud'] },
-      'PYPL': { name: 'PayPal Holdings Inc.', aliases: ['paypal', 'venmo', 'digital payments'] },
-      'SQ': { name: 'Block Inc.', aliases: ['square', 'cash app', 'block', 'bitcoin'] },
-      'UBER': { name: 'Uber Technologies Inc.', aliases: ['uber', 'rideshare', 'uber eats'] },
-      'LYFT': { name: 'Lyft Inc.', aliases: ['lyft', 'rideshare', 'scooters'] },
-      'SPOT': { name: 'Spotify Technology S.A.', aliases: ['spotify', 'music streaming', 'podcasts'] },
-      'TWTR': { name: 'Twitter Inc.', aliases: ['twitter', 'tweets', 'social media'] },
-      'SNAP': { name: 'Snap Inc.', aliases: ['snapchat', 'snap', 'ar filters', 'spectacles'] }
+      'AAPL': { name: 'Apple Inc.', aliases: ['apple', 'iphone', 'ipad', 'macbook', 'app store', 'apple inc', 'apple computer'] },
+      'MSFT': { name: 'Microsoft Corporation', aliases: ['microsoft', 'windows', 'office', 'azure', 'xbox', 'microsoft corp', 'bing'] },
+      'GOOGL': { name: 'Alphabet Inc.', aliases: ['google', 'youtube', 'android', 'chrome', 'search', 'alphabet', 'waymo'] },
+      'AMZN': { name: 'Amazon.com Inc.', aliases: ['amazon', 'aws', 'prime', 'alexa', 'kindle', 'amazon.com', 'whole foods'] },
+      'TSLA': { name: 'Tesla Inc.', aliases: ['tesla', 'model s', 'model 3', 'model x', 'model y', 'cybertruck', 'tesla motors', 'elon musk'] },
+      'META': { name: 'Meta Platforms Inc.', aliases: ['facebook', 'meta', 'instagram', 'whatsapp', 'oculus', 'facebook inc', 'zuckerberg'] },
+      'NVDA': { name: 'NVIDIA Corporation', aliases: ['nvidia', 'gpu', 'cuda', 'rtx', 'gtx', 'ai chips', 'nvidia corp', 'geforce'] },
+      'NFLX': { name: 'Netflix Inc.', aliases: ['netflix', 'streaming', 'netflix originals', 'netflix inc'] },
+      'AMD': { name: 'Advanced Micro Devices', aliases: ['amd', 'ryzen', 'radeon', 'epyc', 'advanced micro devices'] },
+      'INTC': { name: 'Intel Corporation', aliases: ['intel', 'core i7', 'core i5', 'xeon', 'pentium', 'intel corp'] },
+      'CRM': { name: 'Salesforce Inc.', aliases: ['salesforce', 'crm', 'sales cloud', 'service cloud', 'salesforce.com'] },
+      'ORCL': { name: 'Oracle Corporation', aliases: ['oracle', 'database', 'java', 'cloud infrastructure', 'oracle corp'] },
+      'ADBE': { name: 'Adobe Inc.', aliases: ['adobe', 'photoshop', 'illustrator', 'acrobat', 'creative cloud', 'adobe systems'] },
+      'PYPL': { name: 'PayPal Holdings Inc.', aliases: ['paypal', 'venmo', 'digital payments', 'paypal holdings'] },
+      'SQ': { name: 'Block Inc.', aliases: ['square', 'cash app', 'block', 'bitcoin', 'square inc', 'jack dorsey'] },
+      'UBER': { name: 'Uber Technologies Inc.', aliases: ['uber', 'rideshare', 'uber eats', 'uber technologies'] },
+      'LYFT': { name: 'Lyft Inc.', aliases: ['lyft', 'rideshare', 'scooters', 'lyft inc'] },
+      'SPOT': { name: 'Spotify Technology S.A.', aliases: ['spotify', 'music streaming', 'podcasts', 'spotify technology'] },
+      'TWTR': { name: 'Twitter Inc.', aliases: ['twitter', 'tweets', 'social media', 'twitter inc', 'x.com'] },
+      'SNAP': { name: 'Snap Inc.', aliases: ['snapchat', 'snap', 'ar filters', 'spectacles', 'snap inc'] },
+      'DIS': { name: 'Walt Disney Company', aliases: ['disney', 'walt disney', 'disney+', 'disney plus', 'marvel', 'star wars'] },
+      'NKE': { name: 'Nike Inc.', aliases: ['nike', 'nike inc', 'jordan', 'air jordan', 'sneakers'] },
+      'WMT': { name: 'Walmart Inc.', aliases: ['walmart', 'walmart inc', 'walmart stores', 'sam\'s club'] },
+      'JPM': { name: 'JPMorgan Chase & Co.', aliases: ['jpmorgan', 'jp morgan', 'chase', 'jpmorgan chase', 'bank'] },
+      'BAC': { name: 'Bank of America Corporation', aliases: ['bank of america', 'bofa', 'bank of america corp', 'merrill lynch'] },
+      'GS': { name: 'Goldman Sachs Group Inc.', aliases: ['goldman sachs', 'goldman', 'investment bank', 'wall street'] },
+      'JNJ': { name: 'Johnson & Johnson', aliases: ['johnson & johnson', 'j&j', 'pharmaceuticals', 'medical devices'] },
+      'PFE': { name: 'Pfizer Inc.', aliases: ['pfizer', 'pfizer inc', 'pharmaceuticals', 'vaccine', 'covid vaccine'] },
+      'UNH': { name: 'UnitedHealth Group Inc.', aliases: ['unitedhealth', 'united health', 'health insurance', 'optum'] },
+      'HD': { name: 'Home Depot Inc.', aliases: ['home depot', 'home depot inc', 'hardware store', 'construction'] },
+      'PG': { name: 'Procter & Gamble Company', aliases: ['procter & gamble', 'p&g', 'consumer goods', 'household products'] }
     };
 
     for (const [symbol, data] of Object.entries(commonTickers)) {
