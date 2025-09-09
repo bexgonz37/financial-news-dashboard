@@ -171,6 +171,7 @@
           <option value="insider">👥 Insider Activity</option>
           <option value="short_squeeze">⚡ Short Squeeze</option>
           <option value="dividend">💵 Dividend</option>
+          <option value="new_listings">🆕 New Listings</option>
         </select>
         <input class="input" id="minPct" type="number" step="0.1" placeholder="Min % (e.g. 2)"/>
         <input class="input" id="minRVOL" type="number" step="0.1" placeholder="Min RVOL (e.g. 1.5)"/>
@@ -666,8 +667,8 @@
       const limit = 50;
       
       try {
-        // Call the after-hours scanner API
-        const response = await fetch(`/api/after-hours-scanner?preset=${preset}&limit=${limit}`);
+        // Call the universal scanner API for comprehensive data
+        const response = await fetch(`/api/universal-scanner?preset=${preset}&limit=${limit}`);
         const data = await response.json();
         
         if (data.success && data.data.stocks) {

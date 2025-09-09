@@ -21,17 +21,56 @@ module.exports = async function handler(req, res) {
     try {
       const apiKey = process.env.ALPHAVANTAGE_KEY;
       if (apiKey) {
-        // Fetch top gainers and losers for comprehensive data
-        const [gainersResponse, losersResponse] = await Promise.all([
+        // Fetch comprehensive market data including IPOs and new listings
+        const [gainersResponse, mostActiveResponse, listingResponse] = await Promise.all([
           fetch(`https://www.alphavantage.co/query?function=TOP_GAINERS_LOSERS&apikey=${apiKey}`),
+          fetch(`https://www.alphavantage.co/query?function=MOST_ACTIVE&apikey=${apiKey}`),
           fetch(`https://www.alphavantage.co/query?function=LISTING_STATUS&apikey=${apiKey}`)
         ]);
 
         const gainersData = await gainersResponse.json();
-        const losersData = await losersResponse.json();
+        const mostActiveData = await mostActiveResponse.json();
+        const listingData = await listingResponse.json();
 
+        // Combine all data sources for comprehensive coverage
+        let allStocks = [];
+        
         if (gainersData.top_gainers) {
-          screenerData = gainersData.top_gainers.map(stock => {
+          allStocks = [
+            ...gainersData.top_gainers,
+            ...gainersData.top_losers || []
+          ];
+        }
+        
+        if (mostActiveData.most_actives) {
+          allStocks = [...allStocks, ...mostActiveData.most_actives];
+        }
+        
+        // Add new listings/IPOs
+        if (listingData.data) {
+          const newListings = listingData.data
+            .filter(listing => listing.status === 'Active' && listing.assetType === 'Stock')
+            .slice(0, 100) // Get more new listings
+            .map(listing => ({
+              ticker: listing.symbol,
+              price: '0.00', // Will be filled by real-time data
+              change_amount: '0.00',
+              change_percentage: '0.00%',
+              volume: '0',
+              market_cap: '0',
+              pe: '0',
+              eps: '0',
+              dividend: '0',
+              yield: '0%',
+              high_52_week: '0',
+              low_52_week: '0'
+            }));
+          
+          allStocks = [...allStocks, ...newListings];
+        }
+
+        if (allStocks.length > 0) {
+          screenerData = allStocks.map(stock => {
             const publishedAt = new Date().toISOString();
             const marketSession = getMarketSession(new Date(publishedAt));
             
