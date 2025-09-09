@@ -31,13 +31,12 @@ module.exports = async function handler(req, res) {
       });
     }
 
-    // Fetch fresh news from multiple sources
+    // Fetch fresh news from multiple sources (IEX Cloud discontinued Aug 2024)
     const newsPromises = [
       fetchAlphaVantageNews(ticker, search, limit),
       fetchYahooFinanceNews(ticker, search, limit),
       fetchFMPNews(ticker, search, limit),
-      fetchFinnhubNews(ticker, search, limit),
-      fetchIEXCloudNews(ticker, search, limit)
+      fetchFinnhubNews(ticker, search, limit)
     ];
 
     const results = await Promise.allSettled(newsPromises);
@@ -73,7 +72,7 @@ module.exports = async function handler(req, res) {
       success: true,
       data: {
         news: sortedNews.slice(0, limit),
-        sources: ['alphavantage', 'yahoo', 'fmp', 'finnhub', 'iex'],
+        sources: ['alphavantage', 'yahoo', 'fmp', 'finnhub'],
         total: sortedNews.length,
         marketSentiment: calculateMarketSentiment(sortedNews),
         urgencyLevel: calculateUrgencyLevel(sortedNews),
@@ -230,37 +229,8 @@ async function fetchFinnhubNews(ticker, search, limit) {
   }
 }
 
-async function fetchIEXCloudNews(ticker, search, limit) {
-  try {
-    // IEX Cloud free tier - no API key needed for basic news
-    const query = ticker || search || 'market';
-    const response = await fetch(`https://cloud.iexapis.com/stable/stock/${query}/news/last/10?token=free`);
-    const data = await response.json();
-
-    if (Array.isArray(data)) {
-      return data.map(article => ({
-        id: `iex_${article.id}`,
-        title: article.headline,
-        summary: article.summary || article.headline,
-        url: article.url,
-        source: 'IEX Cloud',
-        source_domain: 'iexcloud.io',
-        publishedAt: new Date(article.datetime).toISOString(),
-        category: categorizeNews(article.headline, article.summary),
-        sentimentScore: 0,
-        relevanceScore: 0.5,
-        ticker: ticker || 'GENERAL',
-        urgency: calculateUrgency(article.headline, article.summary),
-        impact: calculateImpact(article.headline, article.summary),
-        keywords: extractKeywords(article.headline, article.summary)
-      }));
-    }
-    return [];
-  } catch (error) {
-    console.warn('IEX Cloud news error:', error.message);
-    return [];
-  }
-}
+// IEX Cloud was discontinued on August 31, 2024
+// Removed fetchIEXCloudNews function
 
 async function processNewsWithTickers(news) {
   const processedNews = [];
