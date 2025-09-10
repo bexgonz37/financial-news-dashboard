@@ -163,13 +163,13 @@ function generateFreshNewsData(ticker, search, limit) {
 }
 
 function generateNewsUrl(source, symbol, title) {
-  // Generate working URLs that actually exist and won't give 404 errors
-  const workingUrls = {
-    'Financial Times': `https://www.ft.com/search?q=${encodeURIComponent(symbol + ' stock news')}`,
-    'Reuters': `https://www.reuters.com/search/news?blob=${encodeURIComponent(symbol + ' stock')}`,
-    'Bloomberg': `https://www.bloomberg.com/search?query=${encodeURIComponent(symbol + ' stock news')}`,
-    'MarketWatch': `https://www.marketwatch.com/search?q=${encodeURIComponent(symbol + ' stock')}`,
-    'CNBC': `https://www.cnbc.com/search/?query=${encodeURIComponent(symbol + ' stock news')}`,
+  // Generate simple, working URLs that definitely exist
+  const simpleUrls = {
+    'Financial Times': `https://www.ft.com/search?q=${symbol}`,
+    'Reuters': `https://www.reuters.com/search/news?blob=${symbol}`,
+    'Bloomberg': `https://www.bloomberg.com/search?query=${symbol}`,
+    'MarketWatch': `https://www.marketwatch.com/search?q=${symbol}`,
+    'CNBC': `https://www.cnbc.com/search/?query=${symbol}`,
     'Yahoo Finance': `https://finance.yahoo.com/quote/${symbol}/news`,
     'Seeking Alpha': `https://seekingalpha.com/symbol/${symbol}/news`,
     'InvestorPlace': `https://investorplace.com/stock-lists/${symbol.toLowerCase()}/`,
@@ -182,7 +182,7 @@ function generateNewsUrl(source, symbol, title) {
     'Finnhub': `https://finnhub.io/api/v1/company-news?symbol=${symbol}`
   };
   
-  const url = workingUrls[source] || `https://finance.yahoo.com/quote/${symbol}/news`;
+  const url = simpleUrls[source] || `https://finance.yahoo.com/quote/${symbol}/news`;
   console.log(`Generated URL for ${source} ${symbol}: ${url}`);
   return url;
 }

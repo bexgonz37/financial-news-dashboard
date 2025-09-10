@@ -815,7 +815,7 @@
               <button class="star ${starred}" data-star="${t}">${starred?'★':'☆'}</button>
             </div>
             <div class="title">${n.title||''}</div>
-            <div class="summary">${n.summary||''} ${n.url?`<button class="read-btn" onclick="openArticle('${n.url}')">Read</button>`:'<span style="color:red">NO URL</span>'}</div>
+            <div class="summary">${n.summary||''} ${n.url?`<button class="read-btn" data-url="${n.url}">Read</button>`:'<span style="color:red">NO URL</span>'}</div>
             ${tickers.length > 0 ? `
               <div style="margin: 8px 0; display: flex; flex-wrap: wrap; gap: 4px;">
                 ${tickers.map(ticker => `
@@ -837,6 +837,15 @@
       // show/hide optional metrics
       document.querySelectorAll('[data-optional="pct"]').forEach(n=> n.style.display = optShowPct ? '' : 'none');
       document.querySelectorAll('[data-optional="rvol"]').forEach(n=> n.style.display = optShowRVOL ? '' : 'none');
+      
+      // Add event listeners for read buttons
+      document.querySelectorAll('.read-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+          const url = this.getAttribute('data-url');
+          console.log('Read button clicked, URL:', url);
+          openArticle(url);
+        });
+      });
 
       // hydrate cards (always draw mini-charts)
       document.querySelectorAll('#news-feed .news-item').forEach(async (card)=>{
