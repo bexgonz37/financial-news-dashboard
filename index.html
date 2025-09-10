@@ -436,34 +436,37 @@
 
     // ---------- SPARKLINE CHARTS ----------
     async function drawSparkline(container, ticker){
-      console.log('=== CHART RENDER DIAGNOSTIC ===');
-      console.log('Ticker:', ticker);
-      console.log('Container:', container);
-      console.log('Container clientWidth:', container?.clientWidth);
-      console.log('Container clientHeight:', container?.clientHeight);
-      console.log('Container offsetWidth:', container?.offsetWidth);
-      console.log('Container offsetHeight:', container?.offsetHeight);
-      console.log('Is SSR:', typeof window === 'undefined');
+      // Ensure we're in browser environment
+      if (typeof window === 'undefined') {
+        console.warn('Chart rendering attempted in SSR environment');
+        return;
+      }
       
       if(!container || !ticker) {
-        console.error('Missing container or ticker:', { container, ticker });
+        console.warn('Missing container or ticker for chart:', { container, ticker });
+        return;
+      }
+      
+      // Ensure container has proper dimensions
+      if (container.clientWidth < 50 || container.clientHeight < 20) {
+        console.warn('Container too small for chart:', { 
+          width: container.clientWidth, 
+          height: container.clientHeight,
+          ticker 
+        });
+        container.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--meta);font-size:0.7rem;">Too small</div>';
         return;
       }
       
       container.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--loading);font-size:0.8rem;">Loading...</div>';
       
       try {
-        console.log('Fetching OHLC data for:', ticker);
-        const r = await fetch(`/api/ohlc?ticker=${encodeURIComponent(ticker)}&interval=5min&limit=20&last=1`);
-        console.log('OHLC response status:', r.status, r.ok);
+        const r = await fetch(`/api/ohlc?ticker=${encodeURIComponent(ticker)}&interval=5min&limit=20&last=1&_t=${Date.now()}`);
         const payload = r.ok ? await r.json() : {data: {candles: []}};
         const candles = payload.data?.candles || [];
-        console.log('Candles data length:', candles.length);
-        console.log('Candles sample:', candles.slice(0, 3));
         
         if(candles.length < 2){
-          console.warn('Insufficient candle data for', ticker, ':', candles.length);
-          container.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--meta);font-size:0.8rem;">No data</div>';
+          container.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--meta);font-size:0.7rem;">No data</div>';
           return;
         }
 
@@ -489,17 +492,13 @@
           return;
         }
 
-        const width = container.offsetWidth || 80;
-        const height = container.offsetHeight || 30;
+        const width = Math.max(container.offsetWidth || 80, 80);
+        const height = Math.max(container.offsetHeight || 30, 30);
         const strokeWidth = Math.max(1, Math.min(2, width / 40));
-        
-        console.log('Chart dimensions:', { width, height, strokeWidth });
-        console.log('Price range:', { minPrice, maxPrice, range });
 
         const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
         svg.setAttribute('width', width);
         svg.setAttribute('height', height);
-        console.log('SVG created with dimensions:', svg.getAttribute('width'), 'x', svg.getAttribute('height'));
         svg.style.overflow = 'visible';
 
         // Create gradient for sophisticated look
@@ -628,12 +627,17 @@
       }
     }
 
-    async function drawSparklineWithRetry(container, ticker, retries = 2){
+    async function drawSparklineWithRetry(container, ticker, retries = 3){
       try {
         await drawSparkline(container, ticker);
       } catch (error) {
+        console.warn(`Chart render failed for ${ticker}, retries left: ${retries}`, error);
         if (retries > 0) {
-          setTimeout(() => drawSparklineWithRetry(container, ticker, retries - 1), 1000);
+          // Wait longer between retries for live updates
+          setTimeout(() => drawSparklineWithRetry(container, ticker, retries - 1), 2000);
+        } else {
+          // Final fallback - show error state
+          container.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--down);font-size:0.7rem;">Error</div>';
         }
       }
     }
@@ -846,8 +850,7 @@
               <button class="star ${starred}" data-star="${t}">${starred?'★':'☆'}</button>
             </div>
             <div class="title">${n.title||''}</div>
-            <div class="summary">${n.summary||''} ${n.url?`<button class="read-btn" onclick="console.log('Read button clicked for:', '${n.url}', 'Type:', typeof '${n.url}'); window.open('${n.url}', '_blank')">Read</button>`:'<span style="color:red">NO URL</span>'}</div>
-            <div style="font-size: 0.7rem; color: #666; margin-top: 4px;">URL: ${n.url || 'NO URL'} | Type: ${typeof n.url}</div>
+            <div class="summary">${n.summary||''} ${n.url && n.url.startsWith('http') ? `<a href="${n.url}" target="_blank" rel="noopener noreferrer" class="read-btn" style="display:inline-block;padding:4px 8px;background:var(--accent);color:white;text-decoration:none;border-radius:4px;font-size:0.8rem;margin-left:8px;">Read</a>`:'<span style="color:red;font-size:0.8rem;">No URL</span>'}</div>
             ${tickers.length > 0 ? `
               <div style="margin: 8px 0; display: flex; flex-wrap: wrap; gap: 4px;">
                 ${tickers.map(ticker => `
@@ -877,6 +880,12 @@
         document.querySelectorAll('#news-feed .news-item').forEach(async (card)=>{
           const t = (card.querySelector('.mini-chart')?.dataset?.ticker||'').toUpperCase();
           if(!t || t==='GENERAL') return;
+          
+          // Clear any existing chart content
+          const chartContainer = card.querySelector('.mini-chart');
+          if (chartContainer) {
+            chartContainer.innerHTML = '';
+          }
 
         if (optShowPct){
           try{
@@ -1624,17 +1633,17 @@
     console.log('Loading scanner immediately...');
     buildScanners();
     
-    // Auto-refresh news every 30 seconds
-    setInterval(fetchData, 10000); // Call news API every 10 seconds instead of 30
+    // Live trading dashboard - aggressive refresh for real-time feel
+    setInterval(fetchData, 5000); // News every 5 seconds for live feel
+    setInterval(buildScanners, 10000); // Scanner every 10 seconds for live data
+    setInterval(updateWatchlist, 15000); // Watchlist every 15 seconds
     
-    // Auto-refresh scanner every 5 seconds for real-time trading app feel
-    // Auto-refresh every 30 seconds for fresh data
-    setInterval(buildScanners, 30000);
-    
-    // Also refresh news every 2 minutes
+    // Force refresh all data every 2 minutes to prevent stale data
     setInterval(() => {
-      console.log('Auto-refreshing news...');
+      console.log('=== FORCE REFRESH ALL DATA ===');
       fetchData();
+      buildScanners();
+      updateWatchlist();
     }, 120000);
     
     // Manual refresh function
@@ -1646,6 +1655,29 @@
       buildScanners();
     }
     
+    // Update watchlist data
+    async function updateWatchlist() {
+      console.log('Updating watchlist data...');
+      const watchlistItems = Array.from(watchlist);
+      if (watchlistItems.length === 0) return;
+      
+      for (const ticker of watchlistItems) {
+        try {
+          const quote = await getQuote(ticker);
+          if (quote && typeof quote.changePercent === 'number') {
+            const node = document.querySelector(`[data-wl-pct="${ticker}"]`);
+            if (node) {
+              const isPositive = quote.changePercent >= 0;
+              node.innerHTML = `<span class="arrow">${isPositive ? '▲' : '▼'}</span> <span class="val">${isPositive ? '+' : ''}${quote.changePercent.toFixed(2)}%</span>`;
+              node.className = `meta pct ${isPositive ? 'up' : 'down'}`;
+            }
+          }
+        } catch (e) {
+          console.warn(`Failed to update watchlist quote for ${ticker}:`, e);
+        }
+      }
+    }
+
     // Make refresh function global
     window.refreshAllData = refreshAllData;
     
