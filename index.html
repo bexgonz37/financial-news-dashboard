@@ -376,10 +376,14 @@
         document.getElementById(`view-${view}`).classList.add('active');
         
         if (view==='scanners') {
+          console.log('Scanner tab clicked - showing data immediately');
           // Always show fallback data immediately when scanner tab is clicked
           showFallbackScannerData();
           // Then try to load real data
-          buildScanners();
+          setTimeout(() => {
+            console.log('Loading real scanner data...');
+            buildScanners();
+          }, 100);
         }
         if (view==='watchlist') renderWatchlist();
       });
@@ -697,6 +701,7 @@
       if (k) params.set('search', k);
       if (dateRange) params.set('dateRange', dateRange);
       if (source) params.set('source', source);
+      params.set('limit', '100'); // Fetch more news
 
       try{
         const feed = document.getElementById('news-feed');
@@ -1511,13 +1516,19 @@
     showFallbackNewsData();
     showFallbackScannerData();
     
+    // Force scanner to show data immediately
+    setTimeout(() => {
+      console.log('Force showing scanner data...');
+      showFallbackScannerData();
+    }, 100);
+    
     // Load real data after fallback is shown
     console.log('Loading real data...');
-    setTimeout(fetchData, 100);
+    setTimeout(fetchData, 200);
     setTimeout(() => {
       console.log('Building scanners...');
       buildScanners();
-    }, 200);
+    }, 500);
     
     // Also try to load scanner immediately
     console.log('Loading scanner immediately...');

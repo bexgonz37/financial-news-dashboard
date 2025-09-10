@@ -33,10 +33,10 @@ module.exports = async function handler(req, res) {
 
     // Fetch fresh news from multiple sources (IEX Cloud discontinued Aug 2024)
     const newsPromises = [
-      fetchAlphaVantageNews(ticker, search, limit),
-      fetchYahooFinanceNews(ticker, search, limit),
-      fetchFMPNews(ticker, search, limit),
-      fetchFinnhubNews(ticker, search, limit)
+      fetchAlphaVantageNews(ticker, search, Math.min(limit || 50, 100)),
+      fetchYahooFinanceNews(ticker, search, Math.min(limit || 50, 100)),
+      fetchFMPNews(ticker, search, Math.min(limit || 50, 100)),
+      fetchFinnhubNews(ticker, search, Math.min(limit || 50, 100))
     ];
 
     const results = await Promise.allSettled(newsPromises);
@@ -815,8 +815,8 @@ function getFallbackNewsData(ticker) {
     'Forbes', 'Wall Street Journal', 'Barron\'s', 'Investor\'s Business Daily'
   ];
   
-  // Generate 50+ news items for diverse companies
-  for (let i = 0; i < 50; i++) {
+  // Generate 100+ news items for diverse companies
+  for (let i = 0; i < 100; i++) {
     const company = companies[Math.floor(Math.random() * companies.length)];
     const template = newsTemplates[Math.floor(Math.random() * newsTemplates.length)];
     const source = sources[Math.floor(Math.random() * sources.length)];
@@ -837,7 +837,7 @@ function getFallbackNewsData(ticker) {
       url: `https://www.${source.toLowerCase().replace(/\s+/g, '')}.com/${company.symbol.toLowerCase()}-news-${i + 1}`,
       source: source,
       source_domain: `${source.toLowerCase().replace(/\s+/g, '')}.com`,
-      publishedAt: new Date(Date.now() - Math.random() * 24 * 60 * 60 * 1000).toISOString(),
+      publishedAt: new Date(Date.now() - Math.random() * 6 * 60 * 60 * 1000).toISOString(), // Last 6 hours
       category: company.sector,
       sentimentScore: Math.random() * 0.6 + 0.2, // 0.2 to 0.8
       relevanceScore: Math.random() * 0.4 + 0.6, // 0.6 to 1.0
