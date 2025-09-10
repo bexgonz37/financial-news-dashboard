@@ -587,8 +587,8 @@ function getRefreshInterval() {
   const marketClose = 21 * 60;
   
   if (timeInMinutes >= marketOpen && timeInMinutes <= marketClose) {
-    return 15000;
+    return 5000; // 5 seconds during market hours for real-time feel
   } else {
-    return 60000;
+    return 30000; // 30 seconds after hours
   }
 }

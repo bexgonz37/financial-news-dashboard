@@ -174,7 +174,7 @@
           <option value="short_squeeze">⚡ Short Squeeze</option>
           <option value="dividend">💵 Dividend</option>
           <option value="new_listings">🆕 New Listings</option>
-          <option value="ticker_changes">🔄 Ticker Changes</option>
+            <option value="ticker_changes">🔄 Ticker Changes</option>
         </select>
         <input class="input" id="minPct" type="number" step="0.1" placeholder="Min % (e.g. 2)"/>
         <input class="input" id="minRVOL" type="number" step="0.1" placeholder="Min RVOL (e.g. 1.5)"/>
@@ -1041,6 +1041,9 @@
     
     // Auto-refresh news every 30 seconds
     setInterval(fetchData, 30000);
+    
+    // Auto-refresh scanner every 5 seconds for real-time trading app feel
+    setInterval(buildScanners, 5000);
   </script>
 </body>
 </html>
