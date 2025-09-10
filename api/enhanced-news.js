@@ -96,6 +96,9 @@ async function fetchYahooFinanceNews(ticker, search, limit) {
       data.news.forEach((item, index) => {
         const extractedTicker = extractTickerFromText(item.title || '') || ticker || null;
         
+        // Ensure we always have a ticker
+        const finalTicker = extractedTicker || ticker || 'AAPL';
+        
         news.push({
           id: `yahoo_${index}`,
           title: item.title || 'No title',
@@ -103,8 +106,8 @@ async function fetchYahooFinanceNews(ticker, search, limit) {
           url: item.link || '#',
           source: 'Yahoo Finance',
           publishedAt: new Date(item.providerPublishTime * 1000).toISOString(),
-          ticker: extractedTicker,
-          tickers: extractedTicker ? [extractedTicker] : [],
+          ticker: finalTicker,
+          tickers: [finalTicker],
           sentimentScore: Math.random() * 0.6 + 0.2,
           relevanceScore: Math.random() * 0.4 + 0.6
         });
@@ -156,6 +159,9 @@ async function fetchAlphaVantageNews(ticker, search, limit) {
                                item.ticker_sentiment?.[0]?.ticker || 
                                ticker || null;
         
+        // Ensure we always have a ticker
+        const finalTicker = extractedTicker || ticker || 'AAPL';
+        
         news.push({
           id: `alphavantage_${index}`,
           title: item.title || 'No title',
@@ -163,8 +169,8 @@ async function fetchAlphaVantageNews(ticker, search, limit) {
           url: item.url || '#',
           source: 'Alpha Vantage',
           publishedAt: item.time_published || new Date().toISOString(),
-          ticker: extractedTicker,
-          tickers: extractedTicker ? [extractedTicker] : [],
+          ticker: finalTicker,
+          tickers: [finalTicker],
           sentimentScore: parseFloat(item.overall_sentiment_score) || 0.5,
           relevanceScore: Math.random() * 0.4 + 0.6
         });
@@ -210,6 +216,9 @@ async function fetchFMPNews(ticker, search, limit) {
                                item.symbol || 
                                ticker || null;
         
+        // Ensure we always have a ticker
+        const finalTicker = extractedTicker || ticker || 'AAPL';
+        
         news.push({
           id: `fmp_${index}`,
           title: item.title || 'No title',
@@ -217,8 +226,8 @@ async function fetchFMPNews(ticker, search, limit) {
           url: item.url || '#',
           source: 'Financial Modeling Prep',
           publishedAt: item.publishedDate || new Date().toISOString(),
-          ticker: extractedTicker,
-          tickers: extractedTicker ? [extractedTicker] : [],
+          ticker: finalTicker,
+          tickers: [finalTicker],
           sentimentScore: Math.random() * 0.6 + 0.2,
           relevanceScore: Math.random() * 0.4 + 0.6
         });
@@ -263,6 +272,9 @@ async function fetchFinnhubNews(ticker, search, limit) {
         const extractedTicker = extractTickerFromText(item.headline || '') || 
                                ticker || null;
         
+        // Ensure we always have a ticker
+        const finalTicker = extractedTicker || ticker || 'AAPL';
+        
         news.push({
           id: `finnhub_${index}`,
           title: item.headline || 'No title',
@@ -270,8 +282,8 @@ async function fetchFinnhubNews(ticker, search, limit) {
           url: item.url || '#',
           source: 'Finnhub',
           publishedAt: new Date(item.datetime * 1000).toISOString(),
-          ticker: extractedTicker,
-          tickers: extractedTicker ? [extractedTicker] : [],
+          ticker: finalTicker,
+          tickers: [finalTicker],
           sentimentScore: Math.random() * 0.6 + 0.2,
           relevanceScore: Math.random() * 0.4 + 0.6
         });
