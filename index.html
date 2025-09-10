@@ -312,8 +312,8 @@
       
       try {
         const r = await fetch(`/api/ohlc?ticker=${encodeURIComponent(ticker)}&interval=5min&limit=20&last=1`);
-        const payload = r.ok ? await r.json() : {candles:[]};
-        const candles = payload.candles || [];
+        const payload = r.ok ? await r.json() : {data: {candles: []}};
+        const candles = payload.data?.candles || [];
         
         if(candles.length < 2){
           container.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--meta);font-size:0.8rem;">No data</div>';
