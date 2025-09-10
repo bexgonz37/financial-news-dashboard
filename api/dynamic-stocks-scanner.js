@@ -1,4 +1,4 @@
-// Dynamic Stocks Scanner API - Robust Real APIs with Better Error Handling
+// Dynamic Stocks Scanner API - Robust with Fresh Data
 const fetch = require('node-fetch');
 
 module.exports = async function handler(req, res) {
@@ -42,7 +42,7 @@ module.exports = async function handler(req, res) {
       }
     }
     
-    // If no stocks from any API, generate some realistic fallback stocks
+    // Generate fallback stocks if no live data found
     if (allStocks.length === 0) {
       console.log('No stocks from any API, generating fallback stocks...');
       allStocks = generateFallbackStocks();

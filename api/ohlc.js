@@ -1,4 +1,4 @@
-// OHLC Data API - Robust Real APIs with Better Error Handling
+// OHLC Data API - Robust with Better Data Fetching
 const fetch = require('node-fetch');
 
 module.exports = async function handler(req, res) {
@@ -52,17 +52,17 @@ module.exports = async function handler(req, res) {
       }
     }
     
-    // If no data from any source, generate some realistic fallback candles
+    // Generate fallback candles if no live data found
     console.log(`❌ No live data found for ${ticker} from any API, generating fallback candles`);
     const fallbackCandles = generateFallbackCandles(ticker, interval, limit);
-    
+
     return res.status(200).json({
       success: true,
       data: {
         ticker: ticker.toUpperCase(),
-        interval,
+      interval,
         candles: fallbackCandles,
-        timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString()
       }
     });
 
@@ -86,7 +86,10 @@ async function fetchFromYahooFinance(ticker, interval, limit, last) {
                          interval === '1hour' ? '1h' : 
                          interval === '1day' ? '1d' : '5m';
     
-    const url = `https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?interval=${yahooInterval}&range=1d&includePrePost=false&events=div%2Csplit&_t=${Date.now()}`;
+    // Use a longer range to get more data
+    const range = interval === '1day' ? '1mo' : '5d';
+    
+    const url = `https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?interval=${yahooInterval}&range=${range}&includePrePost=false&events=div%2Csplit&_t=${Date.now()}`;
     console.log(`Yahoo Finance URL: ${url}`);
     
     const response = await fetch(url, {
@@ -143,11 +146,11 @@ async function fetchFromYahooFinance(ticker, interval, limit, last) {
 
 async function fetchFromAlphaVantage(ticker, interval, limit, last) {
   try {
-    const apiKey = process.env.ALPHAVANTAGE_KEY;
-    if (!apiKey) {
-      throw new Error('Alpha Vantage API key not configured');
-    }
-    
+  const apiKey = process.env.ALPHAVANTAGE_KEY;
+  if (!apiKey) {
+    throw new Error('Alpha Vantage API key not configured');
+  }
+
     console.log(`Trying Alpha Vantage for ${ticker}`);
     
     // Convert interval to Alpha Vantage format
@@ -156,23 +159,23 @@ async function fetchFromAlphaVantage(ticker, interval, limit, last) {
                       interval === '1hour' ? '60min' : 
                       interval === '1day' ? 'daily' : '5min';
     
-    const url = `https://www.alphavantage.co/query?function=TIME_SERIES_INTRADAY&symbol=${ticker}&interval=${avInterval}&apikey=${apiKey}&outputsize=compact&_t=${Date.now()}`;
+    const url = `https://www.alphavantage.co/query?function=TIME_SERIES_INTRADAY&symbol=${ticker}&interval=${avInterval}&apikey=${apiKey}&outputsize=full&_t=${Date.now()}`;
     console.log(`Alpha Vantage URL: ${url}`);
+
+  const response = await fetch(url);
     
-    const response = await fetch(url);
-    
-    if (!response.ok) {
-      throw new Error(`Alpha Vantage API error: ${response.status}`);
-    }
-    
-    const data = await response.json();
-    
+  if (!response.ok) {
+    throw new Error(`Alpha Vantage API error: ${response.status}`);
+  }
+
+  const data = await response.json();
+  
     // Check for API error messages
-    if (data['Error Message']) {
+  if (data['Error Message']) {
       throw new Error(`Alpha Vantage error: ${data['Error Message']}`);
-    }
-    
-    if (data['Note']) {
+  }
+  
+  if (data['Note']) {
       throw new Error(`Alpha Vantage rate limited: ${data['Note']}`);
     }
     
@@ -231,7 +234,8 @@ async function fetchFromFinnhub(ticker, interval, limit, last) {
                            interval === '1hour' ? '60' : 
                            interval === '1day' ? 'D' : '5';
     
-    const from = Math.floor((Date.now() - 24 * 60 * 60 * 1000) / 1000); // 24 hours ago
+    // Use a longer time range to get more data
+    const from = Math.floor((Date.now() - 7 * 24 * 60 * 60 * 1000) / 1000); // 7 days ago
     const to = Math.floor(Date.now() / 1000);
     
     const url = `https://finnhub.io/api/v1/stock/candle?symbol=${ticker}&resolution=${finnhubInterval}&from=${from}&to=${to}&token=${apiKey}&_t=${Date.now()}`;
