@@ -233,6 +233,7 @@
           <option value="IEX Cloud">IEX Cloud</option>
         </select>
         <button class="btn" onclick="fetchData()">🔄 Load News</button>
+        <button class="btn" onclick="fetchData(); console.log('Manual news refresh triggered');" style="margin-left: 10px;">⚡ Force Refresh</button>
         <button class="btn" onclick="document.getElementById('filtersPopover').classList.toggle('open')">🎯 Filters</button>
         <span class="meta" id="filtersCount">(All)</span>
         <button class="btn" id="filtersClear">Clear</button>
@@ -1588,7 +1589,7 @@
     buildScanners();
     
     // Auto-refresh news every 30 seconds
-    setInterval(fetchData, 30000);
+    setInterval(fetchData, 10000); // Call news API every 10 seconds instead of 30
     
     // Auto-refresh scanner every 5 seconds for real-time trading app feel
     // Auto-refresh every 30 seconds for fresh data

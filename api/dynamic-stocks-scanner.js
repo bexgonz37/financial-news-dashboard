@@ -16,6 +16,7 @@ module.exports = async function handler(req, res) {
       FMP_KEY: process.env.FMP_KEY ? 'SET' : 'MISSING',
       FINNHUB_KEY: process.env.FINNHUB_KEY ? 'SET' : 'MISSING'
     });
+    console.log('Request query:', req.query);
 
     // Try multiple real data sources with better error handling
     const dataSources = [
