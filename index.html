@@ -93,6 +93,8 @@
     .mini-chart{ 
       width:120px; 
       height:40px; 
+      min-width:120px;
+      min-height:40px;
       background:var(--bg); 
       border-radius:6px; 
       border:1px solid var(--border);
@@ -434,16 +436,33 @@
 
     // ---------- SPARKLINE CHARTS ----------
     async function drawSparkline(container, ticker){
-      if(!container || !ticker) return;
+      console.log('=== CHART RENDER DIAGNOSTIC ===');
+      console.log('Ticker:', ticker);
+      console.log('Container:', container);
+      console.log('Container clientWidth:', container?.clientWidth);
+      console.log('Container clientHeight:', container?.clientHeight);
+      console.log('Container offsetWidth:', container?.offsetWidth);
+      console.log('Container offsetHeight:', container?.offsetHeight);
+      console.log('Is SSR:', typeof window === 'undefined');
+      
+      if(!container || !ticker) {
+        console.error('Missing container or ticker:', { container, ticker });
+        return;
+      }
       
       container.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--loading);font-size:0.8rem;">Loading...</div>';
       
       try {
+        console.log('Fetching OHLC data for:', ticker);
         const r = await fetch(`/api/ohlc?ticker=${encodeURIComponent(ticker)}&interval=5min&limit=20&last=1`);
+        console.log('OHLC response status:', r.status, r.ok);
         const payload = r.ok ? await r.json() : {data: {candles: []}};
         const candles = payload.data?.candles || [];
+        console.log('Candles data length:', candles.length);
+        console.log('Candles sample:', candles.slice(0, 3));
         
         if(candles.length < 2){
+          console.warn('Insufficient candle data for', ticker, ':', candles.length);
           container.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--meta);font-size:0.8rem;">No data</div>';
           return;
         }
@@ -473,10 +492,14 @@
         const width = container.offsetWidth || 80;
         const height = container.offsetHeight || 30;
         const strokeWidth = Math.max(1, Math.min(2, width / 40));
+        
+        console.log('Chart dimensions:', { width, height, strokeWidth });
+        console.log('Price range:', { minPrice, maxPrice, range });
 
         const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
         svg.setAttribute('width', width);
         svg.setAttribute('height', height);
+        console.log('SVG created with dimensions:', svg.getAttribute('width'), 'x', svg.getAttribute('height'));
         svg.style.overflow = 'visible';
 
         // Create gradient for sophisticated look
@@ -593,6 +616,14 @@
 
       } catch (error) {
         console.error(`Error drawing sparkline for ${ticker}:`, error);
+        console.error('Error details:', {
+          ticker,
+          container: container,
+          containerWidth: container?.clientWidth,
+          containerHeight: container?.clientHeight,
+          error: error.message,
+          stack: error.stack
+        });
         container.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--down);font-size:0.8rem;">Error</div>';
       }
     }
@@ -815,8 +846,8 @@
               <button class="star ${starred}" data-star="${t}">${starred?'★':'☆'}</button>
             </div>
             <div class="title">${n.title||''}</div>
-            <div class="summary">${n.summary||''} ${n.url?`<button class="read-btn" onclick="window.open('${n.url}', '_blank')">Read</button>`:'<span style="color:red">NO URL</span>'}</div>
-            <div style="font-size: 0.7rem; color: #666; margin-top: 4px;">URL: ${n.url || 'NO URL'}</div>
+            <div class="summary">${n.summary||''} ${n.url?`<button class="read-btn" onclick="console.log('Read button clicked for:', '${n.url}', 'Type:', typeof '${n.url}'); window.open('${n.url}', '_blank')">Read</button>`:'<span style="color:red">NO URL</span>'}</div>
+            <div style="font-size: 0.7rem; color: #666; margin-top: 4px;">URL: ${n.url || 'NO URL'} | Type: ${typeof n.url}</div>
             ${tickers.length > 0 ? `
               <div style="margin: 8px 0; display: flex; flex-wrap: wrap; gap: 4px;">
                 ${tickers.map(ticker => `
@@ -841,10 +872,11 @@
       
       // Read buttons now use direct onclick handlers
 
-      // hydrate cards (always draw mini-charts)
-      document.querySelectorAll('#news-feed .news-item').forEach(async (card)=>{
-        const t = (card.querySelector('.mini-chart')?.dataset?.ticker||'').toUpperCase();
-        if(!t || t==='GENERAL') return;
+      // hydrate cards (always draw mini-charts) - with delay to ensure proper rendering
+      setTimeout(() => {
+        document.querySelectorAll('#news-feed .news-item').forEach(async (card)=>{
+          const t = (card.querySelector('.mini-chart')?.dataset?.ticker||'').toUpperCase();
+          if(!t || t==='GENERAL') return;
 
         if (optShowPct){
           try{
@@ -873,7 +905,8 @@
         
         // Draw mini chart with retry logic
         await drawSparklineWithRetry(card.querySelector('.mini-chart'), t);
-      });
+        });
+      }, 100); // 100ms delay to ensure proper rendering
     }
 
     // ---------- ADVANCED DAY TRADER SCANNER ----------
