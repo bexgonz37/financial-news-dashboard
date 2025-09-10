@@ -55,6 +55,10 @@ async function fetchCandles(ticker, interval, limit, last) {
         );
 
         if (!response.ok) {
+          if (response.status === 403) {
+            console.log('Finnhub API 403 - API key invalid or rate limited, skipping');
+            continue;
+          }
           throw new Error(`Finnhub API error: ${response.status}`);
         }
 

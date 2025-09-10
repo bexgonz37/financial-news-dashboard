@@ -273,6 +273,16 @@ async function fetchDynamicStocks(req) {
         const yahooData = await yahooResponse.json();
         console.log('Yahoo Finance response:', yahooData);
         if (yahooData.finance && yahooData.finance.result && yahooData.finance.result[0]) {
+          const currentTime = new Date();
+          const currentHour = currentTime.getHours();
+          const currentMinute = currentTime.getMinutes();
+          const currentDay = currentTime.getDay();
+          
+          // Market is open Monday-Friday 9:30 AM - 4:00 PM ET
+          const isMarketOpen = currentDay >= 1 && currentDay <= 5 && 
+                              ((currentHour === 9 && currentMinute >= 30) || 
+                               (currentHour >= 10 && currentHour < 16));
+          
           const stocks = yahooData.finance.result[0].quotes.map(quote => ({
             symbol: quote.symbol,
             name: quote.longName || quote.shortName || quote.symbol,
@@ -282,8 +292,8 @@ async function fetchDynamicStocks(req) {
             volume: parseInt(quote.regularMarketVolume || 0),
             marketCap: quote.marketCap ? Math.round(quote.marketCap / 1000000) + 'M' : 'N/A',
             sector: quote.sector || 'Unknown',
-            session: 'RTH',
-            marketStatus: 'Live',
+            session: isMarketOpen ? 'RTH' : 'AH',
+            marketStatus: isMarketOpen ? 'Live' : 'After Hours',
             dataAge: 'Live',
             isNewListing: false,
             tickerChanged: false,
