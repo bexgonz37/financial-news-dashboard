@@ -391,7 +391,8 @@
         document.getElementById(`view-${view}`).classList.add('active');
         
         if (view==='scanners') {
-          console.log('Scanner tab clicked - showing data immediately');
+          console.log('=== SCANNER TAB CLICKED ===');
+          console.log('Showing fallback data immediately...');
           // Always show fallback data immediately when scanner tab is clicked
           showFallbackScannerData();
           // Then try to load real data
@@ -804,7 +805,7 @@
               <button class="star ${starred}" data-star="${t}">${starred?'★':'☆'}</button>
             </div>
             <div class="title">${n.title||''}</div>
-            <div class="summary">${n.summary||''} ${n.url?`<button class="read-btn" onclick="window.open('${n.url}', '_blank', 'noopener,noreferrer')">Read</button>`:''}</div>
+            <div class="summary">${n.summary||''} ${n.url?`<button class="read-btn" onclick="console.log('Opening URL:', '${n.url}'); window.open('${n.url}', '_blank', 'noopener,noreferrer')">Read</button>`:'<span style="color:red">NO URL</span>'}</div>
             ${tickers.length > 0 ? `
               <div style="margin: 8px 0; display: flex; flex-wrap: wrap; gap: 4px;">
                 ${tickers.map(ticker => `
@@ -1110,6 +1111,8 @@
         console.error('Scanner grid not found!');
         return;
       }
+      
+      console.log('Scanner grid found, populating with fallback data...');
       
       // Real market data from today - SUPER ADVANCED like real trading platform
       const fallbackStocks = [
