@@ -811,7 +811,7 @@
               <button class="star ${starred}" data-star="${t}">${starred?'★':'☆'}</button>
             </div>
             <div class="title">${n.title||''}</div>
-            <div class="summary">${n.summary||''} ${n.url?`<button class="read-btn" onclick="window.open('${n.url}', '_blank')">Read</button>`:'<span style="color:red">NO URL</span>'}</div>
+            <div class="summary">${n.summary||''} ${n.url?`<button class="read-btn" onclick="openArticle('${n.url}')">Read</button>`:'<span style="color:red">NO URL</span>'}</div>
             ${tickers.length > 0 ? `
               <div style="margin: 8px 0; display: flex; flex-wrap: wrap; gap: 4px;">
                 ${tickers.map(ticker => `
@@ -1606,6 +1606,18 @@
     
     // Make refresh function global
     window.refreshAllData = refreshAllData;
+    
+    // Open article function
+    function openArticle(url) {
+      console.log('Opening article:', url);
+      if (url && url !== 'undefined' && url !== 'null' && url.startsWith('http')) {
+        window.open(url, '_blank', 'noopener,noreferrer');
+      } else {
+        console.error('Invalid URL:', url);
+        alert('Invalid URL: ' + url);
+      }
+    }
+    window.openArticle = openArticle;
   </script>
 </body>
 </html>

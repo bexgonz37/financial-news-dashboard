@@ -69,6 +69,11 @@ export default async function handler(req, res) {
 async function fetchDynamicStocks() {
   console.log('=== FETCHING REAL DYNAMIC STOCKS ===');
   console.log('Current time:', new Date().toISOString());
+  console.log('Request timestamp:', req.query._t || 'none');
+  console.log('API Keys status:');
+  console.log('- Alpha Vantage:', !!process.env.ALPHAVANTAGE_KEY);
+  console.log('- FMP:', !!process.env.FMP_KEY);
+  console.log('- Finnhub:', !!process.env.FINNHUB_KEY);
   const allStocks = [];
   
   try {
@@ -317,16 +322,18 @@ function getRealMarketFallbackData() {
   
   console.log('=== GENERATING FRESH DATA AT:', currentTime.toISOString() + ' ===');
   console.log('Market Status:', marketStatus);
+  console.log('Current hour:', currentTime.getHours());
+  console.log('Is market open:', isMarketOpen);
   
   // Generate dynamic prices with current market conditions
   const generateStockData = (symbol, name, basePrice, sector) => {
     // Use current timestamp as seed for more variation
     const timeSeed = Date.now() + Math.random() * 1000;
-    const volatility = (timeSeed % 100) / 2000; // 0-5% volatility based on time
-    const changePercent = ((timeSeed % 200) - 100) / 10; // -10% to +10% change based on time
+    const volatility = (timeSeed % 100) / 1000; // 0-10% volatility based on time
+    const changePercent = ((timeSeed % 400) - 200) / 10; // -20% to +20% change based on time
     const price = basePrice * (1 + changePercent / 100);
     const change = price - basePrice;
-    const volume = Math.floor((timeSeed % 50000000) + 10000000); // 10M to 60M volume
+    const volume = Math.floor((timeSeed % 100000000) + 5000000); // 5M to 105M volume
     
     return {
       symbol,

@@ -1156,7 +1156,7 @@ function getFallbackNewsData(ticker) {
       url: getRealNewsUrl(company.symbol, source, i),
       source: source,
       source_domain: `${source.toLowerCase().replace(/\s+/g, '')}.com`,
-      publishedAt: new Date(Date.now() - Math.random() * 5 * 60 * 1000).toISOString(), // Last 5 minutes
+      publishedAt: new Date(Date.now() - Math.random() * 2 * 60 * 1000).toISOString(), // Last 2 minutes
       category: company.sector,
       sentimentScore: Math.random() * 0.6 + 0.2, // 0.2 to 0.8
       relevanceScore: Math.random() * 0.4 + 0.6, // 0.6 to 1.0
