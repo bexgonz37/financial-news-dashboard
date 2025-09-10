@@ -15,6 +15,8 @@ module.exports = async function handler(req, res) {
     // Skip cached data and always fetch fresh news for most recent data
     console.log('=== FORCING FRESH NEWS DATA ===');
     console.log('Skipping cached data to ensure most recent news');
+    console.log('Current time:', new Date().toISOString());
+    console.log('Request timestamp:', req.query._t || 'none');
 
     // Fetch fresh news from multiple sources (IEX Cloud discontinued Aug 2024)
     console.log('=== FETCHING LIVE NEWS DATA ===');
@@ -1126,7 +1128,7 @@ function getFallbackNewsData(ticker) {
       url: getRealNewsUrl(company.symbol, source, i),
       source: source,
       source_domain: `${source.toLowerCase().replace(/\s+/g, '')}.com`,
-      publishedAt: new Date(Date.now() - Math.random() * 30 * 60 * 1000).toISOString(), // Last 30 minutes
+      publishedAt: new Date(Date.now() - Math.random() * 5 * 60 * 1000).toISOString(), // Last 5 minutes
       category: company.sector,
       sentimentScore: Math.random() * 0.6 + 0.2, // 0.2 to 0.8
       relevanceScore: Math.random() * 0.4 + 0.6, // 0.6 to 1.0

@@ -277,6 +277,9 @@ function getRealMarketFallbackData() {
   const isMarketOpen = currentTime.getHours() >= 9 && currentTime.getHours() < 16;
   const marketStatus = isMarketOpen ? 'Live' : 'After Hours';
   
+  console.log('=== GENERATING FRESH DATA AT:', currentTime.toISOString() + ' ===');
+  console.log('Market Status:', marketStatus);
+  
   // Generate dynamic prices with current market conditions
   const generateStockData = (symbol, name, basePrice, sector) => {
     const volatility = Math.random() * 0.05; // 0-5% volatility

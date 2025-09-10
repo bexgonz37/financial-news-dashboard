@@ -721,6 +721,7 @@
       if (dateRange) params.set('dateRange', dateRange);
       if (source) params.set('source', source);
       params.set('limit', '100'); // Fetch more news
+      params.set('_t', Date.now()); // Cache busting for fresh data
 
       try{
         const feed = document.getElementById('news-feed');
@@ -808,7 +809,7 @@
               <button class="star ${starred}" data-star="${t}">${starred?'★':'☆'}</button>
             </div>
             <div class="title">${n.title||''}</div>
-            <div class="summary">${n.summary||''} ${n.url?`<button class="read-btn" onclick="console.log('Opening URL:', '${n.url}'); window.open('${n.url}', '_blank', 'noopener,noreferrer')">Read</button>`:'<span style="color:red">NO URL</span>'}</div>
+            <div class="summary">${n.summary||''} ${n.url?`<button class="read-btn" onclick="console.log('Opening URL:', '${n.url}'); console.log('URL type:', typeof n.url); if('${n.url}'.includes('undefined') || '${n.url}'.includes('null')) { alert('Invalid URL: ${n.url}'); return; } window.open('${n.url}', '_blank', 'noopener,noreferrer')">Read</button>`:'<span style="color:red">NO URL</span>'}</div>
             ${tickers.length > 0 ? `
               <div style="margin: 8px 0; display: flex; flex-wrap: wrap; gap: 4px;">
                 ${tickers.map(ticker => `
@@ -880,7 +881,7 @@
         console.log('Fetching from:', `/api/dynamic-stocks-scanner?preset=${preset}&limit=${limit}`);
         
         // Call the dynamic stocks scanner API for real-time data including ticker changes
-        const response = await fetch(`/api/dynamic-stocks-scanner?preset=${preset}&limit=${limit}`);
+        const response = await fetch(`/api/dynamic-stocks-scanner?preset=${preset}&limit=${limit}&_t=${Date.now()}`);
         console.log('Response status:', response.status, response.ok);
         
         const data = await response.json();
