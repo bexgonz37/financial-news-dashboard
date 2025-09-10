@@ -29,16 +29,16 @@ module.exports = async function handler(req, res) {
       success: true,
       data: {
         ticker: ticker.toUpperCase(),
-        interval,
+      interval,
         candles,
-        timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString()
       }
     });
 
   } catch (error) {
     console.error('OHLC API Error:', error);
-    return res.status(500).json({
-      success: false,
+    return res.status(500).json({ 
+      success: false, 
       error: 'Failed to fetch OHLC data',
       data: {
         ticker: req.query.ticker?.toUpperCase() || 'UNKNOWN',
@@ -102,6 +102,12 @@ function generateRealisticLiveCandles(ticker, interval, limit) {
     }
     
     candles.push({
+      time: time,
+      open: parseFloat(open.toFixed(2)),
+      high: parseFloat(high.toFixed(2)),
+      low: parseFloat(low.toFixed(2)),
+      close: parseFloat(close.toFixed(2)),
+      volume: Math.floor(volume),
       t: Math.floor(time),
       o: Number(open.toFixed(2)),
       h: Number(high.toFixed(2)),

@@ -446,6 +446,40 @@
       }
     }
 
+    function normalizeClientNewsItem(n){
+      const candidates = [
+        n.article_url, n.link, n.url, n.originalUrl, n.original_url, n.canonical_url
+      ].filter(Boolean);
+
+      let u = candidates.find(x => /^https?:\/\//i.test(x)) || '';
+
+      // unwrap nested redirect params if present
+      try {
+        const U = new URL(u);
+        const nested = ['url','u','r','redirect','target','dest','to','out']
+          .map(k => U.searchParams.get(k))
+          .find(v => v && /^https?:\/\//i.test(v));
+        if (nested) u = nested;
+
+        // drop obvious search/ticker pages (we don't want these)
+        const isSearch = /\/search/i.test(U.pathname) || ['q','query','s'].some(k => U.searchParams.has(k));
+        const isTickerLanding = /(\/quote\/|\/symbol\/|\/ticker\/)/i.test(U.pathname);
+        if (isSearch || isTickerLanding) u = nested || '';
+      } catch {}
+
+      return { ...n, url: u };
+    }
+
+    async function resolveArticleUrl(u){
+      if (!u || !/^https?:\/\//i.test(u)) return '';
+      try {
+        const resp = await fetch('/api/resolve?u=' + encodeURIComponent(u));
+        const j = await resp.json();
+        if (j.ok && /^https?:\/\//i.test(j.final)) return j.final;
+      } catch {}
+      return u; // fallback to original
+    }
+
     // ---------- SPARKLINE CHARTS ----------
     async function drawSparkline(container, ticker){
       // Ensure we're in browser environment
@@ -476,10 +510,19 @@
         const r = await fetch(`/api/ohlc?ticker=${encodeURIComponent(ticker)}&interval=5min&limit=20&last=1&_t=${Date.now()}`);
         const payload = r.ok ? await r.json() : {data: {candles: []}};
         const candles = payload.data?.candles || [];
+        // normalize candle shape so UI can consume either API variant
+        const C = candles.map(c => ({
+          t: c.t ?? c.time,
+          o: c.o ?? c.open,
+          h: c.h ?? c.high,
+          l: c.l ?? c.low,
+          c: c.c ?? c.close,
+          v: c.v ?? c.volume,
+        })).filter(x => Number.isFinite(x.c));
         
-        console.debug('SPARKLINE DATA', ticker, { sample: candles[0] });
+        console.debug('SPARKLINE DATA', ticker, { sample: C[0] });
         
-        if(candles.length < 2){
+        if(C.length < 2){
           container.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--meta);font-size:0.7rem;">No data</div>';
           return;
         }
@@ -496,7 +539,7 @@
           console.warn(`Failed to get live quote for ${ticker}:`, e);
         }
 
-        const prices = candles.map(c => c.c);
+        const prices = C.map(c => c.c);
         const minPrice = Math.min(...prices);
         const maxPrice = Math.max(...prices);
         const range = maxPrice - minPrice;
@@ -797,7 +840,7 @@
         }
         
         // For sticky news, we don't merge - we replace to show persistent news
-        newsData = incoming;
+        newsData = incoming.map(normalizeClientNewsItem);
         
         
         // Apply current filters
@@ -864,7 +907,9 @@
               <button class="star ${starred}" data-star="${t}">${starred?'★':'☆'}</button>
             </div>
             <div class="title">${n.title||''}</div>
-            <div class="summary">${n.summary||''} ${n.url && /^https?:\/\//i.test(n.url) && isLikelyArticle(n.url) ? `<a href="${n.url}" target="_blank" rel="noopener noreferrer" class="read-btn" style="display:inline-block;padding:4px 8px;background:var(--accent);color:white;text-decoration:none;border-radius:4px;font-size:0.8rem;margin-left:8px;">Read</a>`:'<span style="color:red;font-size:0.8rem;">No URL</span>'}</div>
+            <div class="summary">${n.summary||''} ${n.url && /^https?:\/\//i.test(n.url)
+    ? `<a href="${n.url}" data-url="${n.url}" class="read-btn" style="display:inline-block;padding:4px 8px;background:var(--accent);color:white;text-decoration:none;border-radius:4px;font-size:0.8rem;margin-left:8px;">Read</a>`
+    : '<span style="color:red;font-size:0.8rem;">No URL</span>'}</div>
             ${tickers.length > 0 ? `
               <div style="margin: 8px 0; display: flex; flex-wrap: wrap; gap: 4px;">
                 ${tickers.map(ticker => `
@@ -1430,7 +1475,16 @@
         }
         
         // Use hourly data if available, otherwise daily
-        const candles = hourlyCandles.length >= 2 ? hourlyCandles : dailyCandles;
+        const rawCandles = hourlyCandles.length >= 2 ? hourlyCandles : dailyCandles;
+        
+        const C = rawCandles.map(c => ({
+          t: c.t ?? c.time,
+          o: c.o ?? c.open,
+          h: c.h ?? c.high,
+          l: c.l ?? c.low,
+          c: c.c ?? c.close,
+          v: c.v ?? c.volume,
+        })).filter(x => Number.isFinite(x.c) && Number.isFinite(x.o) && Number.isFinite(x.t));
         
         const chart = LightweightCharts.createChart(body, {
           width: body.offsetWidth,
@@ -1452,11 +1506,13 @@
           priceScaleId: '', scaleMargins: { top: 0.8, bottom: 0 }
         });
         
-        const data = candles.map(c => ({
-          time: c.t / 1000, open: c.o, high: c.h, low: c.l, close: c.c
+        const data = C.map(c => ({
+          time: Math.floor(c.t / 1000), open: c.o, high: c.h, low: c.l, close: c.c
         }));
-        const volData = candles.map(c => ({
-          time: c.t / 1000, value: c.v, color: c.c >= c.o ? '#24e39c' : '#ff5b6e'
+        const volData = C.map(c => ({
+          time: Math.floor(c.t / 1000),
+          value: c.v,
+          color: c.c >= c.o ? '#24e39c' : '#ff5b6e'
         }));
         
         candlestickSeries.setData(data);
@@ -1575,6 +1631,13 @@
         watchlist.delete(e.target.dataset.remove);
         persistWatchlist();
         renderWatchlist();
+      }
+      if (e.target.matches('.read-btn')) {
+        e.preventDefault();
+        const href = e.target.getAttribute('data-url');
+        const finalUrl = await resolveArticleUrl(href);
+        if (finalUrl) window.open(finalUrl, '_blank', 'noopener,noreferrer');
+        else alert('Invalid article URL');
       }
     });
     
