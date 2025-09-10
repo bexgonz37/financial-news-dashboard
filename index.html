@@ -75,7 +75,26 @@
     .summary a{ color:var(--up); text-decoration:none }
     .summary a:hover{ text-decoration:underline }
     .mini-row{ display:flex; justify-content:space-between; align-items:center; margin-top:10px }
-    .mini-chart{ width:80px; height:30px; background:var(--bg); border-radius:4px }
+    .mini-chart{ 
+      width:120px; 
+      height:40px; 
+      background:var(--bg); 
+      border-radius:6px; 
+      border:1px solid var(--border);
+      cursor:pointer;
+      transition:all 0.2s;
+      position:relative;
+      overflow:hidden;
+    }
+    .mini-chart:hover{
+      border-color:var(--accent);
+      transform:scale(1.05);
+      box-shadow:0 4px 12px rgba(0,0,0,0.3);
+    }
+    .mini-chart svg{
+      width:100%;
+      height:100%;
+    }
     .star{ background:none; border:none; color:var(--meta); cursor:pointer; font-size:1.2rem; transition:all 0.2s }
     .star:hover{ color:var(--accent) }
     .star.active{ color:var(--up) }
@@ -351,21 +370,94 @@
         svg.setAttribute('height', height);
         svg.style.overflow = 'visible';
 
-        const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        // Create gradient for sophisticated look
+        const defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
+        const gradient = document.createElementNS('http://www.w3.org/2000/svg', 'linearGradient');
+        gradient.setAttribute('id', `gradient-${ticker}`);
+        gradient.setAttribute('x1', '0%');
+        gradient.setAttribute('y1', '0%');
+        gradient.setAttribute('x2', '0%');
+        gradient.setAttribute('y2', '100%');
+        
+        const stop1 = document.createElementNS('http://www.w3.org/2000/svg', 'stop');
+        stop1.setAttribute('offset', '0%');
+        stop1.setAttribute('stop-color', liveQuote && liveQuote.changePercent > 0 ? '#00d4aa' : liveQuote && liveQuote.changePercent < 0 ? '#ff6b6b' : '#b167ff');
+        stop1.setAttribute('stop-opacity', '0.8');
+        
+        const stop2 = document.createElementNS('http://www.w3.org/2000/svg', 'stop');
+        stop2.setAttribute('offset', '100%');
+        stop2.setAttribute('stop-color', liveQuote && liveQuote.changePercent > 0 ? '#00d4aa' : liveQuote && liveQuote.changePercent < 0 ? '#ff6b6b' : '#b167ff');
+        stop2.setAttribute('stop-opacity', '0.1');
+        
+        gradient.appendChild(stop1);
+        gradient.appendChild(stop2);
+        defs.appendChild(gradient);
+        svg.appendChild(defs);
+
+        // Create area chart for sophisticated look
+        const areaPath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
         const points = prices.map((price, i) => {
+          const x = (i / (prices.length - 1)) * width;
+          const y = height - ((price - minPrice) / range) * height;
+          return `${x},${y}`;
+        });
+        
+        const areaPoints = `M ${points[0]},${height} L ${points.join(' L ')} L ${points[points.length-1]},${height} Z`;
+        areaPath.setAttribute('d', areaPoints);
+        areaPath.setAttribute('fill', `url(#gradient-${ticker})`);
+        areaPath.setAttribute('opacity', '0.3');
+
+        // Create line chart
+        const linePath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        const linePoints = prices.map((price, i) => {
           const x = (i / (prices.length - 1)) * width;
           const y = height - ((price - minPrice) / range) * height;
           return `${i === 0 ? 'M' : 'L'} ${x} ${y}`;
         }).join(' ');
 
-        path.setAttribute('d', points);
-        path.setAttribute('stroke', liveQuote && liveQuote.changePercent > 0 ? 'var(--up)' : liveQuote && liveQuote.changePercent < 0 ? 'var(--down)' : 'var(--accent)');
-        path.setAttribute('stroke-width', strokeWidth);
-        path.setAttribute('fill', 'none');
-        path.setAttribute('stroke-linecap', 'round');
-        path.setAttribute('stroke-linejoin', 'round');
+        linePath.setAttribute('d', linePoints);
+        linePath.setAttribute('stroke', liveQuote && liveQuote.changePercent > 0 ? '#00d4aa' : liveQuote && liveQuote.changePercent < 0 ? '#ff6b6b' : '#b167ff');
+        linePath.setAttribute('stroke-width', strokeWidth);
+        linePath.setAttribute('fill', 'none');
+        linePath.setAttribute('stroke-linecap', 'round');
+        linePath.setAttribute('stroke-linejoin', 'round');
 
-        svg.appendChild(path);
+        // Add glow effect
+        const filter = document.createElementNS('http://www.w3.org/2000/svg', 'filter');
+        filter.setAttribute('id', `glow-${ticker}`);
+        const feGaussianBlur = document.createElementNS('http://www.w3.org/2000/svg', 'feGaussianBlur');
+        feGaussianBlur.setAttribute('stdDeviation', '1');
+        feGaussianBlur.setAttribute('result', 'coloredBlur');
+        const feMerge = document.createElementNS('http://www.w3.org/2000/svg', 'feMerge');
+        const feMergeNode1 = document.createElementNS('http://www.w3.org/2000/svg', 'feMergeNode');
+        feMergeNode1.setAttribute('in', 'coloredBlur');
+        const feMergeNode2 = document.createElementNS('http://www.w3.org/2000/svg', 'feMergeNode');
+        feMergeNode2.setAttribute('in', 'SourceGraphic');
+        feMerge.appendChild(feMergeNode1);
+        feMerge.appendChild(feMergeNode2);
+        filter.appendChild(feGaussianBlur);
+        filter.appendChild(feMerge);
+        defs.appendChild(filter);
+
+        linePath.setAttribute('filter', `url(#glow-${ticker})`);
+
+        svg.appendChild(areaPath);
+        svg.appendChild(linePath);
+        
+        // Add price indicator
+        const lastPrice = prices[prices.length - 1];
+        const lastX = ((prices.length - 1) / (prices.length - 1)) * width;
+        const lastY = height - ((lastPrice - minPrice) / range) * height;
+        
+        const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+        circle.setAttribute('cx', lastX);
+        circle.setAttribute('cy', lastY);
+        circle.setAttribute('r', '2');
+        circle.setAttribute('fill', liveQuote && liveQuote.changePercent > 0 ? '#00d4aa' : liveQuote && liveQuote.changePercent < 0 ? '#ff6b6b' : '#b167ff');
+        circle.setAttribute('stroke', 'white');
+        circle.setAttribute('stroke-width', '1');
+        
+        svg.appendChild(circle);
 
         // Add percentage change text if available
         if (liveQuote && typeof liveQuote.changePercent === 'number') {
@@ -381,6 +473,12 @@
 
         container.innerHTML = '';
         container.appendChild(svg);
+        
+        // Add click functionality to open full chart
+        container.addEventListener('click', (e) => {
+          e.preventDefault();
+          openChart(ticker);
+        });
 
       } catch (error) {
         console.error(`Error drawing sparkline for ${ticker}:`, error);
@@ -855,19 +953,30 @@
       const title = document.getElementById('chartTitle');
       const body = document.getElementById('chartBody');
       
-      title.textContent = `${ticker} Chart`;
+      title.textContent = `${ticker} Chart - Real-Time Trading View`;
       modal.style.display = 'flex';
-      body.innerHTML = '<div class="loading">Loading chart...</div>';
+      body.innerHTML = '<div class="loading">Loading advanced chart...</div>';
       
       try {
-        const r = await fetch(`/api/ohlc?ticker=${encodeURIComponent(ticker)}&interval=5min&limit=200&last=1`);
-        const payload = r.ok ? await r.json() : {candles:[]};
-        const candles = payload.candles || [];
+        // Fetch multiple timeframes for comprehensive view
+        const [hourlyResponse, dailyResponse] = await Promise.all([
+          fetch(`/api/ohlc?ticker=${encodeURIComponent(ticker)}&interval=1hour&limit=100`),
+          fetch(`/api/ohlc?ticker=${encodeURIComponent(ticker)}&interval=1day&limit=30`)
+        ]);
         
-        if(candles.length < 10){
+        const hourlyData = hourlyResponse.ok ? await hourlyResponse.json() : {data: {candles: []}};
+        const dailyData = dailyResponse.ok ? await dailyResponse.json() : {data: {candles: []}};
+        
+        const hourlyCandles = hourlyData.data?.candles || [];
+        const dailyCandles = dailyData.data?.candles || [];
+        
+        if(hourlyCandles.length < 2 && dailyCandles.length < 2){
           body.innerHTML = '<div class="loading" style="color:var(--down);">Insufficient data for chart</div>';
           return;
         }
+        
+        // Use hourly data if available, otherwise daily
+        const candles = hourlyCandles.length >= 2 ? hourlyCandles : dailyCandles;
         
         const chart = LightweightCharts.createChart(body, {
           width: body.offsetWidth,
