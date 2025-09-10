@@ -1,5 +1,5 @@
 {
   "version": 2,
- all t  "buildCommand": "echo 'No build required'",
+  "buildCommand": "echo 'No build required'",
   "outputDirectory": "."
 }
