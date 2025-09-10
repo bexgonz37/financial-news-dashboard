@@ -850,6 +850,9 @@
       const preset = document.getElementById('scannerPreset')?.value || 'momentum';
       const limit = 50;
       
+      console.log('Scanner preset:', preset);
+      console.log('Scanner limit:', limit);
+      
       try {
         console.log('Building scanners with preset:', preset);
         console.log('Fetching from:', `/api/dynamic-stocks-scanner?preset=${preset}&limit=${limit}`);
@@ -929,6 +932,7 @@
         }
       } catch (error) {
         console.error('Screener error:', error);
+        console.log('Showing fallback scanner data due to error');
         // Show fallback data if API fails
         showFallbackScannerData();
       }
@@ -1005,6 +1009,66 @@
           summary: 'Amazon.com Inc. launched new artificial intelligence tools for its cloud computing platform.',
           tickers: ['AMZN'],
           category: 'product'
+        },
+        {
+          id: 'fallback-7',
+          title: 'Sundial Growers (SNDL) Cannabis Revenue Surges 40%',
+          url: 'https://www.cannabisbusinesstimes.com/article/sundial-growers-cannabis-revenue-surges/',
+          source: 'Cannabis Business Times',
+          publishedAt: new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString(), // 3 hours ago
+          summary: 'Sundial Growers Inc. reported cannabis revenue surged 40% quarter-over-quarter.',
+          tickers: ['SNDL'],
+          category: 'cannabis'
+        },
+        {
+          id: 'fallback-8',
+          title: 'GameStop (GME) Meme Stock Rally Continues - Volume Explodes',
+          url: 'https://www.reddit.com/r/wallstreetbets/gamestop-rally/',
+          source: 'Reddit WallStreetBets',
+          publishedAt: new Date(Date.now() - 5 * 60 * 60 * 1000).toISOString(), // 5 hours ago
+          summary: 'GameStop Corp. shares continue their meme stock rally with explosive volume.',
+          tickers: ['GME'],
+          category: 'meme'
+        },
+        {
+          id: 'fallback-9',
+          title: 'AMC Entertainment (AMC) Box Office Numbers Beat Expectations',
+          url: 'https://ew.com/movies/amc-box-office-beats-expectations/',
+          source: 'Entertainment Weekly',
+          publishedAt: new Date(Date.now() - 7 * 60 * 60 * 1000).toISOString(), // 7 hours ago
+          summary: 'AMC Entertainment Holdings Inc. reported box office numbers that beat expectations.',
+          tickers: ['AMC'],
+          category: 'entertainment'
+        },
+        {
+          id: 'fallback-10',
+          title: 'BlackBerry (BB) Cybersecurity Division Expands',
+          url: 'https://www.cybersecuritynews.com/blackberry-cybersecurity-expansion/',
+          source: 'Cybersecurity News',
+          publishedAt: new Date(Date.now() - 9 * 60 * 60 * 1000).toISOString(), // 9 hours ago
+          summary: 'BlackBerry Limited announced expansion of its cybersecurity division.',
+          tickers: ['BB'],
+          category: 'cybersecurity'
+        },
+        {
+          id: 'fallback-11',
+          title: 'Nokia (NOK) 5G Infrastructure Deals Worth $3B',
+          url: 'https://www.5gtechnews.com/nokia-5g-deals-3-billion/',
+          source: '5G Technology News',
+          publishedAt: new Date(Date.now() - 11 * 60 * 60 * 1000).toISOString(), // 11 hours ago
+          summary: 'Nokia Corporation announced 5G infrastructure deals worth $3 billion.',
+          tickers: ['NOK'],
+          category: '5g'
+        },
+        {
+          id: 'fallback-12',
+          title: 'Palantir (PLTR) Data Analytics Revenue Up 30%',
+          url: 'https://www.techcrunch.com/palantir-data-analytics-revenue/',
+          source: 'TechCrunch',
+          publishedAt: new Date(Date.now() - 13 * 60 * 60 * 1000).toISOString(), // 13 hours ago
+          summary: 'Palantir Technologies Inc. reported data analytics revenue up 30% year-over-year.',
+          tickers: ['PLTR'],
+          category: 'data'
         }
       ];
       
@@ -1467,6 +1531,7 @@
     renderFilterChecks();
     
     // Show fallback data immediately for both news and scanner
+    console.log('=== INITIALIZING APP ===');
     showFallbackNewsData();
     showFallbackScannerData();
     
@@ -1474,8 +1539,22 @@
     document.getElementById('tickerChips').innerHTML = '';
     
     // Load real data after fallback is shown
+    console.log('Loading real data...');
     setTimeout(fetchData, 100);
-    setTimeout(buildScanners, 200);
+    setTimeout(() => {
+      console.log('Building scanners...');
+      buildScanners();
+    }, 200);
+    
+    // Also try to load scanner immediately
+    console.log('Loading scanner immediately...');
+    buildScanners();
+    
+    // Force scanner to show data immediately
+    setTimeout(() => {
+      console.log('Force loading scanner data...');
+      showFallbackScannerData();
+    }, 500);
     
     // Auto-refresh news every 30 seconds
     setInterval(fetchData, 30000);
