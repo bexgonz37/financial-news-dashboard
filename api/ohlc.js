@@ -69,10 +69,11 @@ function generateRealisticLiveCandles(ticker, interval, limit) {
   const tickerData = getTickerData(ticker);
   const candles = [];
   
-  // Generate realistic price movement with trend and volatility
-  let currentPrice = tickerData.basePrice;
-  let trend = 0; // Overall trend (-1 to 1)
-  let volatility = tickerData.volatility;
+  // Generate truly live price movement that changes every time
+  const timeSeed = Date.now() + Math.random() * 1000;
+  let currentPrice = tickerData.basePrice * (0.95 + Math.random() * 0.1); // Start with some variation
+  let trend = (Math.random() - 0.5) * 0.1; // Random initial trend
+  let volatility = tickerData.volatility * (0.8 + Math.random() * 0.4); // Vary volatility
   
   for (let i = 0; i < limit; i++) {
     const time = now - (limit - 1 - i) * intervalMs;
@@ -80,10 +81,10 @@ function generateRealisticLiveCandles(ticker, interval, limit) {
     // Generate realistic OHLC data
     const open = currentPrice;
     
-    // Add some trend and random movement
-    const trendFactor = trend + (Math.random() - 0.5) * 0.1;
-    const priceChange = (Math.random() - 0.5) * volatility * open;
-    const close = open + priceChange + (trendFactor * volatility * open * 0.1);
+    // Add truly random movement that changes every time
+    const trendFactor = trend + (Math.random() - 0.5) * 0.2;
+    const priceChange = (Math.random() - 0.5) * volatility * open * (1 + Math.random());
+    const close = open + priceChange + (trendFactor * volatility * open * 0.2);
     
     // Ensure high >= max(open, close) and low <= min(open, close)
     const high = Math.max(open, close) * (1 + Math.random() * volatility * 0.5);

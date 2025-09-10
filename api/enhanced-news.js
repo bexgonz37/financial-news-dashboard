@@ -182,5 +182,7 @@ function generateNewsUrl(source, symbol, title) {
     'Finnhub': `https://finnhub.io/api/v1/company-news?symbol=${symbol}`
   };
   
-  return workingUrls[source] || `https://finance.yahoo.com/quote/${symbol}/news`;
+  const url = workingUrls[source] || `https://finance.yahoo.com/quote/${symbol}/news`;
+  console.log(`Generated URL for ${source} ${symbol}: ${url}`);
+  return url;
 }

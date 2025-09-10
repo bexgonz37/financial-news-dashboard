@@ -1615,8 +1615,13 @@
     
     // Open article function
     function openArticle(url) {
-      console.log('Opening article:', url);
+      console.log('=== OPENING ARTICLE ===');
+      console.log('URL received:', url);
+      console.log('URL type:', typeof url);
+      console.log('URL length:', url ? url.length : 'null');
+      
       if (url && url !== 'undefined' && url !== 'null' && url.startsWith('http')) {
+        console.log('Opening URL in new tab:', url);
         window.open(url, '_blank', 'noopener,noreferrer');
       } else {
         console.error('Invalid URL:', url);
