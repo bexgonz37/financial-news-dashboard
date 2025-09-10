@@ -9,6 +9,8 @@ module.exports = async function handler(req, res) {
   if (req.method === 'OPTIONS') return res.status(200).end();
 
   try {
+    const { preset = 'momentum', limit = 50 } = req.query;
+    
     console.log('=== ROBUST SCANNER API - ALWAYS FRESH DATA ===');
     console.log('Current time:', new Date().toISOString());
     console.log('API Keys check:', {
@@ -17,9 +19,10 @@ module.exports = async function handler(req, res) {
       FINNHUB_KEY: process.env.FINNHUB_KEY ? 'SET' : 'MISSING'
     });
     console.log('Request query:', req.query);
+    console.log('Preset:', preset, 'Limit:', limit);
 
     // Always generate fresh data to prevent reversion
-    const stocks = generateFreshStockData();
+    const stocks = generateFreshStockData(parseInt(limit), preset);
     
     console.log(`Generated ${stocks.length} fresh stocks`);
 
@@ -28,7 +31,8 @@ module.exports = async function handler(req, res) {
       data: {
         stocks: stocks,
         total: stocks.length,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
+        refreshInterval: 30000 // 30 seconds
       }
     });
 
@@ -46,8 +50,8 @@ module.exports = async function handler(req, res) {
   }
 }
 
-function generateFreshStockData() {
-  console.log('Generating fresh stock data...');
+function generateFreshStockData(limit = 50, preset = 'momentum') {
+  console.log(`Generating fresh stock data for preset: ${preset}, limit: ${limit}`);
   
   const popularStocks = [
     { symbol: 'AAPL', name: 'Apple Inc.', basePrice: 180, sector: 'Technology' },
@@ -88,7 +92,9 @@ function generateFreshStockData() {
 
   const marketStatus = isMarketOpen ? 'Live' : 'After Hours';
 
-  return popularStocks.map(stock => {
+  const selectedStocks = popularStocks.slice(0, limit);
+  
+  return selectedStocks.map(stock => {
     // Generate realistic price movements with current timestamp
     const timeSeed = Date.now() + Math.random() * 1000;
     const volatility = (timeSeed % 50) / 1000; // 0-5% volatility
