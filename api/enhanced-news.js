@@ -163,29 +163,24 @@ function generateFreshNewsData(ticker, search, limit) {
 }
 
 function generateNewsUrl(source, symbol, title) {
-  // Generate realistic article URLs that look like actual news articles
-  const articleTitles = title.toLowerCase()
-    .replace(/[^a-z0-9\s]/g, '')
-    .replace(/\s+/g, '-')
-    .substring(0, 50);
-  
-  const articleUrls = {
-    'Financial Times': `https://www.ft.com/content/${symbol.toLowerCase()}-${articleTitles}`,
-    'Reuters': `https://www.reuters.com/business/${symbol.toLowerCase()}-${articleTitles}`,
-    'Bloomberg': `https://www.bloomberg.com/news/articles/${symbol.toLowerCase()}-${articleTitles}`,
-    'MarketWatch': `https://www.marketwatch.com/story/${symbol.toLowerCase()}-${articleTitles}`,
-    'CNBC': `https://www.cnbc.com/2024/01/15/${symbol.toLowerCase()}-${articleTitles}.html`,
-    'Yahoo Finance': `https://finance.yahoo.com/news/${symbol.toLowerCase()}-${articleTitles}`,
-    'Seeking Alpha': `https://seekingalpha.com/article/${symbol.toLowerCase()}-${articleTitles}`,
-    'InvestorPlace': `https://investorplace.com/2024/01/${symbol.toLowerCase()}-${articleTitles}`,
-    'Motley Fool': `https://www.fool.com/investing/2024/01/15/${symbol.toLowerCase()}-${articleTitles}`,
-    'Benzinga': `https://www.benzinga.com/news/24/01/15/${symbol.toLowerCase()}-${articleTitles}`,
-    'Zacks': `https://www.zacks.com/stock/news/${symbol.toLowerCase()}-${articleTitles}`,
-    'The Street': `https://www.thestreet.com/investing/stocks/${symbol.toLowerCase()}-${articleTitles}`,
+  // Generate working URLs that actually exist and won't give 404 errors
+  const workingUrls = {
+    'Financial Times': `https://www.ft.com/search?q=${encodeURIComponent(symbol + ' stock news')}`,
+    'Reuters': `https://www.reuters.com/search/news?blob=${encodeURIComponent(symbol + ' stock')}`,
+    'Bloomberg': `https://www.bloomberg.com/search?query=${encodeURIComponent(symbol + ' stock news')}`,
+    'MarketWatch': `https://www.marketwatch.com/search?q=${encodeURIComponent(symbol + ' stock')}`,
+    'CNBC': `https://www.cnbc.com/search/?query=${encodeURIComponent(symbol + ' stock news')}`,
+    'Yahoo Finance': `https://finance.yahoo.com/quote/${symbol}/news`,
+    'Seeking Alpha': `https://seekingalpha.com/symbol/${symbol}/news`,
+    'InvestorPlace': `https://investorplace.com/stock-lists/${symbol.toLowerCase()}/`,
+    'Motley Fool': `https://www.fool.com/quote/${symbol.toLowerCase()}/`,
+    'Benzinga': `https://www.benzinga.com/quote/${symbol}`,
+    'Zacks': `https://www.zacks.com/stock/quote/${symbol}`,
+    'The Street': `https://www.thestreet.com/quote/${symbol}`,
     'Alpha Vantage': `https://www.alphavantage.co/query?function=NEWS_SENTIMENT&tickers=${symbol}`,
     'Financial Modeling Prep': `https://financialmodelingprep.com/company/${symbol}`,
     'Finnhub': `https://finnhub.io/api/v1/company-news?symbol=${symbol}`
   };
   
-  return articleUrls[source] || `https://finance.yahoo.com/news/${symbol.toLowerCase()}-${articleTitles}`;
+  return workingUrls[source] || `https://finance.yahoo.com/quote/${symbol}/news`;
 }
