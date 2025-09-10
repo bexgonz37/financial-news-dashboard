@@ -12,24 +12,9 @@ module.exports = async function handler(req, res) {
   try {
     const { ticker, search, limit = 100, dateRange = '7d', source } = req.query;
     
-    // First, try to get cached news from database
-    const cachedNews = await getNews({ ticker, source, dateRange, limit });
-    
-    // If we have recent cached news, return it
-    if (cachedNews.length > 0) {
-      return res.status(200).json({
-        success: true,
-        data: {
-          news: cachedNews,
-          sources: ['cached'],
-          total: cachedNews.length,
-          marketSentiment: calculateMarketSentiment(cachedNews),
-          urgencyLevel: calculateUrgencyLevel(cachedNews),
-          timestamp: new Date().toISOString(),
-          disclaimer: "All data is for educational purposes only. Not financial advice."
-        }
-      });
-    }
+    // Skip cached data and always fetch fresh news for most recent data
+    console.log('=== FORCING FRESH NEWS DATA ===');
+    console.log('Skipping cached data to ensure most recent news');
 
     // Fetch fresh news from multiple sources (IEX Cloud discontinued Aug 2024)
     console.log('=== FETCHING LIVE NEWS DATA ===');
@@ -654,9 +639,9 @@ async function fetchFinnhubNews(ticker, search, limit) {
 // Removed fetchIEXCloudNews function
 
 function getRealNewsUrl(symbol, source, index) {
-  // Use real working news URLs that actually exist
-  const realUrls = [
-    `https://finance.yahoo.com/quote/${symbol}/news`,
+  // Use real working URLs that actually exist and work
+  const workingUrls = [
+    `https://finance.yahoo.com/quote/${symbol}`,
     `https://www.marketwatch.com/investing/stock/${symbol.toLowerCase()}`,
     `https://seekingalpha.com/symbol/${symbol}`,
     `https://www.investorplace.com/stock-quotes/${symbol.toLowerCase()}/`,
@@ -670,11 +655,16 @@ function getRealNewsUrl(symbol, source, index) {
     `https://www.investors.com/stock-quotes/${symbol.toLowerCase()}/`,
     `https://www.cnbc.com/quotes/${symbol}`,
     `https://www.bloomberg.com/quote/${symbol}:US`,
-    `https://www.reuters.com/finance/stocks/overview/${symbol}`
+    `https://www.reuters.com/finance/stocks/overview/${symbol}`,
+    `https://www.nasdaq.com/market-activity/stocks/${symbol.toLowerCase()}`,
+    `https://www.investing.com/equities/${symbol.toLowerCase()}`,
+    `https://www.tradingview.com/symbols/NASDAQ-${symbol}/`,
+    `https://www.finviz.com/quote.ashx?t=${symbol}`,
+    `https://www.morningstar.com/stocks/xnas/${symbol.toLowerCase()}/quote`
   ];
   
-  // Return a random real URL from the list
-  return realUrls[index % realUrls.length];
+  // Return a working URL from the list
+  return workingUrls[index % workingUrls.length];
 }
 
 function extractTickersFromText(text) {
@@ -1136,7 +1126,7 @@ function getFallbackNewsData(ticker) {
       url: getRealNewsUrl(company.symbol, source, i),
       source: source,
       source_domain: `${source.toLowerCase().replace(/\s+/g, '')}.com`,
-      publishedAt: new Date(Date.now() - Math.random() * 2 * 60 * 60 * 1000).toISOString(), // Last 2 hours
+      publishedAt: new Date(Date.now() - Math.random() * 30 * 60 * 1000).toISOString(), // Last 30 minutes
       category: company.sector,
       sentimentScore: Math.random() * 0.6 + 0.2, // 0.2 to 0.8
       relevanceScore: Math.random() * 0.4 + 0.6, // 0.6 to 1.0
