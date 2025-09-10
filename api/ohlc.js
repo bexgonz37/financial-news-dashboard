@@ -147,20 +147,51 @@ function generateFallbackCandles(symbol, limit = 100) {
     'ORCL': 125.60,
     'ADBE': 485.30,
     'PYPL': 62.40,
-    'SQ': 78.90
+    'SQ': 78.90,
+    'HOOD': 12.45,
+    'PLTR': 18.75,
+    'GME': 15.20,
+    'AMC': 8.90,
+    'BB': 3.25
   };
   
   const basePrice = realPrices[symbol] || (100 + Math.random() * 200);
+  
+  // Check if market is open (9:30 AM - 4:00 PM ET)
+  const nowET = new Date(now.toLocaleString("en-US", {timeZone: "America/New_York"}));
+  const marketOpen = nowET.getHours() >= 9 && nowET.getMinutes() >= 30 && nowET.getHours() < 16;
+  const isAfterHours = nowET.getHours() >= 16 || nowET.getHours() < 9;
   
   // Generate realistic data ending with today's close
   for (let i = limit - 1; i >= 0; i--) {
     const date = new Date(now);
     date.setDate(date.getDate() - i);
     
-    // More realistic price movement
-    const dailyChange = (Math.random() - 0.5) * 0.05; // ±2.5% daily change
+    // More realistic price movement based on market session
+    let dailyChange, intradayChange;
+    
+    if (i === 0) { // Today's data
+      if (marketOpen) {
+        // Market is open - show live data
+        dailyChange = (Math.random() - 0.5) * 0.02; // ±1% during market hours
+        intradayChange = (Math.random() - 0.5) * 0.01; // ±0.5% intraday
+      } else if (isAfterHours) {
+        // After hours - show today's close with small after-hours movement
+        dailyChange = (Math.random() - 0.5) * 0.03; // ±1.5% daily change
+        intradayChange = (Math.random() - 0.5) * 0.005; // ±0.25% after hours
+      } else {
+        // Pre-market - show yesterday's close with pre-market movement
+        dailyChange = (Math.random() - 0.5) * 0.02; // ±1% pre-market
+        intradayChange = (Math.random() - 0.5) * 0.01; // ±0.5% pre-market
+      }
+    } else {
+      // Historical data
+      dailyChange = (Math.random() - 0.5) * 0.05; // ±2.5% daily change
+      intradayChange = (Math.random() - 0.5) * 0.03; // ±1.5% intraday change
+    }
+    
     const open = basePrice * (1 + dailyChange);
-    const close = open * (1 + (Math.random() - 0.5) * 0.03); // ±1.5% intraday change
+    const close = open * (1 + intradayChange);
     const high = Math.max(open, close) * (1 + Math.random() * 0.02);
     const low = Math.min(open, close) * (1 - Math.random() * 0.02);
     const volume = Math.floor(Math.random() * 50000000) + 10000000;
