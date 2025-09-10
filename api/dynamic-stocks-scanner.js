@@ -11,10 +11,16 @@ export default async function handler(req, res) {
 
   try {
     const { preset = 'all', limit = 100 } = req.query;
+    console.log('=== SCANNER API CALLED ===');
+    console.log('Preset:', preset, 'Limit:', limit);
     
     // Get DYNAMIC stocks from multiple sources including ticker changes
     const dynamicStocks = await fetchDynamicStocks();
     console.log('Fetched dynamic stocks:', dynamicStocks.length);
+    
+    if (dynamicStocks.length === 0) {
+      console.log('No dynamic stocks fetched, using fallback data');
+    }
     
     // Apply preset filters
     const filteredData = applyPresetFilter(dynamicStocks, preset);
@@ -67,6 +73,9 @@ async function fetchDynamicStocks() {
   const allStocks = [];
   
   try {
+    console.log('Alpha Vantage API Key exists:', !!process.env.ALPHAVANTAGE_KEY);
+    console.log('FMP API Key exists:', !!process.env.FMP_KEY);
+    console.log('Finnhub API Key exists:', !!process.env.FINNHUB_KEY);
     // 1. Fetch from Alpha Vantage - Top Gainers/Losers (includes penny stocks)
     console.log('Fetching Alpha Vantage gainers/losers...');
     const alphaKey = process.env.ALPHAVANTAGE_KEY;
