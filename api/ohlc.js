@@ -37,7 +37,8 @@ export default async function handler(req, res) {
 }
 
 async function fetchCandles(ticker, interval, limit, last) {
-  const apiKey = process.env.FINNHUB_KEY;
+  // Try multiple possible API key variable names
+  const apiKey = process.env.FINNHUB_API_KEY || process.env.FINNHUB_KEY;
   if (!apiKey) {
     console.log('Finnhub API key not configured, using fallback data');
     return generateFallbackCandles(ticker, limit);

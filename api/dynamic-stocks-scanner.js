@@ -69,7 +69,8 @@ async function fetchDynamicStocks() {
   try {
     // 1. Fetch from Alpha Vantage - Top Gainers/Losers (includes penny stocks)
     console.log('Fetching Alpha Vantage gainers/losers...');
-    const gainersResponse = await fetch(`https://www.alphavantage.co/query?function=TOP_GAINERS_LOSERS&apikey=${process.env.ALPHA_VANTAGE_API_KEY}`);
+    const alphaKey = process.env.ALPHA_VANTAGE_API_KEY || process.env.ALPHAVANTAGE_KEY;
+    const gainersResponse = await fetch(`https://www.alphavantage.co/query?function=TOP_GAINERS_LOSERS&apikey=${alphaKey}`);
     if (gainersResponse.ok) {
       const gainersData = await gainersResponse.json();
       if (gainersData.top_gainers) {
@@ -124,7 +125,7 @@ async function fetchDynamicStocks() {
     
     // 2. Fetch from Alpha Vantage - Most Active (includes penny stocks)
     console.log('Fetching Alpha Vantage most active...');
-    const mostActiveResponse = await fetch(`https://www.alphavantage.co/query?function=MOST_ACTIVE&apikey=${process.env.ALPHA_VANTAGE_API_KEY}`);
+    const mostActiveResponse = await fetch(`https://www.alphavantage.co/query?function=MOST_ACTIVE&apikey=${alphaKey}`);
     if (mostActiveResponse.ok) {
       const mostActiveData = await mostActiveResponse.json();
       if (mostActiveData.most_actives) {
@@ -158,7 +159,8 @@ async function fetchDynamicStocks() {
     const pennyStocks = ['SNDL', 'NAKD', 'CTRM', 'ZOM', 'OCGN', 'NOK', 'BB', 'AMC', 'GME', 'EXPR', 'KOSS', 'NAK', 'TOPS', 'SHIP', 'MARK'];
     for (const ticker of pennyStocks) {
       try {
-        const quoteResponse = await fetch(`https://finnhub.io/api/v1/quote?symbol=${ticker}&token=${process.env.FINNHUB_API_KEY}`);
+        const finnhubKey = process.env.FINNHUB_API_KEY || process.env.FINNHUB_KEY;
+        const quoteResponse = await fetch(`https://finnhub.io/api/v1/quote?symbol=${ticker}&token=${finnhubKey}`);
         if (quoteResponse.ok) {
           const quoteData = await quoteResponse.json();
           if (quoteData.c && quoteData.c > 0) {

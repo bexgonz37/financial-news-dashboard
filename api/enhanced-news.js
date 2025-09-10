@@ -54,14 +54,32 @@ module.exports = async function handler(req, res) {
       console.log('No news from specific APIs, trying broader market news...');
       // Try fetching general market news without specific ticker
       const generalNewsPromises = [
-        fetchAlphaVantageNews('', 'market', 50),
-        fetchYahooFinanceNews('', 'market', 50),
-        fetchFMPNews('', 'market', 50),
-        fetchFinnhubNews('', 'market', 50)
+        fetchAlphaVantageNews('', 'market', 100),
+        fetchYahooFinanceNews('', 'market', 100),
+        fetchFMPNews('', 'market', 100),
+        fetchFinnhubNews('', 'market', 100)
       ];
       
       const generalResults = await Promise.allSettled(generalNewsPromises);
       generalResults.forEach((result, index) => {
+        if (result.status === 'fulfilled' && result.value) {
+          allNews = allNews.concat(result.value);
+        }
+      });
+    }
+    
+    // If still no real news, try one more time with different parameters
+    if (allNews.length === 0) {
+      console.log('Still no news, trying alternative API calls...');
+      const altNewsPromises = [
+        fetchAlphaVantageNews('AAPL', 'earnings', 50),
+        fetchYahooFinanceNews('TSLA', 'stock', 50),
+        fetchFMPNews('MSFT', 'technology', 50),
+        fetchFinnhubNews('GOOGL', 'tech', 50)
+      ];
+      
+      const altResults = await Promise.allSettled(altNewsPromises);
+      altResults.forEach((result, index) => {
         if (result.status === 'fulfilled' && result.value) {
           allNews = allNews.concat(result.value);
         }
@@ -128,9 +146,19 @@ module.exports = async function handler(req, res) {
 
 async function fetchAlphaVantageNews(ticker, search, limit) {
   try {
-    const apiKey = process.env.ALPHA_VANTAGE_API_KEY;
+    // Try multiple possible API key variable names
+    const apiKey = process.env.ALPHA_VANTAGE_API_KEY || process.env.ALPHAVANTAGE_KEY || process.env.ALPHA_VANTAGE_KEY;
     if (!apiKey) {
-      console.log('Alpha Vantage API key not configured');
+      console.log('Alpha Vantage API key not configured - trying without key');
+      // Try without API key for some endpoints
+      const response = await fetch(`https://www.alphavantage.co/query?function=TOP_GAINERS_LOSERS`);
+      if (response.ok) {
+        const data = await response.json();
+        if (data.top_gainers || data.top_losers) {
+          console.log('Alpha Vantage worked without API key');
+          return [];
+        }
+      }
       return [];
     }
 
@@ -268,7 +296,8 @@ async function fetchYahooFinanceNews(ticker, search, limit) {
 
 async function fetchFMPNews(ticker, search, limit) {
   try {
-    const apiKey = process.env.FMP_API_KEY;
+    // Try multiple possible API key variable names
+    const apiKey = process.env.FMP_API_KEY || process.env.FMP_KEY;
     if (!apiKey) {
       console.log('FMP API key not configured');
       return [];
@@ -336,7 +365,8 @@ async function fetchFMPNews(ticker, search, limit) {
 
 async function fetchFinnhubNews(ticker, search, limit) {
   try {
-    const apiKey = process.env.FINNHUB_API_KEY;
+    // Try multiple possible API key variable names
+    const apiKey = process.env.FINNHUB_API_KEY || process.env.FINNHUB_KEY;
     if (!apiKey) {
       console.log('Finnhub API key not configured');
       return [];
