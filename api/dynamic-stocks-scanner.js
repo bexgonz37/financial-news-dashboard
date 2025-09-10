@@ -14,14 +14,18 @@ export default async function handler(req, res) {
     
     // Get DYNAMIC stocks from multiple sources including ticker changes
     const dynamicStocks = await fetchDynamicStocks();
+    console.log('Fetched dynamic stocks:', dynamicStocks.length);
     
     // Apply preset filters
     const filteredData = applyPresetFilter(dynamicStocks, preset);
+    console.log('Filtered data:', filteredData.length);
     
     // Sort by score and limit results
     const sortedData = filteredData
       .sort((a, b) => parseFloat(b.score) - parseFloat(a.score))
       .slice(0, parseInt(limit));
+    
+    console.log('Final sorted data:', sortedData.length);
 
     res.status(200).json({
       success: true,

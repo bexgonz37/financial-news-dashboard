@@ -738,11 +738,12 @@
             window.scannerRefreshTimeout = setTimeout(buildScanners, data.data.refreshInterval);
           }
         } else {
-          document.getElementById('scanner-grid').innerHTML = `<div class="card">Error loading screener data.</div>`;
+          console.error('Scanner API returned no data:', data);
+          document.getElementById('scanner-grid').innerHTML = `<div class="card">Error loading screener data. Check console for details.</div>`;
         }
       } catch (error) {
         console.error('Screener error:', error);
-        document.getElementById('scanner-grid').innerHTML = `<div class="card">Error loading screener data.</div>`;
+        document.getElementById('scanner-grid').innerHTML = `<div class="card">Error loading screener data: ${error.message}</div>`;
       }
     }
 
@@ -1044,6 +1045,9 @@
     
     // Load initial data
     setTimeout(fetchData, 100);
+    
+    // Load scanner data immediately
+    setTimeout(buildScanners, 200);
     
     // Auto-refresh news every 30 seconds
     setInterval(fetchData, 30000);
