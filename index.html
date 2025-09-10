@@ -729,8 +729,11 @@
         const feed = document.getElementById('news-feed');
         feed.innerHTML = '<div class="loading">Fetching live financial news…</div>';
         
+        console.log('Fetching news from:', `/api/enhanced-news?${params.toString()}`);
         const r = await fetch(`/api/enhanced-news?${params.toString()}`);
+        console.log('News API response status:', r.status, r.ok);
         if(!r.ok) {
+          console.error('News API error:', r.status, r.statusText);
           throw new Error(`API error: ${r.status} ${r.statusText}`);
         }
         
@@ -883,8 +886,10 @@
         console.log('Fetching from:', `/api/dynamic-stocks-scanner?preset=${preset}&limit=${limit}`);
         
         // Call the dynamic stocks scanner API for real-time data including ticker changes
-        const response = await fetch(`/api/dynamic-stocks-scanner?preset=${preset}&limit=${limit}&_t=${Date.now()}`);
-        console.log('Response status:', response.status, response.ok);
+        const scannerUrl = `/api/dynamic-stocks-scanner?preset=${preset}&limit=${limit}&_t=${Date.now()}`;
+        console.log('Fetching scanner from:', scannerUrl);
+        const response = await fetch(scannerUrl);
+        console.log('Scanner API response status:', response.status, response.ok);
         
         const data = await response.json();
         console.log('Scanner API response:', data);

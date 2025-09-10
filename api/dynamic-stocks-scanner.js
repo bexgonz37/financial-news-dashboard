@@ -317,7 +317,15 @@ function getRealMarketFallbackData() {
   
   // Generate fresh market data with current timestamps
   const currentTime = new Date();
-  const isMarketOpen = currentTime.getHours() >= 9 && currentTime.getHours() < 16;
+  const currentHour = currentTime.getHours();
+  const currentMinute = currentTime.getMinutes();
+  const currentDay = currentTime.getDay(); // 0 = Sunday, 6 = Saturday
+  
+  // Market is open Monday-Friday 9:30 AM - 4:00 PM ET
+  const isMarketOpen = currentDay >= 1 && currentDay <= 5 && 
+                      ((currentHour === 9 && currentMinute >= 30) || 
+                       (currentHour >= 10 && currentHour < 16));
+  
   const marketStatus = isMarketOpen ? 'Live' : 'After Hours';
   
   console.log('=== GENERATING FRESH DATA AT:', currentTime.toISOString() + ' ===');
@@ -329,11 +337,11 @@ function getRealMarketFallbackData() {
   const generateStockData = (symbol, name, basePrice, sector) => {
     // Use current timestamp as seed for more variation
     const timeSeed = Date.now() + Math.random() * 1000;
-    const volatility = (timeSeed % 100) / 1000; // 0-10% volatility based on time
-    const changePercent = ((timeSeed % 400) - 200) / 10; // -20% to +20% change based on time
+    const volatility = (timeSeed % 50) / 1000; // 0-5% volatility based on time
+    const changePercent = ((timeSeed % 200) - 100) / 10; // -10% to +10% change based on time
     const price = basePrice * (1 + changePercent / 100);
     const change = price - basePrice;
-    const volume = Math.floor((timeSeed % 100000000) + 5000000); // 5M to 105M volume
+    const volume = Math.floor((timeSeed % 50000000) + 10000000); // 10M to 60M volume
     
     return {
       symbol,
@@ -345,7 +353,7 @@ function getRealMarketFallbackData() {
       marketCap: Math.round(price * volume / 1000000) + 'M',
       sector,
       session: isMarketOpen ? 'RTH' : 'AH',
-      marketStatus,
+      marketStatus: marketStatus,
       dataAge: 'Live',
       isNewListing: Math.random() > 0.95,
       tickerChanged: false,
