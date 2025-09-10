@@ -174,6 +174,7 @@
           <option value="short_squeeze">⚡ Short Squeeze</option>
           <option value="dividend">💵 Dividend</option>
           <option value="new_listings">🆕 New Listings</option>
+          <option value="ticker_changes">🔄 Ticker Changes</option>
         </select>
         <input class="input" id="minPct" type="number" step="0.1" placeholder="Min % (e.g. 2)"/>
         <input class="input" id="minRVOL" type="number" step="0.1" placeholder="Min RVOL (e.g. 1.5)"/>
@@ -669,8 +670,8 @@
       const limit = 50;
       
       try {
-        // Call the live stocks scanner API for real-time data including new IPOs
-        const response = await fetch(`/api/live-stocks-scanner?preset=${preset}&limit=${limit}`);
+        // Call the dynamic stocks scanner API for real-time data including ticker changes
+        const response = await fetch(`/api/dynamic-stocks-scanner?preset=${preset}&limit=${limit}`);
         const data = await response.json();
         
         if (data.success && data.data.stocks) {
@@ -698,6 +699,7 @@
             const marketStatus = stock.marketStatus || (session === 'AH' ? 'After Hours' : 'Live');
             const dataAge = stock.dataAge || (session === 'AH' ? 'Latest Close' : 'Live');
             const isNewListing = stock.isNewListing || false;
+            const tickerChanged = stock.tickerChanged || false;
             
             return `
               <div class="card" style="cursor:pointer" onclick="openChart('${stock.symbol}')">
@@ -706,6 +708,7 @@
                     <strong>${stock.symbol}</strong>
                     <span class="change ${pct>=0?'up':'down'}">${pct>=0?'+':''}${pct.toFixed(2)}%</span>
                     ${isStale ? '<span style="color: #ffc107; font-size: 0.7rem; margin-left: 4px;">STALE</span>' : ''}
+                    ${tickerChanged ? '<span style="color: #ff6b6b; font-size: 0.7rem; margin-left: 4px;">CHANGED</span>' : ''}
                   </div>
                   <div style="text-align:right">
                     <div class="meta">AI Score: ${score.toFixed(0)}</div>
@@ -717,7 +720,7 @@
                   <button class="star ${watchlist.has(stock.symbol)?'active':''}" data-star="${stock.symbol}" style="margin-left:8px">${watchlist.has(stock.symbol)?'★':'☆'}</button>
                 </div>
                 <div class="meta" style="margin-top:4px; font-size:0.8rem">
-                  ${analystRating} · MACD: ${macd.toFixed(3)} · ${dataAge} · ${lastUpdated}${isNewListing ? ' · NEW' : ''}
+                  ${analystRating} · MACD: ${macd.toFixed(3)} · ${dataAge} · ${lastUpdated}${isNewListing ? ' · NEW' : ''}${tickerChanged ? ' · CHANGED' : ''}
                 </div>
               </div>
             `;
