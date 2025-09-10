@@ -80,10 +80,12 @@ function generateFreshStockData(limit = 50, preset = 'momentum') {
     { symbol: 'SNDL', name: 'SNDL Inc.', basePrice: 1, sector: 'Healthcare' }
   ];
 
-  const currentTime = new Date();
-  const currentHour = currentTime.getHours();
-  const currentMinute = currentTime.getMinutes();
-  const currentDay = currentTime.getDay();
+  // Get current time in Eastern Time
+  const now = new Date();
+  const etTime = new Date(now.toLocaleString("en-US", {timeZone: "America/New_York"}));
+  const currentHour = etTime.getHours();
+  const currentMinute = etTime.getMinutes();
+  const currentDay = etTime.getDay();
 
   // Market is open Monday-Friday 9:30 AM - 4:00 PM ET
   const isMarketOpen = currentDay >= 1 && currentDay <= 5 &&
@@ -91,6 +93,9 @@ function generateFreshStockData(limit = 50, preset = 'momentum') {
                        (currentHour >= 10 && currentHour < 16));
 
   const marketStatus = isMarketOpen ? 'Live' : 'After Hours';
+  const session = isMarketOpen ? 'RTH' : 'AH';
+  
+  console.log(`Market status: ${marketStatus} (ET: ${etTime.toLocaleString()})`);
 
   const selectedStocks = popularStocks.slice(0, limit);
   
@@ -113,7 +118,7 @@ function generateFreshStockData(limit = 50, preset = 'momentum') {
       volume: volume,
       marketCap: Math.floor(Math.random() * 100000000000) + 1000000000 + 'M',
       sector: stock.sector,
-      session: isMarketOpen ? 'RTH' : 'AH',
+      session: session,
       marketStatus: marketStatus,
       dataAge: 'Live',
       isNewListing: Math.random() > 0.95,

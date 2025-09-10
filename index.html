@@ -815,7 +815,7 @@
               <button class="star ${starred}" data-star="${t}">${starred?'★':'☆'}</button>
             </div>
             <div class="title">${n.title||''}</div>
-            <div class="summary">${n.summary||''} ${n.url?`<button class="read-btn" data-url="${n.url}">Read</button>`:'<span style="color:red">NO URL</span>'}</div>
+            <div class="summary">${n.summary||''} ${n.url?`<button class="read-btn" onclick="window.open('${n.url}', '_blank')">Read</button>`:'<span style="color:red">NO URL</span>'}</div>
             <div style="font-size: 0.7rem; color: #666; margin-top: 4px;">URL: ${n.url || 'NO URL'}</div>
             ${tickers.length > 0 ? `
               <div style="margin: 8px 0; display: flex; flex-wrap: wrap; gap: 4px;">
@@ -839,20 +839,7 @@
       document.querySelectorAll('[data-optional="pct"]').forEach(n=> n.style.display = optShowPct ? '' : 'none');
       document.querySelectorAll('[data-optional="rvol"]').forEach(n=> n.style.display = optShowRVOL ? '' : 'none');
       
-      // Add event listeners for read buttons after a short delay to ensure DOM is ready
-      setTimeout(() => {
-        document.querySelectorAll('.read-btn').forEach(btn => {
-          btn.addEventListener('click', function(e) {
-            e.preventDefault();
-            const url = this.getAttribute('data-url');
-            console.log('Read button clicked, URL:', url);
-            console.log('Button element:', this);
-            console.log('Data URL attribute:', this.getAttribute('data-url'));
-            openArticle(url);
-          });
-        });
-        console.log('Event listeners attached to', document.querySelectorAll('.read-btn').length, 'read buttons');
-      }, 100);
+      // Read buttons now use direct onclick handlers
 
       // hydrate cards (always draw mini-charts)
       document.querySelectorAll('#news-feed .news-item').forEach(async (card)=>{

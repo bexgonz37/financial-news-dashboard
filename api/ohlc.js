@@ -154,9 +154,10 @@ function getTickerData(ticker) {
 
 function isMarketOpen(timestamp) {
   const date = new Date(timestamp);
-  const day = date.getDay();
-  const hour = date.getHours();
-  const minute = date.getMinutes();
+  const etDate = new Date(date.toLocaleString("en-US", {timeZone: "America/New_York"}));
+  const day = etDate.getDay();
+  const hour = etDate.getHours();
+  const minute = etDate.getMinutes();
   
   // Market is open Monday-Friday 9:30 AM - 4:00 PM ET
   const isWeekday = day >= 1 && day <= 5;
