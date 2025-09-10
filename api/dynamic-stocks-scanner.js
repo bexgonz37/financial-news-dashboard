@@ -68,13 +68,19 @@ export default async function handler(req, res) {
 
 async function fetchDynamicStocks() {
   console.log('=== FETCHING REAL DYNAMIC STOCKS ===');
+  console.log('Current time:', new Date().toISOString());
   const allStocks = [];
   
   try {
     console.log('Alpha Vantage API Key exists:', !!process.env.ALPHAVANTAGE_KEY);
     console.log('FMP API Key exists:', !!process.env.FMP_KEY);
     console.log('Finnhub API Key exists:', !!process.env.FINNHUB_KEY);
-    console.log('Current time:', new Date().toISOString());
+    
+    // If no API keys, return empty array to force fallback
+    if (!process.env.ALPHAVANTAGE_KEY && !process.env.FMP_KEY && !process.env.FINNHUB_KEY) {
+      console.log('No API keys found, will use fallback data');
+      return { success: false, data: { stocks: [] } };
+    }
     
     // 1. Fetch from Alpha Vantage - Top Gainers/Losers (includes penny stocks)
     console.log('Fetching Alpha Vantage gainers/losers...');

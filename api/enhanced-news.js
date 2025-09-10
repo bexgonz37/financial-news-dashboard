@@ -32,6 +32,12 @@ module.exports = async function handler(req, res) {
     }
 
     // Fetch fresh news from multiple sources (IEX Cloud discontinued Aug 2024)
+    console.log('=== FETCHING LIVE NEWS DATA ===');
+    console.log('Current time:', new Date().toISOString());
+    console.log('Alpha Vantage API Key exists:', !!process.env.ALPHAVANTAGE_KEY);
+    console.log('FMP API Key exists:', !!process.env.FMP_KEY);
+    console.log('Finnhub API Key exists:', !!process.env.FINNHUB_KEY);
+    
     const newsPromises = [
       fetchAlphaVantageNews(ticker, search, Math.min(limit || 50, 100)),
       fetchYahooFinanceNews(ticker, search, Math.min(limit || 50, 100)),
@@ -1098,7 +1104,7 @@ function getFallbackNewsData(ticker) {
       url: getRealNewsUrl(company.symbol, source, i),
       source: source,
       source_domain: `${source.toLowerCase().replace(/\s+/g, '')}.com`,
-      publishedAt: new Date(Date.now() - Math.random() * 6 * 60 * 60 * 1000).toISOString(), // Last 6 hours
+      publishedAt: new Date(Date.now() - Math.random() * 2 * 60 * 60 * 1000).toISOString(), // Last 2 hours
       category: company.sector,
       sentimentScore: Math.random() * 0.6 + 0.2, // 0.2 to 0.8
       relevanceScore: Math.random() * 0.4 + 0.6, // 0.6 to 1.0
@@ -1123,7 +1129,7 @@ function getFallbackNewsData(ticker) {
       url: 'https://www.cannabisbusinesstimes.com/article/sundial-growers-q3-earnings-cannabis-revenue-growth/',
       source: 'Cannabis Business Times',
       source_domain: 'cannabisbusinesstimes.com',
-      publishedAt: new Date().toISOString(),
+      publishedAt: new Date(Date.now() - Math.random() * 30 * 60 * 1000).toISOString(), // Last 30 minutes
       category: 'Earnings',
       sentimentScore: 0.8,
       relevanceScore: 0.9,

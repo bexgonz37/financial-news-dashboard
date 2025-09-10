@@ -1532,24 +1532,33 @@
     loadWatchlist();
     renderFilterChecks();
     
-    // Show fallback data immediately for both news and scanner
-    console.log('=== INITIALIZING APP ===');
-    showFallbackNewsData();
-    showFallbackScannerData();
+    // Load real data immediately on page load
+    console.log('=== INITIALIZING APP WITH LIVE DATA ===');
     
-    // Force scanner to show data immediately
-    setTimeout(() => {
-      console.log('Force showing scanner data...');
-      showFallbackScannerData();
-    }, 100);
+    // Load real news data immediately
+    console.log('Loading live news data...');
+    fetchData();
     
-    // Load real data after fallback is shown
-    console.log('Loading real data...');
-    setTimeout(fetchData, 200);
+    // Load real scanner data immediately
+    console.log('Loading live scanner data...');
+    buildScanners();
+    
+    // Show fallback data only if real data fails
     setTimeout(() => {
-      console.log('Building scanners...');
-      buildScanners();
-    }, 500);
+      console.log('Checking if real data loaded...');
+      const newsContainer = document.getElementById('news-feed');
+      const scannerGrid = document.getElementById('scanner-grid');
+      
+      if (newsContainer && newsContainer.children.length <= 1) {
+        console.log('News failed to load, showing fallback...');
+        showFallbackNewsData();
+      }
+      
+      if (scannerGrid && scannerGrid.children.length <= 1) {
+        console.log('Scanner failed to load, showing fallback...');
+        showFallbackScannerData();
+      }
+    }, 3000);
     
     // Also try to load scanner immediately
     console.log('Loading scanner immediately...');
