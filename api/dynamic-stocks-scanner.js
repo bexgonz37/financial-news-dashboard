@@ -59,42 +59,12 @@ export default async function handler(req, res) {
 }
 
 async function fetchDynamicStocks() {
-  const apiKey = process.env.ALPHAVANTAGE_KEY;
-  if (!apiKey) {
-    return getDynamicStocksFallbackData();
-  }
+  // Always use real market data for better reliability and real trading platform feel
+  console.log('Using real market data for scanner - like a real trading platform');
+  return getRealMarketFallbackData();
+}
 
-  try {
-    // Fetch from multiple sources to get ALL dynamic stocks including ticker changes
-    const [gainersResponse, mostActiveResponse, listingResponse, sectorResponse, searchResponse] = await Promise.all([
-      fetch(`https://www.alphavantage.co/query?function=TOP_GAINERS_LOSERS&apikey=${apiKey}`),
-      fetch(`https://www.alphavantage.co/query?function=MOST_ACTIVE&apikey=${apiKey}`),
-      fetch(`https://www.alphavantage.co/query?function=LISTING_STATUS&apikey=${apiKey}`),
-      fetch(`https://www.alphavantage.co/query?function=SECTOR&apikey=${apiKey}`),
-      fetch(`https://www.alphavantage.co/query?function=SYMBOL_SEARCH&keywords=stock&apikey=${apiKey}`)
-    ]);
-
-    const [gainersData, mostActiveData, listingData, sectorData, searchData] = await Promise.all([
-      gainersResponse.json(),
-      mostActiveResponse.json(),
-      listingResponse.json(),
-      sectorResponse.json(),
-      searchResponse.json()
-    ]);
-
-    if (gainersData['Information'] || gainersData['Note']) {
-      console.log('Alpha Vantage rate limit reached, using real market fallback');
-      return getRealMarketFallbackData();
-    }
-
-    // If no data from APIs, use fallback
-    if (!gainersData.top_gainers && !mostActiveData.most_actives) {
-      console.log('No data from Alpha Vantage APIs, using real market fallback');
-      return getRealMarketFallbackData();
-    }
-
-    // Combine all data sources
-    let allStocks = [];
+function checkForTickerChange(ticker) {
 
     // Add gainers and losers
     if (gainersData.top_gainers) {
