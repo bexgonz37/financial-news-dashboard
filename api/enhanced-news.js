@@ -45,9 +45,14 @@ module.exports = async function handler(req, res) {
     let allNews = [];
     results.forEach((result, index) => {
       if (result.status === 'fulfilled' && result.value) {
+        console.log(`API ${index} returned ${result.value.length} news items`);
         allNews = allNews.concat(result.value);
+      } else {
+        console.log(`API ${index} failed:`, result.reason);
       }
     });
+    
+    console.log(`Total news from APIs: ${allNews.length}`);
 
     // If no real news, try to fetch from broader sources
     if (allNews.length === 0) {

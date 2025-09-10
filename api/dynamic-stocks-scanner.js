@@ -20,9 +20,9 @@ export default async function handler(req, res) {
     const filteredData = applyPresetFilter(dynamicStocks, preset);
     console.log('Filtered data:', filteredData.length);
     
-    // Sort by score and limit results
+    // Sort by change percentage and limit results
     const sortedData = filteredData
-      .sort((a, b) => parseFloat(b.score) - parseFloat(a.score))
+      .sort((a, b) => parseFloat(b.changePercent || 0) - parseFloat(a.changePercent || 0))
       .slice(0, parseInt(limit));
     
     console.log('Final sorted data:', sortedData.length);
@@ -94,7 +94,9 @@ async function fetchDynamicStocks() {
           pe: Math.random() * 50 + 10, // Simulate P/E
           beta: Math.random() * 2 + 0.5, // Simulate Beta
           volatility: Math.random() * 0.5 + 0.1, // Simulate Volatility
-          aiScore: Math.random() * 10 // Simulate AI Score
+          aiScore: Math.random() * 10,
+          score: Math.abs(parseFloat(stock.change_percentage)) + Math.random() * 5, // Simulate AI Score
+          score: Math.abs(parseFloat(stock.change_percentage)) + Math.random() * 5 // Calculate score based on movement
         })));
       }
       if (gainersData.top_losers) {
@@ -118,7 +120,8 @@ async function fetchDynamicStocks() {
           pe: Math.random() * 50 + 10,
           beta: Math.random() * 2 + 0.5,
           volatility: Math.random() * 0.5 + 0.1,
-          aiScore: Math.random() * 10
+          aiScore: Math.random() * 10,
+          score: Math.abs(parseFloat(stock.change_percentage)) + Math.random() * 5
         })));
       }
     }
@@ -149,7 +152,8 @@ async function fetchDynamicStocks() {
           pe: Math.random() * 50 + 10,
           beta: Math.random() * 2 + 0.5,
           volatility: Math.random() * 0.5 + 0.1,
-          aiScore: Math.random() * 10
+          aiScore: Math.random() * 10,
+          score: Math.abs(parseFloat(stock.change_percentage)) + Math.random() * 5
         })));
       }
     }
@@ -184,7 +188,8 @@ async function fetchDynamicStocks() {
               pe: Math.random() * 50 + 10,
               beta: Math.random() * 2 + 0.5,
               volatility: Math.random() * 0.5 + 0.1,
-              aiScore: Math.random() * 10
+              aiScore: Math.random() * 10,
+          score: Math.abs(parseFloat(stock.change_percentage)) + Math.random() * 5
             });
           }
         }
