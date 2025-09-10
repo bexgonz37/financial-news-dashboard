@@ -1214,6 +1214,96 @@
         `;
       }).join('');
       
+      // Set the grid content
+      grid.innerHTML = fallbackStocks.map(stock => {
+        const pct = stock.changePercent || 0;
+        const price = stock.price || 0;
+        const volume = stock.volume || 0;
+        const rvol = stock.relativeVolume || 0;
+        const score = stock.score || 0;
+        const rsi = stock.rsi || 0;
+        const vwap = stock.vwap || 0;
+        const macd = stock.macd || 0;
+        const pe = stock.pe || 0;
+        const beta = stock.beta || 0;
+        const volatility = stock.volatility || 0;
+        const isNewListing = stock.isNewListing || false;
+        const tickerChanged = stock.tickerChanged || false;
+        const marketStatus = stock.marketStatus || 'Live';
+        const dataAge = stock.dataAge || 'Live';
+        const session = stock.session || 'RTH';
+        
+        return `
+          <div class="card" style="cursor:pointer" onclick="openChart('${stock.symbol}')">
+            <div class="card-header">
+              <div class="ticker">${stock.symbol} ${isNewListing ? '<span class="badge new">NEW</span>' : ''} ${tickerChanged ? '<span class="badge changed">CHANGED</span>' : ''}</div>
+              <div class="pct ${pct >= 0 ? 'up' : 'down'}">
+                <span class="arrow">${pct >= 0 ? '↗' : '↘'}</span>
+                ${pct >= 0 ? '+' : ''}${pct.toFixed(2)}%
+              </div>
+            </div>
+            <div class="card-body">
+              <div class="price">$${price.toFixed(2)}</div>
+              <div class="name">${stock.name}</div>
+              <div class="session-info">
+                <span class="session ${session === 'AH' ? 'after-hours' : 'regular'}">${marketStatus}</span>
+                <span class="data-age">${dataAge}</span>
+              </div>
+              <div class="metrics">
+                <div class="metric">
+                  <span class="label">Volume:</span>
+                  <span class="value">${(volume / 1000000).toFixed(1)}M</span>
+                </div>
+                <div class="metric">
+                  <span class="label">RVOL:</span>
+                  <span class="value">${rvol.toFixed(1)}x</span>
+                </div>
+                <div class="metric">
+                  <span class="label">RSI:</span>
+                  <span class="value ${rsi > 70 ? 'overbought' : rsi < 30 ? 'oversold' : ''}">${rsi.toFixed(1)}</span>
+                </div>
+                <div class="metric">
+                  <span class="label">VWAP:</span>
+                  <span class="value">$${vwap.toFixed(2)}</span>
+                </div>
+                <div class="metric">
+                  <span class="label">MACD:</span>
+                  <span class="value ${macd > 0 ? 'up' : 'down'}">${macd > 0 ? '+' : ''}${macd.toFixed(2)}</span>
+                </div>
+                <div class="metric">
+                  <span class="label">P/E:</span>
+                  <span class="value">${pe > 0 ? pe.toFixed(1) : 'N/A'}</span>
+                </div>
+                <div class="metric">
+                  <span class="label">Beta:</span>
+                  <span class="value">${beta.toFixed(2)}</span>
+                </div>
+                <div class="metric">
+                  <span class="label">Vol:</span>
+                  <span class="value">${(volatility * 100).toFixed(1)}%</span>
+                </div>
+                <div class="metric">
+                  <span class="label">Market Cap:</span>
+                  <span class="value">${stock.marketCap}</span>
+                </div>
+                <div class="metric">
+                  <span class="label">Score:</span>
+                  <span class="value score">${score.toFixed(1)}</span>
+                </div>
+                <div class="metric">
+                  <span class="label">AI Score:</span>
+                  <span class="value ai-score">${stock.aiScore ? stock.aiScore.toFixed(1) : 'N/A'}</span>
+                </div>
+              </div>
+              <div class="mini-chart" data-ticker="${stock.symbol}"></div>
+            </div>
+            <div class="card-footer">
+              <div class="sector">${stock.sector}</div>
+            </div>
+          </div>
+        `;
+      }).join('');
+      
       // Draw mini charts for fallback data
       setTimeout(() => {
         document.querySelectorAll('.mini-chart').forEach(async (chart) => {
