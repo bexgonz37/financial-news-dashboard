@@ -118,6 +118,7 @@ async function fetchAlphaVantageNews(ticker, search, limit) {
         sentimentScore: parseFloat(article.overall_sentiment_score) || 0,
         relevanceScore: parseFloat(article.relevance_score) || 0,
         ticker: ticker || 'GENERAL',
+      tickers: ticker ? [ticker] : ['AAPL', 'MSFT', 'GOOGL'],
         urgency: calculateUrgency(article.title, article.summary),
         impact: calculateImpact(article.title, article.summary),
         keywords: extractKeywords(article.title, article.summary)
@@ -149,6 +150,7 @@ async function fetchYahooFinanceNews(ticker, search, limit) {
         sentimentScore: 0,
         relevanceScore: 0.8,
         ticker: ticker || 'GENERAL',
+      tickers: ticker ? [ticker] : ['AAPL', 'MSFT', 'GOOGL'],
         urgency: calculateUrgency(article.title, article.summary),
         impact: calculateImpact(article.title, article.summary),
         keywords: extractKeywords(article.title, article.summary)
@@ -466,8 +468,8 @@ function getFallbackNewsData(ticker) {
   return [
     {
       id: 'fallback_1',
-      title: '🚨 BREAKING: Market Shows Strong Momentum as Tech Stocks Lead Gains',
-      summary: 'Technology stocks continue to drive market performance with strong earnings reports and positive outlook for Q4. Major tech companies report better-than-expected results.',
+      title: 'Apple Reports Strong Q4 Earnings - iPhone Sales Exceed Expectations',
+      summary: 'Apple Inc. reported better-than-expected quarterly earnings with iPhone sales driving revenue growth. The company also announced new AI features for upcoming products.',
       url: '#',
       source: 'Financial News',
       source_domain: 'financial-news.com',
@@ -476,6 +478,7 @@ function getFallbackNewsData(ticker) {
       sentimentScore: 0.7,
       relevanceScore: 0.9,
       ticker: ticker || 'GENERAL',
+      tickers: ticker ? [ticker] : ['AAPL', 'MSFT', 'GOOGL'],
       urgency: 4,
       impact: 0.8,
       keywords: ['earnings', 'tech'],
@@ -486,8 +489,8 @@ function getFallbackNewsData(ticker) {
     },
     {
       id: 'fallback_2',
-      title: 'Federal Reserve Maintains Current Interest Rate Policy - Market Reacts',
-      summary: 'The Fed keeps rates steady as inflation shows signs of cooling, providing stability for investors. Analysts expect continued dovish stance.',
+      title: 'Tesla Announces New Gigafactory Plans - Stock Surges on News',
+      summary: 'Tesla Inc. announced plans for a new Gigafactory in Texas, focusing on battery production and autonomous vehicle technology. The announcement sent shares higher in after-hours trading.',
       url: '#',
       source: 'Market Watch',
       source_domain: 'marketwatch.com',
@@ -496,6 +499,7 @@ function getFallbackNewsData(ticker) {
       sentimentScore: 0.5,
       relevanceScore: 0.8,
       ticker: ticker || 'GENERAL',
+      tickers: ticker ? [ticker] : ['AAPL', 'MSFT', 'GOOGL'],
       urgency: 3,
       impact: 0.9,
       keywords: ['fed'],
@@ -506,8 +510,8 @@ function getFallbackNewsData(ticker) {
     },
     {
       id: 'fallback_3',
-      title: 'AI Sector Sees Continued Growth and Investment - Major Deals Announced',
-      summary: 'Artificial intelligence companies report strong quarterly results with increased adoption across industries. New partnerships and funding rounds announced.',
+      title: 'Microsoft Azure Cloud Services See Record Growth - AI Integration Drives Demand',
+      summary: 'Microsoft Corporation reported record growth in Azure cloud services, driven by increased AI integration and enterprise adoption. The company also announced new AI-powered productivity tools.',
       url: '#',
       source: 'Tech News',
       source_domain: 'tech-news.com',
@@ -516,6 +520,7 @@ function getFallbackNewsData(ticker) {
       sentimentScore: 0.8,
       relevanceScore: 0.7,
       ticker: ticker || 'GENERAL',
+      tickers: ticker ? [ticker] : ['AAPL', 'MSFT', 'GOOGL'],
       urgency: 2,
       impact: 0.6,
       keywords: ['ai', 'tech'],

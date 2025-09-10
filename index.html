@@ -323,9 +323,10 @@
         // Get live quote data for percentage change
         let liveQuote = null;
         try {
-          const quoteResponse = await fetch(`/api/fallback?ticker=${encodeURIComponent(ticker)}&type=quote`);
+          const quoteResponse = await fetch(`/api/live-data?ticker=${encodeURIComponent(ticker)}&type=quote`);
           if (quoteResponse.ok) {
-            liveQuote = await quoteResponse.json();
+            const quoteData = await quoteResponse.json();
+            liveQuote = quoteData.data;
           }
         } catch (e) {
           console.warn(`Failed to get live quote for ${ticker}:`, e);
