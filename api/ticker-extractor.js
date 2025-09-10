@@ -91,15 +91,14 @@ class TickerExtractor {
     for (const companyName of companyNames) {
       if (tickers.size >= maxTickers) break;
         
-        try {
-          const symbol = await this.lookupCompanySymbol(companyName);
-          if (symbol && !tickers.has(symbol)) {
-            tickers.add(symbol);
-            console.log(`Found ticker ${symbol} for company ${companyName}`);
-          }
-        } catch (error) {
-          console.warn(`Failed to lookup ticker for ${companyName}:`, error);
+      try {
+        const symbol = await this.lookupCompanySymbol(companyName);
+        if (symbol && !tickers.has(symbol)) {
+          tickers.add(symbol);
+          console.log(`Found ticker ${symbol} for company ${companyName}`);
         }
+      } catch (error) {
+        console.warn(`Failed to lookup ticker for ${companyName}:`, error);
       }
     }
     

@@ -13,7 +13,7 @@ export default async function handler(req, res) {
     console.log('Preset:', preset, 'Limit:', limit);
     
     // Get DYNAMIC stocks from multiple sources including ticker changes
-    const dynamicStocks = await fetchDynamicStocks();
+    const dynamicStocks = await fetchDynamicStocks(req);
     console.log('Fetched dynamic stocks:', dynamicStocks.length);
     
     if (dynamicStocks.length === 0) {
@@ -66,10 +66,10 @@ export default async function handler(req, res) {
   }
 }
 
-async function fetchDynamicStocks() {
+async function fetchDynamicStocks(req) {
   console.log('=== FETCHING REAL DYNAMIC STOCKS ===');
   console.log('Current time:', new Date().toISOString());
-  console.log('Request timestamp:', req.query._t || 'none');
+  console.log('Request timestamp:', req?.query?._t || 'none');
   console.log('API Keys status:');
   console.log('- Alpha Vantage:', !!process.env.ALPHAVANTAGE_KEY);
   console.log('- FMP:', !!process.env.FMP_KEY);
