@@ -90,7 +90,7 @@ async function fetchFromYahooFinance(ticker, interval, limit, last) {
           low: quotes.low[index] || 0,
           close: quotes.close[index] || 0,
           volume: quotes.volume[index] || 0
-        })).filter(candle => candle.open > 0 && candle.close > 0); // Filter out invalid candles
+        })).filter(candle => candle.close > 0); // Only filter out candles with no close price
         
         console.log(`Yahoo Finance raw candles length: ${candles.length}`);
         

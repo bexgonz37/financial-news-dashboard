@@ -77,6 +77,9 @@ async function fetchYahooFinanceNews(ticker, search, limit) {
     
     if (data.news && data.news.length > 0) {
       data.news.forEach((item, index) => {
+        // Extract ticker from title or use provided ticker
+        const extractedTicker = extractTickerFromText(item.title || '') || ticker || 'GENERAL';
+        
         news.push({
           id: `yahoo_${index}`,
           title: item.title || 'No title',
@@ -84,7 +87,8 @@ async function fetchYahooFinanceNews(ticker, search, limit) {
           url: item.link || '#',
           source: 'Yahoo Finance',
           publishedAt: new Date(item.providerPublishTime * 1000).toISOString(),
-          ticker: ticker || 'GENERAL',
+          ticker: extractedTicker,
+          tickers: [extractedTicker],
           sentimentScore: Math.random() * 0.6 + 0.2,
           relevanceScore: Math.random() * 0.4 + 0.6
         });
@@ -119,6 +123,10 @@ async function fetchAlphaVantageNews(ticker, search, limit) {
     
     if (data.feed && data.feed.length > 0) {
       data.feed.forEach((item, index) => {
+        const extractedTicker = extractTickerFromText(item.title || '') || 
+                               item.ticker_sentiment?.[0]?.ticker || 
+                               ticker || 'GENERAL';
+        
         news.push({
           id: `alphavantage_${index}`,
           title: item.title || 'No title',
@@ -126,7 +134,8 @@ async function fetchAlphaVantageNews(ticker, search, limit) {
           url: item.url || '#',
           source: 'Alpha Vantage',
           publishedAt: item.time_published || new Date().toISOString(),
-          ticker: item.ticker_sentiment?.[0]?.ticker || ticker || 'GENERAL',
+          ticker: extractedTicker,
+          tickers: [extractedTicker],
           sentimentScore: parseFloat(item.overall_sentiment_score) || 0.5,
           relevanceScore: Math.random() * 0.4 + 0.6
         });
@@ -161,6 +170,10 @@ async function fetchFMPNews(ticker, search, limit) {
     
     if (Array.isArray(data) && data.length > 0) {
       data.forEach((item, index) => {
+        const extractedTicker = extractTickerFromText(item.title || '') || 
+                               item.symbol || 
+                               ticker || 'GENERAL';
+        
         news.push({
           id: `fmp_${index}`,
           title: item.title || 'No title',
@@ -168,7 +181,8 @@ async function fetchFMPNews(ticker, search, limit) {
           url: item.url || '#',
           source: 'Financial Modeling Prep',
           publishedAt: item.publishedDate || new Date().toISOString(),
-          ticker: item.symbol || ticker || 'GENERAL',
+          ticker: extractedTicker,
+          tickers: [extractedTicker],
           sentimentScore: Math.random() * 0.6 + 0.2,
           relevanceScore: Math.random() * 0.4 + 0.6
         });
@@ -181,6 +195,30 @@ async function fetchFMPNews(ticker, search, limit) {
     console.error('FMP news error:', error.message);
     return [];
   }
+}
+
+function extractTickerFromText(text) {
+  // Common stock ticker patterns
+  const tickerPatterns = [
+    /\b([A-Z]{1,5})\b/g, // 1-5 uppercase letters
+    /\$([A-Z]{1,5})\b/g, // $TICKER format
+    /\(([A-Z]{1,5})\)/g  // (TICKER) format
+  ];
+  
+  const tickers = new Set();
+  
+  tickerPatterns.forEach(pattern => {
+    let match;
+    while ((match = pattern.exec(text)) !== null) {
+      const ticker = match[1];
+      if (ticker && ticker.length >= 1 && ticker.length <= 5) {
+        tickers.add(ticker);
+      }
+    }
+  });
+  
+  // Return the first ticker found, or null if none
+  return tickers.size > 0 ? Array.from(tickers)[0] : null;
 }
 
 function removeDuplicates(news) {
