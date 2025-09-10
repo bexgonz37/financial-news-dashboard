@@ -782,6 +782,7 @@
 
     // ---------- ADVANCED DAY TRADER SCANNER ----------
     async function buildScanners(){
+      console.log('=== BUILDING SCANNERS ===');
       const preset = document.getElementById('scannerPreset')?.value || 'momentum';
       const limit = 50;
       
@@ -1260,6 +1261,12 @@
     
     // Load scanner data immediately
     setTimeout(buildScanners, 200);
+    
+    // Also load scanner when page loads
+    buildScanners();
+    
+    // Show fallback data immediately
+    showFallbackScannerData();
     
     // Auto-refresh news every 30 seconds
     setInterval(fetchData, 30000);

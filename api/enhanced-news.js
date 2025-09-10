@@ -55,9 +55,12 @@ module.exports = async function handler(req, res) {
     }
 
     // Process news with ticker extraction and AI
+    console.log('Processing news with ticker extraction...');
     const processedNews = await processNewsWithTickers(allNews);
+    console.log('Processed news with tickers:', processedNews.length);
     const deduplicatedNews = deduplicateNews(processedNews);
     const sortedNews = sortNewsByAdvancedRelevance(deduplicatedNews, ticker, search);
+    console.log('Final sorted news:', sortedNews.length);
 
     // Save to database for persistence
     try {
@@ -240,9 +243,10 @@ async function processNewsWithTickers(news) {
   for (const article of news) {
     try {
       // Extract tickers from title and summary
-      const tickers = await tickerExtractor.extractTickers(
-        `${article.title} ${article.summary || ''}`
-      );
+      const textToAnalyze = `${article.title} ${article.summary || ''}`;
+      console.log('Analyzing text for tickers:', textToAnalyze.substring(0, 100) + '...');
+      const tickers = await tickerExtractor.extractTickers(textToAnalyze);
+      console.log('Extracted tickers:', tickers);
       
       // Determine market session
       const session = getMarketSession(new Date(article.publishedAt));
