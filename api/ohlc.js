@@ -46,15 +46,19 @@ async function fetchCandles(ticker, interval, limit, last) {
     () => fetchFromAlphaVantage(ticker, interval, limit, last)
   ];
   
-  for (const fetchFunction of dataSources) {
+  for (let i = 0; i < dataSources.length; i++) {
+    const sourceName = ['Finnhub', 'Yahoo Finance', 'Alpha Vantage'][i];
     try {
-      const candles = await fetchFunction();
+      console.log(`Trying ${sourceName} for ${ticker}...`);
+      const candles = await dataSources[i]();
       if (candles && candles.length > 0) {
-        console.log(`Successfully fetched ${candles.length} candles for ${ticker}`);
+        console.log(`✅ ${sourceName} successfully fetched ${candles.length} candles for ${ticker}`);
         return candles;
+      } else {
+        console.log(`❌ ${sourceName} returned empty data for ${ticker}`);
       }
     } catch (error) {
-      console.warn(`Data source failed for ${ticker}:`, error.message);
+      console.warn(`❌ ${sourceName} failed for ${ticker}:`, error.message);
       continue;
     }
   }
@@ -110,7 +114,7 @@ async function fetchFromFinnhub(ticker, interval, limit, last) {
 }
 
 async function fetchFromYahooFinance(ticker, interval, limit, last) {
-  console.log(`Trying Yahoo Finance for ${ticker}`);
+  console.log(`Trying Yahoo Finance for ${ticker} with interval ${interval}`);
   
   try {
     // Convert interval to Yahoo Finance format
@@ -119,20 +123,29 @@ async function fetchFromYahooFinance(ticker, interval, limit, last) {
                          interval === '1hour' ? '1h' : 
                          interval === '1day' ? '1d' : '5m';
     
-    const response = await fetch(
-      `https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?interval=${yahooInterval}&range=1d&_t=${Date.now()}`
-    );
+    const url = `https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?interval=${yahooInterval}&range=1d&_t=${Date.now()}`;
+    console.log(`Yahoo Finance URL: ${url}`);
+    
+    const response = await fetch(url);
+    
+    console.log(`Yahoo Finance response status: ${response.status}`);
     
     if (!response.ok) {
       throw new Error(`Yahoo Finance API error: ${response.status}`);
     }
     
     const data = await response.json();
+    console.log(`Yahoo Finance response data keys:`, Object.keys(data));
     
     if (data.chart && data.chart.result && data.chart.result[0]) {
       const result = data.chart.result[0];
+      console.log(`Yahoo Finance result keys:`, Object.keys(result));
+      
       const timestamps = result.timestamp;
       const quotes = result.indicators.quote[0];
+      
+      console.log(`Yahoo Finance timestamps length: ${timestamps ? timestamps.length : 'undefined'}`);
+      console.log(`Yahoo Finance quotes keys:`, quotes ? Object.keys(quotes) : 'undefined');
       
       if (timestamps && timestamps.length > 0) {
         const candles = timestamps.map((timestamp, index) => ({
@@ -144,6 +157,8 @@ async function fetchFromYahooFinance(ticker, interval, limit, last) {
           volume: quotes.volume[index] || 0
         })).filter(candle => candle.open > 0); // Filter out invalid candles
         
+        console.log(`Yahoo Finance raw candles length: ${candles.length}`);
+        
         // Apply limit and last filters
         let filteredCandles = candles;
         if (last) {
@@ -152,13 +167,14 @@ async function fetchFromYahooFinance(ticker, interval, limit, last) {
           filteredCandles = candles.slice(-parseInt(limit));
         }
         
-        console.log(`Yahoo Finance returned ${filteredCandles.length} candles for ${ticker}`);
+        console.log(`Yahoo Finance final candles length: ${filteredCandles.length}`);
         return filteredCandles;
       }
     }
     
-    throw new Error('No data from Yahoo Finance');
+    throw new Error('No data from Yahoo Finance - chart structure invalid');
   } catch (error) {
+    console.error(`Yahoo Finance detailed error for ${ticker}:`, error);
     throw new Error(`Yahoo Finance failed: ${error.message}`);
   }
 }
