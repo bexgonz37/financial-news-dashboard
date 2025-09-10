@@ -719,8 +719,6 @@
         // For sticky news, we don't merge - we replace to show persistent news
         newsData = incoming;
         
-        // Update ticker chips
-        updateTickerChips(incoming);
         
         // Apply current filters
         applyFilter();
@@ -1076,7 +1074,6 @@
       newsData = fallbackNews;
       
       // Update ticker chips
-      updateTickerChips(fallbackNews);
       
       // Apply current filters
       applyFilter();
@@ -1223,27 +1220,6 @@
       }, 100);
     }
 
-    // ---------- TICKER CHIPS ----------
-    function updateTickerChips(news) {
-      const chipsContainer = document.getElementById('tickerChips');
-      const allTickers = new Set();
-      
-      news.forEach(article => {
-        if (article.tickers && Array.isArray(article.tickers)) {
-          article.tickers.forEach(ticker => allTickers.add(ticker));
-        }
-      });
-      
-      const sortedTickers = Array.from(allTickers).sort();
-      
-      chipsContainer.innerHTML = sortedTickers.map(ticker => `
-        <span class="ticker-chip" 
-              onclick="document.getElementById('ticker').value='${ticker}'; fetchData();"
-              style="background: var(--accent); color: white; padding: 4px 8px; border-radius: 6px; font-size: 0.9rem; cursor: pointer; transition: all 0.2s;">
-          $${ticker}
-        </span>
-      `).join('');
-    }
 
     // ---------- WATCHLIST ----------
     function toggleWatchlist(t){
@@ -1535,9 +1511,6 @@
     showFallbackNewsData();
     showFallbackScannerData();
     
-    // Clear ticker chips initially - only show from real news
-    document.getElementById('tickerChips').innerHTML = '';
-    
     // Load real data after fallback is shown
     console.log('Loading real data...');
     setTimeout(fetchData, 100);
@@ -1549,12 +1522,6 @@
     // Also try to load scanner immediately
     console.log('Loading scanner immediately...');
     buildScanners();
-    
-    // Force scanner to show data immediately
-    setTimeout(() => {
-      console.log('Force loading scanner data...');
-      showFallbackScannerData();
-    }, 500);
     
     // Auto-refresh news every 30 seconds
     setInterval(fetchData, 30000);

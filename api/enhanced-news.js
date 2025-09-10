@@ -79,8 +79,15 @@ module.exports = async function handler(req, res) {
     const processedNews = await processNewsWithTickers(allNews);
     console.log('Processed news with tickers:', processedNews.length);
     const deduplicatedNews = deduplicateNews(processedNews);
-    const sortedNews = sortNewsByAdvancedRelevance(deduplicatedNews, ticker, search);
-    console.log('Final sorted news:', sortedNews.length);
+    
+    // Sort by most recent first (newest at top)
+    const sortedNews = deduplicatedNews.sort((a, b) => {
+      const dateA = new Date(a.publishedAt);
+      const dateB = new Date(b.publishedAt);
+      return dateB - dateA; // Most recent first
+    });
+    
+    console.log('Final sorted news (most recent first):', sortedNews.length);
 
     // Save to database for persistence
     try {
