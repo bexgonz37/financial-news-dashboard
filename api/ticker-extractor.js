@@ -41,7 +41,14 @@ class TickerExtractor {
       'PFE': { name: 'Pfizer Inc.', aliases: ['pfizer', 'pfizer inc', 'pharmaceuticals', 'vaccine', 'covid vaccine'] },
       'UNH': { name: 'UnitedHealth Group Inc.', aliases: ['unitedhealth', 'united health', 'health insurance', 'optum'] },
       'HD': { name: 'Home Depot Inc.', aliases: ['home depot', 'home depot inc', 'hardware store', 'construction'] },
-      'PG': { name: 'Procter & Gamble Company', aliases: ['procter & gamble', 'p&g', 'consumer goods', 'household products'] }
+      'PG': { name: 'Procter & Gamble Company', aliases: ['procter & gamble', 'p&g', 'consumer goods', 'household products'] },
+      'HOOD': { name: 'Robinhood Markets Inc.', aliases: ['robinhood', 'robinhood markets', 'robinhood inc', 'trading app', 'commission-free trading', 'robinhood app', 'robinhood platform'] },
+      'PLTR': { name: 'Palantir Technologies Inc.', aliases: ['palantir', 'palantir technologies', 'data analytics', 'peter thiel'] },
+      'GME': { name: 'GameStop Corp.', aliases: ['gamestop', 'gme', 'video games', 'retail gaming'] },
+      'AMC': { name: 'AMC Entertainment Holdings Inc.', aliases: ['amc', 'amc entertainment', 'movie theater', 'cinema'] },
+      'BB': { name: 'BlackBerry Limited', aliases: ['blackberry', 'bb', 'mobile security', 'enterprise software'] },
+      'NOK': { name: 'Nokia Corporation', aliases: ['nokia', 'nok', 'telecommunications', '5g'] },
+      'BBBY': { name: 'Bed Bath & Beyond Inc.', aliases: ['bed bath & beyond', 'bbby', 'home goods', 'retail'] }
     };
 
     for (const [symbol, data] of Object.entries(commonTickers)) {

@@ -496,6 +496,8 @@
           e.preventDefault();
           openChart(ticker);
         });
+        
+        console.log('Chart rendered for', ticker, 'with sophisticated styling');
 
       } catch (error) {
         console.error(`Error drawing sparkline for ${ticker}:`, error);
@@ -872,8 +874,13 @@
 
     // ---------- FALLBACK SCANNER DATA ----------
     function showFallbackScannerData() {
-      console.log('Showing fallback scanner data');
+      console.log('=== SHOWING FALLBACK SCANNER DATA ===');
       const grid = document.getElementById('scanner-grid');
+      
+      if (!grid) {
+        console.error('Scanner grid not found!');
+        return;
+      }
       
       // Real market data from today - better than MomoScreener
       const fallbackStocks = [
@@ -1262,11 +1269,11 @@
     // Load scanner data immediately
     setTimeout(buildScanners, 200);
     
-    // Also load scanner when page loads
-    buildScanners();
-    
     // Show fallback data immediately
     showFallbackScannerData();
+    
+    // Also load scanner when page loads
+    buildScanners();
     
     // Auto-refresh news every 30 seconds
     setInterval(fetchData, 30000);
