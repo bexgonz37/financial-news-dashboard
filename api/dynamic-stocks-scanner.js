@@ -85,8 +85,10 @@ async function fetchDynamicStocks() {
     
     if (alphaKey) {
       const cacheBuster = Date.now();
+      console.log('Making Alpha Vantage API call...');
       const gainersResponse = await fetch(`https://www.alphavantage.co/query?function=TOP_GAINERS_LOSERS&apikey=${alphaKey}&_t=${cacheBuster}`);
       console.log('Alpha Vantage response status:', gainersResponse.status);
+      console.log('Alpha Vantage response ok:', gainersResponse.ok);
       if (gainersResponse.ok) {
         const gainersData = await gainersResponse.json();
         console.log('Alpha Vantage response:', gainersData);
@@ -256,6 +258,42 @@ async function fetchDynamicStocks() {
     if (uniqueStocks.length > 0) {
       console.log(`Returning ${uniqueStocks.length} real stocks`);
       return uniqueStocks;
+    }
+    
+    // Try to get live data from Yahoo Finance as fallback
+    console.log('No real data from APIs, trying Yahoo Finance...');
+    try {
+      const yahooResponse = await fetch(`https://query1.finance.yahoo.com/v1/finance/screener?formatted=true&lang=en-US&region=US&scrIds=most_actives&count=50&_t=${Date.now()}`);
+      if (yahooResponse.ok) {
+        const yahooData = await yahooResponse.json();
+        console.log('Yahoo Finance response:', yahooData);
+        if (yahooData.finance && yahooData.finance.result && yahooData.finance.result[0]) {
+          const stocks = yahooData.finance.result[0].quotes.map(quote => ({
+            symbol: quote.symbol,
+            name: quote.longName || quote.shortName || quote.symbol,
+            price: parseFloat(quote.regularMarketPrice || 0),
+            change: parseFloat(quote.regularMarketChange || 0),
+            changePercent: parseFloat(quote.regularMarketChangePercent || 0) * 100,
+            volume: parseInt(quote.regularMarketVolume || 0),
+            marketCap: quote.marketCap ? Math.round(quote.marketCap / 1000000) + 'M' : 'N/A',
+            sector: quote.sector || 'Unknown',
+            session: 'RTH',
+            marketStatus: 'Live',
+            dataAge: 'Live',
+            isNewListing: false,
+            tickerChanged: false,
+            aiScore: Math.floor(Math.random() * 10),
+            score: Math.abs(parseFloat(quote.regularMarketChangePercent || 0) * 100) + Math.random() * 5,
+            lastUpdated: new Date().toISOString(),
+            generatedAt: new Date().toISOString(),
+            isLive: true
+          }));
+          console.log(`Yahoo Finance returned ${stocks.length} stocks`);
+          return { success: true, data: { stocks } };
+        }
+      }
+    } catch (yahooError) {
+      console.log('Yahoo Finance also failed:', yahooError.message);
     }
     
     // Otherwise, return fallback data

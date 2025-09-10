@@ -266,8 +266,46 @@ module.exports = async function handler(req, res) {
     
     // Only use fallback if absolutely no news from any source
     if (allNews.length === 0) {
-      console.log('Using fallback news data as last resort');
-      allNews = getFallbackNewsData(ticker);
+      console.log('No real news from APIs, trying Yahoo Finance news...');
+      try {
+        const yahooNewsResponse = await fetch(`https://query1.finance.yahoo.com/v1/finance/search?q=stock%20market%20news&quotesCount=0&newsCount=50&_t=${Date.now()}`);
+        if (yahooNewsResponse.ok) {
+          const yahooNewsData = await yahooNewsResponse.json();
+          if (yahooNewsData.news && Array.isArray(yahooNewsData.news)) {
+            allNews = yahooNewsData.news.map(article => ({
+              id: `yahoo_news_${article.uuid || Date.now()}`,
+              title: article.title,
+              summary: article.summary || article.title,
+              url: article.link,
+              source: 'Yahoo Finance',
+              source_domain: 'finance.yahoo.com',
+              publishedAt: new Date(article.providerPublishTime * 1000).toISOString(),
+              category: 'General',
+              sentimentScore: 0.5,
+              relevanceScore: 0.8,
+              ticker: 'GENERAL',
+              tickers: extractTickersFromText(article.title + ' ' + (article.summary || '')),
+              urgency: 3,
+              impact: 0.6,
+              keywords: ['stock', 'market', 'news'],
+              aiScore: Math.floor(Math.random() * 40) + 60,
+              tradingSignal: 'neutral',
+              riskLevel: 'medium',
+              timeToMarket: 'recent'
+            }));
+            console.log(`Yahoo Finance news returned ${allNews.length} articles`);
+          }
+        }
+      } catch (yahooNewsError) {
+        console.log('Yahoo Finance news also failed:', yahooNewsError.message);
+      }
+      
+      if (allNews.length === 0) {
+        console.log('Using fallback news data as last resort');
+        allNews = getFallbackNewsData(ticker);
+      } else {
+        console.log(`Successfully fetched ${allNews.length} real news items from APIs`);
+      }
     } else {
       console.log(`Successfully fetched ${realNewsCount} real news items from APIs`);
     }
@@ -641,28 +679,18 @@ async function fetchFinnhubNews(ticker, search, limit) {
 // Removed fetchIEXCloudNews function
 
 function getRealNewsUrl(symbol, source, index) {
-  // Use real working URLs that actually exist and work
+  // Use ONLY real working URLs that actually exist and work
   const workingUrls = [
     `https://finance.yahoo.com/quote/${symbol}`,
     `https://www.marketwatch.com/investing/stock/${symbol.toLowerCase()}`,
     `https://seekingalpha.com/symbol/${symbol}`,
-    `https://www.investorplace.com/stock-quotes/${symbol.toLowerCase()}/`,
-    `https://www.fool.com/quote/${symbol.toLowerCase()}/`,
-    `https://www.benzinga.com/quote/${symbol}`,
-    `https://www.zacks.com/stock/quote/${symbol}`,
-    `https://www.thestreet.com/quote/${symbol}`,
-    `https://www.forbes.com/companies/${symbol.toLowerCase()}/`,
-    `https://www.wsj.com/market-data/quotes/${symbol}`,
-    `https://www.barrons.com/quote/${symbol}`,
-    `https://www.investors.com/stock-quotes/${symbol.toLowerCase()}/`,
     `https://www.cnbc.com/quotes/${symbol}`,
-    `https://www.bloomberg.com/quote/${symbol}:US`,
-    `https://www.reuters.com/finance/stocks/overview/${symbol}`,
     `https://www.nasdaq.com/market-activity/stocks/${symbol.toLowerCase()}`,
     `https://www.investing.com/equities/${symbol.toLowerCase()}`,
     `https://www.tradingview.com/symbols/NASDAQ-${symbol}/`,
     `https://www.finviz.com/quote.ashx?t=${symbol}`,
-    `https://www.morningstar.com/stocks/xnas/${symbol.toLowerCase()}/quote`
+    `https://finance.yahoo.com/quote/${symbol}/news`,
+    `https://www.marketwatch.com/investing/stock/${symbol.toLowerCase()}/news`
   ];
   
   // Return a working URL from the list
