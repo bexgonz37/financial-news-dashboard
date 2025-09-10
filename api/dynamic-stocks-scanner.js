@@ -69,7 +69,7 @@ async function fetchDynamicStocks() {
   try {
     // 1. Fetch from Alpha Vantage - Top Gainers/Losers (includes penny stocks)
     console.log('Fetching Alpha Vantage gainers/losers...');
-    const alphaKey = process.env.ALPHA_VANTAGE_API_KEY || process.env.ALPHAVANTAGE_KEY;
+    const alphaKey = process.env.ALPHAVANTAGE_KEY;
     const gainersResponse = await fetch(`https://www.alphavantage.co/query?function=TOP_GAINERS_LOSERS&apikey=${alphaKey}`);
     if (gainersResponse.ok) {
       const gainersData = await gainersResponse.json();
@@ -159,7 +159,7 @@ async function fetchDynamicStocks() {
     const pennyStocks = ['SNDL', 'NAKD', 'CTRM', 'ZOM', 'OCGN', 'NOK', 'BB', 'AMC', 'GME', 'EXPR', 'KOSS', 'NAK', 'TOPS', 'SHIP', 'MARK'];
     for (const ticker of pennyStocks) {
       try {
-        const finnhubKey = process.env.FINNHUB_API_KEY || process.env.FINNHUB_KEY;
+        const finnhubKey = process.env.FINNHUB_KEY;
         const quoteResponse = await fetch(`https://finnhub.io/api/v1/quote?symbol=${ticker}&token=${finnhubKey}`);
         if (quoteResponse.ok) {
           const quoteData = await quoteResponse.json();
