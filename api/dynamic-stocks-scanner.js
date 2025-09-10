@@ -76,11 +76,8 @@ async function fetchDynamicStocks() {
     console.log('FMP API Key exists:', !!process.env.FMP_KEY);
     console.log('Finnhub API Key exists:', !!process.env.FINNHUB_KEY);
     
-    // If no API keys, return empty array to force fallback
-    if (!process.env.ALPHAVANTAGE_KEY && !process.env.FMP_KEY && !process.env.FINNHUB_KEY) {
-      console.log('No API keys found, will use fallback data');
-      return { success: false, data: { stocks: [] } };
-    }
+    // Always try to fetch real data, but don't fail if APIs don't work
+    let apiSuccess = false;
     
     // 1. Fetch from Alpha Vantage - Top Gainers/Losers (includes penny stocks)
     console.log('Fetching Alpha Vantage gainers/losers...');
@@ -250,12 +247,20 @@ async function fetchDynamicStocks() {
     
     console.log(`Fetched ${allStocks.length} real stocks from APIs`);
     
-    // Remove duplicates and return
+    // Remove duplicates
     const uniqueStocks = allStocks.filter((stock, index, self) => 
       index === self.findIndex(s => s.symbol === stock.symbol)
     );
     
-    return uniqueStocks;
+    // If we got real data, return it
+    if (uniqueStocks.length > 0) {
+      console.log(`Returning ${uniqueStocks.length} real stocks`);
+      return uniqueStocks;
+    }
+    
+    // Otherwise, return fallback data
+    console.log('No real data found, using fallback data');
+    return getRealMarketFallbackData();
     
   } catch (error) {
     console.error('Error fetching dynamic stocks:', error);

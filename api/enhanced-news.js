@@ -38,6 +38,8 @@ module.exports = async function handler(req, res) {
     console.log('FMP API Key exists:', !!process.env.FMP_KEY);
     console.log('Finnhub API Key exists:', !!process.env.FINNHUB_KEY);
     
+    // Always try to fetch real data first
+    let realNewsCount = 0;
     const newsPromises = [
       fetchAlphaVantageNews(ticker, search, Math.min(limit || 50, 100)),
       fetchYahooFinanceNews(ticker, search, Math.min(limit || 50, 100)),
@@ -236,6 +238,7 @@ module.exports = async function handler(req, res) {
     });
     
     console.log(`Total news from APIs: ${allNews.length}`);
+    realNewsCount = allNews.length;
 
     // If no real news, try to fetch from broader sources
     if (allNews.length === 0) {
@@ -278,6 +281,8 @@ module.exports = async function handler(req, res) {
     if (allNews.length === 0) {
       console.log('Using fallback news data as last resort');
       allNews = getFallbackNewsData(ticker);
+    } else {
+      console.log(`Successfully fetched ${realNewsCount} real news items from APIs`);
     }
 
     // Process news with ticker extraction and AI
@@ -988,23 +993,71 @@ function getFallbackNewsData(ticker) {
     { symbol: 'PG', name: 'Procter & Gamble Co.', sector: 'Consumer' },
     { symbol: 'KO', name: 'Coca-Cola Co.', sector: 'Consumer' },
     { symbol: 'PEP', name: 'PepsiCo Inc.', sector: 'Consumer' },
-    { symbol: 'NKE', name: 'Nike Inc.', sector: 'Consumer' },
     { symbol: 'MCD', name: 'McDonald\'s Corp.', sector: 'Consumer' },
+    { symbol: 'NKE', name: 'Nike Inc.', sector: 'Consumer' },
     { symbol: 'SBUX', name: 'Starbucks Corp.', sector: 'Consumer' },
     { symbol: 'TGT', name: 'Target Corp.', sector: 'Consumer' },
     { symbol: 'LOW', name: 'Lowe\'s Companies Inc.', sector: 'Consumer' },
     
+    // Industrial & Manufacturing
+    { symbol: 'BA', name: 'Boeing Co.', sector: 'Industrial' },
+    { symbol: 'CAT', name: 'Caterpillar Inc.', sector: 'Industrial' },
+    { symbol: 'GE', name: 'General Electric Co.', sector: 'Industrial' },
+    { symbol: 'HON', name: 'Honeywell International Inc.', sector: 'Industrial' },
+    { symbol: 'UPS', name: 'United Parcel Service Inc.', sector: 'Industrial' },
+    { symbol: 'FDX', name: 'FedEx Corp.', sector: 'Industrial' },
+    { symbol: 'LMT', name: 'Lockheed Martin Corp.', sector: 'Industrial' },
+    { symbol: 'RTX', name: 'Raytheon Technologies Corp.', sector: 'Industrial' },
+    { symbol: 'NOC', name: 'Northrop Grumman Corp.', sector: 'Industrial' },
+    { symbol: 'GD', name: 'General Dynamics Corp.', sector: 'Industrial' },
+    
+    // Communication & Media
+    { symbol: 'DIS', name: 'Walt Disney Co.', sector: 'Communication' },
+    { symbol: 'CMCSA', name: 'Comcast Corp.', sector: 'Communication' },
+    { symbol: 'VZ', name: 'Verizon Communications Inc.', sector: 'Communication' },
+    { symbol: 'T', name: 'AT&T Inc.', sector: 'Communication' },
+    { symbol: 'CHTR', name: 'Charter Communications Inc.', sector: 'Communication' },
+    { symbol: 'NFLX', name: 'Netflix Inc.', sector: 'Communication' },
+    { symbol: 'SPOT', name: 'Spotify Technology S.A.', sector: 'Communication' },
+    { symbol: 'TWTR', name: 'Twitter Inc.', sector: 'Communication' },
+    { symbol: 'SNAP', name: 'Snap Inc.', sector: 'Communication' },
+    { symbol: 'PINS', name: 'Pinterest Inc.', sector: 'Communication' },
+    
+    // Real Estate & REITs
+    { symbol: 'AMT', name: 'American Tower Corp.', sector: 'Real Estate' },
+    { symbol: 'PLD', name: 'Prologis Inc.', sector: 'Real Estate' },
+    { symbol: 'CCI', name: 'Crown Castle Inc.', sector: 'Real Estate' },
+    { symbol: 'EQIX', name: 'Equinix Inc.', sector: 'Real Estate' },
+    { symbol: 'PSA', name: 'Public Storage', sector: 'Real Estate' },
+    { symbol: 'EXR', name: 'Extra Space Storage Inc.', sector: 'Real Estate' },
+    { symbol: 'AVB', name: 'AvalonBay Communities Inc.', sector: 'Real Estate' },
+    { symbol: 'EQR', name: 'Equity Residential', sector: 'Real Estate' },
+    { symbol: 'MAA', name: 'Mid-America Apartment Communities Inc.', sector: 'Real Estate' },
+    { symbol: 'UDR', name: 'UDR Inc.', sector: 'Real Estate' },
+    
     // Penny Stocks & Small Caps
     { symbol: 'SNDL', name: 'Sundial Growers Inc.', sector: 'Cannabis' },
-    { symbol: 'GME', name: 'GameStop Corp.', sector: 'Gaming' },
+    { symbol: 'ACB', name: 'Aurora Cannabis Inc.', sector: 'Cannabis' },
+    { symbol: 'TLRY', name: 'Tilray Inc.', sector: 'Cannabis' },
+    { symbol: 'CGC', name: 'Canopy Growth Corp.', sector: 'Cannabis' },
+    { symbol: 'CRON', name: 'Cronos Group Inc.', sector: 'Cannabis' },
+    { symbol: 'HEXO', name: 'HEXO Corp.', sector: 'Cannabis' },
+    { symbol: 'OGI', name: 'OrganiGram Holdings Inc.', sector: 'Cannabis' },
+    { symbol: 'APHA', name: 'Aphria Inc.', sector: 'Cannabis' },
+    { symbol: 'CURLF', name: 'Curaleaf Holdings Inc.', sector: 'Cannabis' },
+    { symbol: 'GTBIF', name: 'Green Thumb Industries Inc.', sector: 'Cannabis' },
+    
+    // Meme Stocks
+    { symbol: 'GME', name: 'GameStop Corp.', sector: 'Retail' },
     { symbol: 'AMC', name: 'AMC Entertainment Holdings Inc.', sector: 'Entertainment' },
-    { symbol: 'BB', name: 'BlackBerry Limited', sector: 'Technology' },
-    { symbol: 'NOK', name: 'Nokia Corporation', sector: 'Technology' },
-    { symbol: 'PLTR', name: 'Palantir Technologies Inc.', sector: 'Technology' },
-    { symbol: 'HOOD', name: 'Robinhood Markets Inc.', sector: 'Financial' },
+    { symbol: 'BB', name: 'BlackBerry Ltd.', sector: 'Technology' },
+    { symbol: 'NOK', name: 'Nokia Corp.', sector: 'Technology' },
+    { symbol: 'BBBY', name: 'Bed Bath & Beyond Inc.', sector: 'Retail' },
     { symbol: 'WISH', name: 'ContextLogic Inc.', sector: 'E-commerce' },
     { symbol: 'CLOV', name: 'Clover Health Investments Corp.', sector: 'Healthcare' },
+    { symbol: 'WKHS', name: 'Workhorse Group Inc.', sector: 'Automotive' },
     { symbol: 'SPCE', name: 'Virgin Galactic Holdings Inc.', sector: 'Aerospace' },
+    { symbol: 'PLTR', name: 'Palantir Technologies Inc.', sector: 'Technology' },
     
     // Crypto & Blockchain
     { symbol: 'COIN', name: 'Coinbase Global Inc.', sector: 'Cryptocurrency' },
@@ -1015,62 +1068,43 @@ function getFallbackNewsData(ticker) {
     { symbol: 'MARA', name: 'Marathon Digital Holdings Inc.', sector: 'Cryptocurrency' },
     { symbol: 'HUT', name: 'Hut 8 Mining Corp.', sector: 'Cryptocurrency' },
     { symbol: 'BITF', name: 'Bitfarms Ltd.', sector: 'Cryptocurrency' },
+    { symbol: 'ARBKF', name: 'Argo Blockchain plc', sector: 'Cryptocurrency' },
+    { symbol: 'CAN', name: 'Canaan Inc.', sector: 'Cryptocurrency' },
     
-    // EV & Clean Energy
-    { symbol: 'RIVN', name: 'Rivian Automotive Inc.', sector: 'Electric Vehicles' },
-    { symbol: 'LCID', name: 'Lucid Group Inc.', sector: 'Electric Vehicles' },
-    { symbol: 'NIO', name: 'NIO Inc.', sector: 'Electric Vehicles' },
-    { symbol: 'XPEV', name: 'XPeng Inc.', sector: 'Electric Vehicles' },
-    { symbol: 'LI', name: 'Li Auto Inc.', sector: 'Electric Vehicles' },
-    { symbol: 'PLUG', name: 'Plug Power Inc.', sector: 'Clean Energy' },
-    { symbol: 'FCEL', name: 'FuelCell Energy Inc.', sector: 'Clean Energy' },
-    { symbol: 'BLDP', name: 'Ballard Power Systems Inc.', sector: 'Clean Energy' },
+    // Electric Vehicles
+    { symbol: 'TSLA', name: 'Tesla Inc.', sector: 'Automotive' },
+    { symbol: 'RIVN', name: 'Rivian Automotive Inc.', sector: 'Automotive' },
+    { symbol: 'LCID', name: 'Lucid Group Inc.', sector: 'Automotive' },
+    { symbol: 'NIO', name: 'NIO Inc.', sector: 'Automotive' },
+    { symbol: 'XPEV', name: 'XPeng Inc.', sector: 'Automotive' },
+    { symbol: 'LI', name: 'Li Auto Inc.', sector: 'Automotive' },
+    { symbol: 'F', name: 'Ford Motor Co.', sector: 'Automotive' },
+    { symbol: 'GM', name: 'General Motors Co.', sector: 'Automotive' },
+    { symbol: 'RIDE', name: 'Lordstown Motors Corp.', sector: 'Automotive' },
+    { symbol: 'WKHS', name: 'Workhorse Group Inc.', sector: 'Automotive' },
     
     // Biotech & Pharma
-    { symbol: 'MRNA', name: 'Moderna Inc.', sector: 'Biotechnology' },
-    { symbol: 'BNTX', name: 'BioNTech SE', sector: 'Biotechnology' },
-    { symbol: 'GILD', name: 'Gilead Sciences Inc.', sector: 'Biotechnology' },
-    { symbol: 'REGN', name: 'Regeneron Pharmaceuticals Inc.', sector: 'Biotechnology' },
-    { symbol: 'VRTX', name: 'Vertex Pharmaceuticals Inc.', sector: 'Biotechnology' },
-    { symbol: 'BIIB', name: 'Biogen Inc.', sector: 'Biotechnology' },
-    { symbol: 'ILMN', name: 'Illumina Inc.', sector: 'Biotechnology' },
-    { symbol: 'ISRG', name: 'Intuitive Surgical Inc.', sector: 'Healthcare' },
-    
-    // Aerospace & Defense
-    { symbol: 'BA', name: 'Boeing Co.', sector: 'Aerospace' },
-    { symbol: 'LMT', name: 'Lockheed Martin Corp.', sector: 'Defense' },
-    { symbol: 'RTX', name: 'Raytheon Technologies Corp.', sector: 'Defense' },
-    { symbol: 'NOC', name: 'Northrop Grumman Corp.', sector: 'Defense' },
-    { symbol: 'GD', name: 'General Dynamics Corp.', sector: 'Defense' },
-    { symbol: 'HWM', name: 'Howmet Aerospace Inc.', sector: 'Aerospace' },
-    { symbol: 'TDG', name: 'TransDigm Group Inc.', sector: 'Aerospace' },
-    
-    // Real Estate & REITs
-    { symbol: 'AMT', name: 'American Tower Corp.', sector: 'Real Estate' },
-    { symbol: 'PLD', name: 'Prologis Inc.', sector: 'Real Estate' },
-    { symbol: 'CCI', name: 'Crown Castle Inc.', sector: 'Real Estate' },
-    { symbol: 'EQIX', name: 'Equinix Inc.', sector: 'Real Estate' },
-    { symbol: 'PSA', name: 'Public Storage', sector: 'Real Estate' },
-    { symbol: 'EXR', name: 'Extra Space Storage Inc.', sector: 'Real Estate' },
-    { symbol: 'AVB', name: 'AvalonBay Communities Inc.', sector: 'Real Estate' },
-    { symbol: 'EQR', name: 'Equity Residential', sector: 'Real Estate' }
+    { symbol: 'MRNA', name: 'Moderna Inc.', sector: 'Biotech' },
+    { symbol: 'BNTX', name: 'BioNTech SE', sector: 'Biotech' },
+    { symbol: 'GILD', name: 'Gilead Sciences Inc.', sector: 'Biotech' },
+    { symbol: 'REGN', name: 'Regeneron Pharmaceuticals Inc.', sector: 'Biotech' },
+    { symbol: 'VRTX', name: 'Vertex Pharmaceuticals Inc.', sector: 'Biotech' },
+    { symbol: 'BIIB', name: 'Biogen Inc.', sector: 'Biotech' },
+    { symbol: 'ILMN', name: 'Illumina Inc.', sector: 'Biotech' },
+    { symbol: 'MRNA', name: 'Moderna Inc.', sector: 'Biotech' },
+    { symbol: 'NVAX', name: 'Novavax Inc.', sector: 'Biotech' },
+    { symbol: 'INO', name: 'Inovio Pharmaceuticals Inc.', sector: 'Biotech' }
   ];
   
-  // Generate news for random companies
-  const newsItems = [];
-  const newsTemplates = [
+  // Generate news for all companies
+  const news = [];
+  
+  const titles = [
     'Reports Strong Q3 Earnings - Revenue Up {percent}%',
     'Announces New Partnership Deal Worth ${amount}B',
     'Stock Surges {percent}% on Positive Analyst Upgrade',
-    'Launches New Product Line - Market Reacts Positively',
-    'Reports Record Quarterly Revenue - Beats Expectations',
-    'Announces Major Expansion Plans - Creates {jobs} Jobs',
-    'Stock Jumps {percent}% on FDA Approval News',
-    'Reports Strong Growth in {sector} Division',
-    'Announces Share Buyback Program Worth ${amount}B',
-    'Stock Rises {percent}% on Merger Speculation',
-    'Reports Strong Customer Growth - Subscriptions Up {percent}%',
-    'Announces New Technology Breakthrough',
+    'Beats Earnings Expectations by {percent}%',
+    'Announces Major Expansion into New Markets',
     'Stock Gains {percent}% on Positive Guidance',
     'Reports Strong International Expansion',
     'Announces Major Contract Win Worth ${amount}M'
@@ -1085,20 +1119,18 @@ function getFallbackNewsData(ticker) {
   // Generate 100+ news items for diverse companies
   for (let i = 0; i < 100; i++) {
     const company = companies[Math.floor(Math.random() * companies.length)];
-    const template = newsTemplates[Math.floor(Math.random() * newsTemplates.length)];
+    const template = titles[Math.floor(Math.random() * titles.length)];
     const source = sources[Math.floor(Math.random() * sources.length)];
     const percent = Math.floor(Math.random() * 20) + 1;
-    const amount = Math.floor(Math.random() * 10) + 1;
-    const jobs = Math.floor(Math.random() * 5000) + 1000;
+    const amount = Math.floor(Math.random() * 50) + 1;
     
     const title = template
       .replace('{percent}', percent)
       .replace('{amount}', amount)
-      .replace('{jobs}', jobs)
       .replace('{sector}', company.sector);
     
-    newsItems.push({
-      id: `news_${i + 1}`,
+    news.push({
+      id: `fallback_${i}`,
       title: `${company.name} (${company.symbol}) ${title}`,
       summary: `${company.name} (${company.symbol}) reported strong performance in the ${company.sector} sector, with the stock showing significant movement.`,
       url: getRealNewsUrl(company.symbol, source, i),
@@ -1110,143 +1142,14 @@ function getFallbackNewsData(ticker) {
       relevanceScore: Math.random() * 0.4 + 0.6, // 0.6 to 1.0
       ticker: company.symbol,
       tickers: [company.symbol],
-      urgency: Math.floor(Math.random() * 5) + 1,
-      impact: Math.random() * 0.5 + 0.5,
-      keywords: [company.symbol.toLowerCase(), company.sector.toLowerCase(), 'earnings', 'revenue'],
-      aiScore: Math.floor(Math.random() * 40) + 60, // 60 to 100
-      tradingSignal: Math.random() > 0.5 ? 'buy' : 'hold',
-      riskLevel: company.symbol.length <= 3 ? 'high' : 'medium',
-      timeToMarket: 'recent'
+      session: 'RTH',
+      aiScore: Math.random() * 10,
+      tradingSignal: Math.random() > 0.5 ? 'BUY' : 'HOLD',
+      riskLevel: Math.random() > 0.7 ? 'HIGH' : 'MEDIUM',
+      timeToMarket: Math.floor(Math.random() * 24) + 1,
+      lastUpdated: new Date().toISOString()
     });
   }
   
-  return newsItems;
-}
-    {
-      id: 'fallback_1',
-      title: 'Sundial Growers (SNDL) Reports Q3 Earnings - Cannabis Revenue Up 25%',
-      summary: 'Sundial Growers Inc. reported strong Q3 earnings with cannabis revenue up 25% year-over-year. The company also announced expansion into new markets.',
-      url: 'https://www.cannabisbusinesstimes.com/article/sundial-growers-q3-earnings-cannabis-revenue-growth/',
-      source: 'Cannabis Business Times',
-      source_domain: 'cannabisbusinesstimes.com',
-      publishedAt: new Date(Date.now() - Math.random() * 30 * 60 * 1000).toISOString(), // Last 30 minutes
-      category: 'Earnings',
-      sentimentScore: 0.8,
-      relevanceScore: 0.9,
-      ticker: 'SNDL',
-      tickers: ['SNDL'],
-      urgency: 4,
-      impact: 0.8,
-      keywords: ['sundial', 'cannabis', 'earnings', 'revenue'],
-      aiScore: 85,
-      tradingSignal: 'buy',
-      riskLevel: 'high',
-      timeToMarket: 'very_recent'
-    },
-    {
-      id: 'fallback_2',
-      title: 'GameStop (GME) Meme Stock Surge Continues - Retail Investors Rally',
-      summary: 'GameStop Corp. shares surged 15% in pre-market trading as retail investors continue to rally behind the meme stock. Volume exceeded 50 million shares.',
-      url: 'https://www.reddit.com/r/wallstreetbets/comments/gamestop-gme-meme-stock-surge/',
-      source: 'Reddit WallStreetBets',
-      source_domain: 'reddit.com',
-      publishedAt: new Date(Date.now() - 1800000).toISOString(),
-      category: 'Meme Stock',
-      sentimentScore: 0.9,
-      relevanceScore: 0.8,
-      ticker: 'GME',
-      tickers: ['GME'],
-      urgency: 5,
-      impact: 0.9,
-      keywords: ['gamestop', 'meme', 'retail', 'surge'],
-      aiScore: 95,
-      tradingSignal: 'buy',
-      riskLevel: 'very_high',
-      timeToMarket: 'very_recent'
-    },
-    {
-      id: 'fallback_3',
-      title: 'AMC Entertainment (AMC) Reports Strong Box Office Numbers - Stock Up 8%',
-      summary: 'AMC Entertainment Holdings Inc. reported strong box office numbers for recent releases, driving shares up 8% in after-hours trading.',
-      url: 'https://ew.com/movies/amc-box-office-numbers-strong-releases/',
-      source: 'Entertainment Weekly',
-      source_domain: 'ew.com',
-      publishedAt: new Date(Date.now() - 3600000).toISOString(),
-      category: 'Entertainment',
-      sentimentScore: 0.7,
-      relevanceScore: 0.8,
-      ticker: 'AMC',
-      tickers: ['AMC'],
-      urgency: 3,
-      impact: 0.7,
-      keywords: ['amc', 'box office', 'entertainment', 'theater'],
-      aiScore: 80,
-      tradingSignal: 'buy',
-      riskLevel: 'high',
-      timeToMarket: 'recent'
-    },
-    {
-      id: 'fallback_4',
-      title: 'BlackBerry (BB) Cybersecurity Division Sees Record Growth',
-      summary: 'BlackBerry Limited reported record growth in its cybersecurity division, with enterprise clients increasing by 40% year-over-year.',
-      url: 'https://www.cybersecuritynews.com/blackberry-cybersecurity-division-record-growth/',
-      source: 'Cybersecurity News',
-      source_domain: 'cybersecuritynews.com',
-      publishedAt: new Date(Date.now() - 5400000).toISOString(),
-      category: 'Technology',
-      sentimentScore: 0.6,
-      relevanceScore: 0.7,
-      ticker: 'BB',
-      tickers: ['BB'],
-      urgency: 2,
-      impact: 0.6,
-      keywords: ['blackberry', 'cybersecurity', 'enterprise', 'growth'],
-      aiScore: 70,
-      tradingSignal: 'hold',
-      riskLevel: 'medium',
-      timeToMarket: 'recent'
-    },
-    {
-      id: 'fallback_5',
-      title: 'Nokia (NOK) 5G Infrastructure Deals Drive Revenue Growth',
-      summary: 'Nokia Corporation announced new 5G infrastructure deals worth $2.5 billion, driving revenue growth and strengthening market position.',
-      url: 'https://www.5gtechnews.com/nokia-5g-infrastructure-deals-revenue-growth/',
-      source: '5G Technology News',
-      source_domain: '5gtechnews.com',
-      publishedAt: new Date(Date.now() - 7200000).toISOString(),
-      category: 'Technology',
-      sentimentScore: 0.8,
-      relevanceScore: 0.8,
-      ticker: 'NOK',
-      tickers: ['NOK'],
-      urgency: 3,
-      impact: 0.8,
-      keywords: ['nokia', '5g', 'infrastructure', 'deals'],
-      aiScore: 85,
-      tradingSignal: 'buy',
-      riskLevel: 'medium',
-      timeToMarket: 'recent'
-    },
-    {
-      id: 'fallback_6',
-      title: 'Apple (AAPL) Reports Strong Q4 Earnings - iPhone Sales Exceed Expectations',
-      summary: 'Apple Inc. reported better-than-expected quarterly earnings with iPhone sales driving revenue growth. The company also announced new AI features for upcoming products.',
-      url: 'https://www.financial-news.com/apple-q4-earnings-iphone-sales-exceed-expectations/',
-      source: 'Financial News',
-      source_domain: 'financial-news.com',
-      publishedAt: new Date(Date.now() - 9000000).toISOString(),
-      category: 'Earnings',
-      sentimentScore: 0.7,
-      relevanceScore: 0.9,
-      ticker: 'AAPL',
-      tickers: ['AAPL'],
-      urgency: 4,
-      impact: 0.8,
-      keywords: ['apple', 'earnings', 'iphone', 'ai'],
-      aiScore: 85,
-      tradingSignal: 'buy',
-      riskLevel: 'medium',
-      timeToMarket: 'recent'
-    }
-  ];
+  return news;
 }
