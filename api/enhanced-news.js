@@ -162,6 +162,10 @@ async function fetchFMPNews(ticker, search, limit) {
     const response = await fetch(`https://financialmodelingprep.com/api/v3/stock_news?tickers=${ticker || 'AAPL'}&limit=${limit}&apikey=${apiKey}&_t=${Date.now()}`);
     
     if (!response.ok) {
+      if (response.status === 403) {
+        console.log('FMP API 403 - API key invalid or rate limited, skipping');
+        return [];
+      }
       throw new Error(`FMP error: ${response.status}`);
     }
     

@@ -33,7 +33,7 @@ module.exports = async function handler(req, res) {
             symbol: quote['01. symbol'],
             price: parseFloat(quote['05. price']),
             change: parseFloat(quote['09. change']),
-            changePercent: parseFloat(quote['10. change percent'].replace('%', '')),
+            changePercent: parseFloat((quote['10. change percent'] || '0%').replace('%', '')),
             volume: parseInt(quote['06. volume']),
             high: parseFloat(quote['03. high']),
             low: parseFloat(quote['04. low']),

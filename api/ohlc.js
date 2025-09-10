@@ -64,7 +64,7 @@ async function fetchFromYahooFinance(ticker, interval, limit, last) {
                          interval === '1hour' ? '1h' : 
                          interval === '1day' ? '1d' : '5m';
     
-    const url = `https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?interval=${yahooInterval}&range=1d&_t=${Date.now()}`;
+    const url = `https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?interval=${yahooInterval}&range=1d&includePrePost=false&_t=${Date.now()}`;
     console.log(`Yahoo Finance URL: ${url}`);
     
     const response = await fetch(url);

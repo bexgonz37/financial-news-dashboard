@@ -68,48 +68,62 @@ async function fetchLiveStocks() {
 
 async function fetchFromYahooFinance() {
   try {
-    console.log('Fetching from Yahoo Finance screener...');
-    const response = await fetch(`https://query1.finance.yahoo.com/v1/finance/screener?formatted=true&lang=en-US&region=US&scrIds=most_actives&count=50&_t=${Date.now()}`);
+    console.log('Fetching from Yahoo Finance...');
     
-    if (!response.ok) {
-      throw new Error(`Yahoo Finance error: ${response.status}`);
-    }
-    
-    const data = await response.json();
+    // Use individual stock quotes instead of screener
+    const popularStocks = ['AAPL', 'MSFT', 'GOOGL', 'AMZN', 'TSLA', 'META', 'NVDA', 'NFLX', 'AMD', 'INTC', 'CRM', 'ADBE', 'PYPL', 'UBER', 'LYFT', 'ZOOM', 'SNOW', 'PLTR', 'HOOD', 'GME', 'AMC', 'BB', 'NOK', 'SNDL'];
     const stocks = [];
     
-    if (data.finance && data.finance.result && data.finance.result[0]) {
-      const currentTime = new Date();
-      const currentHour = currentTime.getHours();
-      const currentMinute = currentTime.getMinutes();
-      const currentDay = currentTime.getDay();
-      
-      // Market is open Monday-Friday 9:30 AM - 4:00 PM ET
-      const isMarketOpen = currentDay >= 1 && currentDay <= 5 && 
-                          ((currentHour === 9 && currentMinute >= 30) || 
-                           (currentHour >= 10 && currentHour < 16));
-      
-      data.finance.result[0].quotes.forEach(quote => {
-        stocks.push({
-          symbol: quote.symbol,
-          name: quote.longName || quote.shortName || quote.symbol,
-          price: parseFloat(quote.regularMarketPrice || 0),
-          change: parseFloat(quote.regularMarketChange || 0),
-          changePercent: parseFloat(quote.regularMarketChangePercent || 0) * 100,
-          volume: parseInt(quote.regularMarketVolume || 0),
-          marketCap: quote.marketCap ? Math.round(quote.marketCap / 1000000) + 'M' : 'N/A',
-          sector: quote.sector || 'Unknown',
-          session: isMarketOpen ? 'RTH' : 'AH',
-          marketStatus: isMarketOpen ? 'Live' : 'After Hours',
-          dataAge: 'Live',
-          isNewListing: false,
-          tickerChanged: false,
-          aiScore: Math.floor(Math.random() * 10),
-          score: Math.abs(parseFloat(quote.regularMarketChangePercent || 0) * 100) + Math.random() * 5,
-          lastUpdated: new Date().toISOString(),
-          isLive: true
-        });
-      });
+    for (const symbol of popularStocks.slice(0, 20)) { // Limit to 20 stocks
+      try {
+        const response = await fetch(`https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?interval=1d&range=1d&_t=${Date.now()}`);
+        
+        if (response.ok) {
+          const data = await response.json();
+          
+          if (data.chart && data.chart.result && data.chart.result[0]) {
+            const result = data.chart.result[0];
+            const meta = result.meta;
+            const currentPrice = meta.regularMarketPrice || meta.previousClose || 0;
+            const previousClose = meta.previousClose || currentPrice;
+            const change = currentPrice - previousClose;
+            const changePercent = previousClose > 0 ? (change / previousClose) * 100 : 0;
+            
+            const currentTime = new Date();
+            const currentHour = currentTime.getHours();
+            const currentMinute = currentTime.getMinutes();
+            const currentDay = currentTime.getDay();
+            
+            // Market is open Monday-Friday 9:30 AM - 4:00 PM ET
+            const isMarketOpen = currentDay >= 1 && currentDay <= 5 && 
+                                ((currentHour === 9 && currentMinute >= 30) || 
+                                 (currentHour >= 10 && currentHour < 16));
+            
+            stocks.push({
+              symbol: symbol,
+              name: meta.longName || meta.shortName || symbol,
+              price: currentPrice,
+              change: change,
+              changePercent: changePercent,
+              volume: meta.regularMarketVolume || 0,
+              marketCap: meta.marketCap ? Math.round(meta.marketCap / 1000000) + 'M' : 'N/A',
+              sector: 'Technology', // Default sector
+              session: isMarketOpen ? 'RTH' : 'AH',
+              marketStatus: isMarketOpen ? 'Live' : 'After Hours',
+              dataAge: 'Live',
+              isNewListing: false,
+              tickerChanged: false,
+              aiScore: Math.floor(Math.random() * 10),
+              score: Math.abs(changePercent) + Math.random() * 5,
+              lastUpdated: new Date().toISOString(),
+              isLive: true
+            });
+          }
+        }
+      } catch (stockError) {
+        console.warn(`Failed to fetch ${symbol}:`, stockError.message);
+        continue;
+      }
     }
     
     console.log(`Yahoo Finance returned ${stocks.length} stocks`);
