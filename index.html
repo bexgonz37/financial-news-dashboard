@@ -254,6 +254,7 @@
 
     <!-- SCANNERS -->
     <div id="view-scanners" class="panel">
+      <div id="scannerLastUpdate" style="font-size: 0.8rem; color: #666; margin: 5px 0; text-align: center;">Last updated: Loading...</div>
       <div class="toolbar">
         <select class="select" id="scannerPreset">
           <option value="momentum">🚀 High Momentum</option>
@@ -294,6 +295,7 @@
         </select>
         
         <button class="btn" id="rescore">🔄 Recalculate</button>
+        <button class="btn" id="forceRefresh" style="background: #ff6b6b; color: white;">🔄 Force Fresh Data</button>
         <button class="btn" onclick="refreshAllData()" style="background: var(--accent); color: white;">📡 Refresh Live Data</button>
         <!-- Optional metrics toggles -->
         <label class="meta" style="display:flex;align-items:center;gap:6px">
@@ -809,7 +811,7 @@
               <button class="star ${starred}" data-star="${t}">${starred?'★':'☆'}</button>
             </div>
             <div class="title">${n.title||''}</div>
-            <div class="summary">${n.summary||''} ${n.url?`<button class="read-btn" onclick="console.log('Opening URL:', '${n.url}'); console.log('URL type:', typeof n.url); if('${n.url}'.includes('undefined') || '${n.url}'.includes('null')) { alert('Invalid URL: ${n.url}'); return; } window.open('${n.url}', '_blank', 'noopener,noreferrer')">Read</button>`:'<span style="color:red">NO URL</span>'}</div>
+            <div class="summary">${n.summary||''} ${n.url?`<button class="read-btn" onclick="window.open('${n.url}', '_blank')">Read</button>`:'<span style="color:red">NO URL</span>'}</div>
             ${tickers.length > 0 ? `
               <div style="margin: 8px 0; display: flex; flex-wrap: wrap; gap: 4px;">
                 ${tickers.map(ticker => `
@@ -888,6 +890,12 @@
         console.log('Scanner API response:', data);
         console.log('Data success:', data.success);
         console.log('Data stocks length:', data.data?.stocks?.length);
+        
+        // Update timestamp display
+        const timestampEl = document.getElementById('scannerLastUpdate');
+        if (timestampEl) {
+          timestampEl.textContent = `Last updated: ${new Date().toLocaleTimeString()}`;
+        }
         
         if (data.success && data.data.stocks) {
           const stocks = data.data.stocks;
@@ -1521,6 +1529,15 @@
     });
     
     document.getElementById('rescore').addEventListener('click', buildScanners);
+    document.getElementById('forceRefresh').addEventListener('click', () => {
+      console.log('=== FORCE REFRESH CLICKED ===');
+      // Clear any cached data
+      localStorage.clear();
+      sessionStorage.clear();
+      // Force fresh data
+      fetchData();
+      buildScanners();
+    });
     
     document.getElementById('filtersClear').addEventListener('click', ()=>{
       selectedCats.clear();

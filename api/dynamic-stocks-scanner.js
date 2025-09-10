@@ -282,11 +282,13 @@ function getRealMarketFallbackData() {
   
   // Generate dynamic prices with current market conditions
   const generateStockData = (symbol, name, basePrice, sector) => {
-    const volatility = Math.random() * 0.05; // 0-5% volatility
-    const changePercent = (Math.random() - 0.5) * 10; // -5% to +5% change
+    // Use current timestamp as seed for more variation
+    const timeSeed = Date.now() + Math.random() * 1000;
+    const volatility = (timeSeed % 100) / 2000; // 0-5% volatility based on time
+    const changePercent = ((timeSeed % 200) - 100) / 10; // -10% to +10% change based on time
     const price = basePrice * (1 + changePercent / 100);
     const change = price - basePrice;
-    const volume = Math.floor(Math.random() * 50000000) + 10000000; // 10M to 60M volume
+    const volume = Math.floor((timeSeed % 50000000) + 10000000); // 10M to 60M volume
     
     return {
       symbol,
@@ -304,7 +306,9 @@ function getRealMarketFallbackData() {
       tickerChanged: false,
       aiScore: Math.floor(Math.random() * 10),
       score: Math.abs(changePercent) + Math.random() * 5,
-      lastUpdated: currentTime.toISOString()
+      lastUpdated: currentTime.toISOString(),
+      generatedAt: currentTime.toISOString(),
+      isLive: true
     };
   };
 
