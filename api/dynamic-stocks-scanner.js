@@ -265,60 +265,75 @@ async function fetchDynamicStocks(req) {
       return uniqueStocks;
     }
     
-    // Try to get live data from Yahoo Finance as fallback
-    console.log('No real data from APIs, trying Yahoo Finance...');
+    // Try to get live data from Yahoo Finance - MULTIPLE SCREENERS
+    console.log('No real data from APIs, trying Yahoo Finance with multiple screeners...');
     try {
-      const yahooResponse = await fetch(`https://query1.finance.yahoo.com/v1/finance/screener?formatted=true&lang=en-US&region=US&scrIds=most_actives&count=50&_t=${Date.now()}`);
-      if (yahooResponse.ok) {
-        const yahooData = await yahooResponse.json();
-        console.log('Yahoo Finance response:', yahooData);
-        if (yahooData.finance && yahooData.finance.result && yahooData.finance.result[0]) {
-          const currentTime = new Date();
-          const currentHour = currentTime.getHours();
-          const currentMinute = currentTime.getMinutes();
-          const currentDay = currentTime.getDay();
-          
-          // Market is open Monday-Friday 9:30 AM - 4:00 PM ET
-          const isMarketOpen = currentDay >= 1 && currentDay <= 5 && 
-                              ((currentHour === 9 && currentMinute >= 30) || 
-                               (currentHour >= 10 && currentHour < 16));
-          
-          const stocks = yahooData.finance.result[0].quotes.map(quote => ({
-            symbol: quote.symbol,
-            name: quote.longName || quote.shortName || quote.symbol,
-            price: parseFloat(quote.regularMarketPrice || 0),
-            change: parseFloat(quote.regularMarketChange || 0),
-            changePercent: parseFloat(quote.regularMarketChangePercent || 0) * 100,
-            volume: parseInt(quote.regularMarketVolume || 0),
-            marketCap: quote.marketCap ? Math.round(quote.marketCap / 1000000) + 'M' : 'N/A',
-            sector: quote.sector || 'Unknown',
-            session: isMarketOpen ? 'RTH' : 'AH',
-            marketStatus: isMarketOpen ? 'Live' : 'After Hours',
-            dataAge: 'Live',
-            isNewListing: false,
-            tickerChanged: false,
-            aiScore: Math.floor(Math.random() * 10),
-            score: Math.abs(parseFloat(quote.regularMarketChangePercent || 0) * 100) + Math.random() * 5,
-            lastUpdated: new Date().toISOString(),
-            generatedAt: new Date().toISOString(),
-            isLive: true
-          }));
-          console.log(`Yahoo Finance returned ${stocks.length} stocks`);
-          return { success: true, data: { stocks } };
+      const yahooPromises = [
+        fetch(`https://query1.finance.yahoo.com/v1/finance/screener?formatted=true&lang=en-US&region=US&scrIds=most_actives&count=50&_t=${Date.now()}`),
+        fetch(`https://query1.finance.yahoo.com/v1/finance/screener?formatted=true&lang=en-US&region=US&scrIds=day_gainers&count=50&_t=${Date.now()}`),
+        fetch(`https://query1.finance.yahoo.com/v1/finance/screener?formatted=true&lang=en-US&region=US&scrIds=day_losers&count=50&_t=${Date.now()}`),
+        fetch(`https://query1.finance.yahoo.com/v1/finance/screener?formatted=true&lang=en-US&region=US&scrIds=most_shorted_stocks&count=50&_t=${Date.now()}`)
+      ];
+      
+      const yahooResponses = await Promise.all(yahooPromises);
+      let allStocks = [];
+      
+      for (const yahooResponse of yahooResponses) {
+        if (yahooResponse.ok) {
+          const yahooData = await yahooResponse.json();
+          console.log('Yahoo Finance response:', yahooData);
+          if (yahooData.finance && yahooData.finance.result && yahooData.finance.result[0]) {
+            const currentTime = new Date();
+            const currentHour = currentTime.getHours();
+            const currentMinute = currentTime.getMinutes();
+            const currentDay = currentTime.getDay();
+            
+            // Market is open Monday-Friday 9:30 AM - 4:00 PM ET
+            const isMarketOpen = currentDay >= 1 && currentDay <= 5 && 
+                                ((currentHour === 9 && currentMinute >= 30) || 
+                                 (currentHour >= 10 && currentHour < 16));
+            
+            const stocks = yahooData.finance.result[0].quotes.map(quote => ({
+              symbol: quote.symbol,
+              name: quote.longName || quote.shortName || quote.symbol,
+              price: parseFloat(quote.regularMarketPrice || 0),
+              change: parseFloat(quote.regularMarketChange || 0),
+              changePercent: parseFloat(quote.regularMarketChangePercent || 0) * 100,
+              volume: parseInt(quote.regularMarketVolume || 0),
+              marketCap: quote.marketCap ? Math.round(quote.marketCap / 1000000) + 'M' : 'N/A',
+              sector: quote.sector || 'Unknown',
+              session: isMarketOpen ? 'RTH' : 'AH',
+              marketStatus: isMarketOpen ? 'Live' : 'After Hours',
+              dataAge: 'Live',
+              isNewListing: false,
+              tickerChanged: false,
+              aiScore: Math.floor(Math.random() * 10),
+              score: Math.abs(parseFloat(quote.regularMarketChangePercent || 0) * 100) + Math.random() * 5,
+              lastUpdated: new Date().toISOString(),
+              generatedAt: new Date().toISOString(),
+              isLive: true
+            }));
+            allStocks = allStocks.concat(stocks);
+          }
         }
+      }
+      
+      if (allStocks.length > 0) {
+        console.log(`Yahoo Finance returned ${allStocks.length} stocks from multiple screeners`);
+        return { success: true, data: { stocks: allStocks } };
       }
     } catch (yahooError) {
       console.log('Yahoo Finance also failed:', yahooError.message);
     }
     
-    // Otherwise, return fallback data
-    console.log('No real data found, using fallback data');
-    return getRealMarketFallbackData();
+    // NO FALLBACK DATA - RETURN EMPTY ARRAY
+    console.log('NO LIVE DATA FOUND - RETURNING EMPTY ARRAY');
+    return { success: true, data: { stocks: [] } };
     
   } catch (error) {
     console.error('Error fetching dynamic stocks:', error);
-    // Return fallback data if APIs fail
-    return getRealMarketFallbackData();
+    // NO FALLBACK DATA - RETURN EMPTY ARRAY
+    return { success: true, data: { stocks: [] } };
   }
 }
 

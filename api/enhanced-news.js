@@ -26,7 +26,7 @@ module.exports = async function handler(req, res) {
     console.log('FMP API Key exists:', !!process.env.FMP_KEY);
     console.log('Finnhub API Key exists:', !!process.env.FINNHUB_KEY);
     
-    // Always try to fetch real data first
+    // Always try to fetch real data first - EXPANDED LIVE SOURCES
     let realNewsCount = 0;
     const newsPromises = [
       fetchAlphaVantageNews(ticker, search, Math.min(limit || 50, 100)),
@@ -34,20 +34,29 @@ module.exports = async function handler(req, res) {
       fetchFMPNews(ticker, search, Math.min(limit || 50, 100)),
       fetchFinnhubNews(ticker, search, Math.min(limit || 50, 100)),
       // Add more comprehensive news sources for super recent data
-      fetchYahooFinanceNews('', 'breaking', 20),
-      fetchYahooFinanceNews('', 'earnings', 20),
-      fetchYahooFinanceNews('', 'mergers', 20),
-      fetchYahooFinanceNews('', 'ipo', 20),
-      fetchYahooFinanceNews('', 'fed', 20),
-      fetchYahooFinanceNews('', 'inflation', 20),
-      fetchYahooFinanceNews('', 'jobs', 20),
-      fetchYahooFinanceNews('', 'gdp', 20),
-      fetchYahooFinanceNews('', 'tech', 20),
-      fetchYahooFinanceNews('', 'healthcare', 20),
-      fetchYahooFinanceNews('', 'energy', 20),
-      fetchYahooFinanceNews('', 'finance', 20),
-      fetchYahooFinanceNews('', 'retail', 20),
-      fetchYahooFinanceNews('', 'automotive', 20),
+      fetchYahooFinanceNews('', 'breaking', 30),
+      fetchYahooFinanceNews('', 'earnings', 30),
+      fetchYahooFinanceNews('', 'mergers', 30),
+      fetchYahooFinanceNews('', 'ipo', 30),
+      fetchYahooFinanceNews('', 'fed', 30),
+      fetchYahooFinanceNews('', 'inflation', 30),
+      fetchYahooFinanceNews('', 'jobs', 30),
+      fetchYahooFinanceNews('', 'gdp', 30),
+      fetchYahooFinanceNews('', 'tech', 30),
+      fetchYahooFinanceNews('', 'healthcare', 30),
+      fetchYahooFinanceNews('', 'energy', 30),
+      fetchYahooFinanceNews('', 'finance', 30),
+      fetchYahooFinanceNews('', 'retail', 30),
+      fetchYahooFinanceNews('', 'automotive', 30),
+      // Add more live market topics
+      fetchYahooFinanceNews('', 'market', 30),
+      fetchYahooFinanceNews('', 'stocks', 30),
+      fetchYahooFinanceNews('', 'trading', 30),
+      fetchYahooFinanceNews('', 'investing', 30),
+      fetchYahooFinanceNews('', 'wall street', 30),
+      fetchYahooFinanceNews('', 'nasdaq', 30),
+      fetchYahooFinanceNews('', 'dow jones', 30),
+      fetchYahooFinanceNews('', 's&p 500', 30),
       fetchYahooFinanceNews('', 'realestate', 20),
       fetchYahooFinanceNews('', 'biotech', 20),
       fetchYahooFinanceNews('', 'ai', 20),
@@ -302,8 +311,8 @@ module.exports = async function handler(req, res) {
       }
       
       if (allNews.length === 0) {
-        console.log('Using fallback news data as last resort');
-        allNews = getFallbackNewsData(ticker);
+        console.log('NO LIVE NEWS FOUND - RETURNING EMPTY ARRAY');
+        allNews = [];
       } else {
         console.log(`Successfully fetched ${allNews.length} real news items from APIs`);
       }
@@ -352,11 +361,11 @@ module.exports = async function handler(req, res) {
     console.error('Enhanced news error:', error);
     return res.status(500).json({
       success: false,
-      error: 'Failed to fetch enhanced news',
+      error: 'Failed to fetch enhanced news - NO FALLBACK DATA',
       data: {
-        news: getFallbackNewsData(ticker),
-        sources: ['fallback'],
-        total: 3,
+        news: [],
+        sources: [],
+        total: 0,
         timestamp: new Date().toISOString()
       }
     });
