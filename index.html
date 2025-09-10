@@ -671,13 +671,18 @@
       const limit = 50;
       
       try {
+        console.log('Building scanners with preset:', preset);
         // Call the dynamic stocks scanner API for real-time data including ticker changes
         const response = await fetch(`/api/dynamic-stocks-scanner?preset=${preset}&limit=${limit}`);
         const data = await response.json();
         
+        console.log('Scanner API response:', data);
+        
         if (data.success && data.data.stocks) {
           const stocks = data.data.stocks;
           const grid = document.getElementById('scanner-grid');
+          
+          console.log('Found stocks:', stocks.length);
           
           if (!stocks.length) {
             grid.innerHTML = `<div class="card">No stocks match the current filters.</div>`;

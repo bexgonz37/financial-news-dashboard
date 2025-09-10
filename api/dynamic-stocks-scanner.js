@@ -40,7 +40,7 @@ export default async function handler(req, res) {
   } catch (error) {
     console.error('Dynamic stocks scanner error:', error);
     // Return comprehensive fallback data
-    const fallbackData = getDynamicStocksFallbackData();
+    const fallbackData = getRealMarketFallbackData();
     const filteredData = applyPresetFilter(fallbackData, req.query.preset || 'all');
     
     res.status(200).json({
@@ -84,6 +84,12 @@ async function fetchDynamicStocks() {
 
     if (gainersData['Information'] || gainersData['Note']) {
       console.log('Alpha Vantage rate limit reached, using real market fallback');
+      return getRealMarketFallbackData();
+    }
+
+    // If no data from APIs, use fallback
+    if (!gainersData.top_gainers && !mostActiveData.most_actives) {
+      console.log('No data from Alpha Vantage APIs, using real market fallback');
       return getRealMarketFallbackData();
     }
 
