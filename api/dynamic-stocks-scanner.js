@@ -63,9 +63,148 @@ export default async function handler(req, res) {
 }
 
 async function fetchDynamicStocks() {
-  // Always use real market data for better reliability and real trading platform feel
-  console.log('Using real market data for scanner - like a real trading platform');
-  return getRealMarketFallbackData();
+  console.log('=== FETCHING REAL DYNAMIC STOCKS ===');
+  const allStocks = [];
+  
+  try {
+    // 1. Fetch from Alpha Vantage - Top Gainers/Losers (includes penny stocks)
+    console.log('Fetching Alpha Vantage gainers/losers...');
+    const gainersResponse = await fetch(`https://www.alphavantage.co/query?function=TOP_GAINERS_LOSERS&apikey=${process.env.ALPHA_VANTAGE_API_KEY}`);
+    if (gainersResponse.ok) {
+      const gainersData = await gainersResponse.json();
+      if (gainersData.top_gainers) {
+        allStocks.push(...gainersData.top_gainers.map(stock => ({
+          symbol: stock.ticker,
+          name: stock.ticker, // Alpha Vantage doesn't provide company names
+          price: parseFloat(stock.price),
+          change: parseFloat(stock.change_amount),
+          changePercent: parseFloat(stock.change_percentage),
+          volume: parseInt(stock.volume),
+          marketCap: 'N/A',
+          sector: 'Unknown',
+          session: 'RTH',
+          marketStatus: 'Live',
+          dataAge: 'Live',
+          isNewListing: false,
+          tickerChanged: false,
+          relativeVolume: 1.0,
+          rsi: 50 + (Math.random() - 0.5) * 40, // Simulate RSI
+          macd: (Math.random() - 0.5) * 2, // Simulate MACD
+          pe: Math.random() * 50 + 10, // Simulate P/E
+          beta: Math.random() * 2 + 0.5, // Simulate Beta
+          volatility: Math.random() * 0.5 + 0.1, // Simulate Volatility
+          aiScore: Math.random() * 10 // Simulate AI Score
+        })));
+      }
+      if (gainersData.top_losers) {
+        allStocks.push(...gainersData.top_losers.map(stock => ({
+          symbol: stock.ticker,
+          name: stock.ticker,
+          price: parseFloat(stock.price),
+          change: parseFloat(stock.change_amount),
+          changePercent: parseFloat(stock.change_percentage),
+          volume: parseInt(stock.volume),
+          marketCap: 'N/A',
+          sector: 'Unknown',
+          session: 'RTH',
+          marketStatus: 'Live',
+          dataAge: 'Live',
+          isNewListing: false,
+          tickerChanged: false,
+          relativeVolume: 1.0,
+          rsi: 50 + (Math.random() - 0.5) * 40,
+          macd: (Math.random() - 0.5) * 2,
+          pe: Math.random() * 50 + 10,
+          beta: Math.random() * 2 + 0.5,
+          volatility: Math.random() * 0.5 + 0.1,
+          aiScore: Math.random() * 10
+        })));
+      }
+    }
+    
+    // 2. Fetch from Alpha Vantage - Most Active (includes penny stocks)
+    console.log('Fetching Alpha Vantage most active...');
+    const mostActiveResponse = await fetch(`https://www.alphavantage.co/query?function=MOST_ACTIVE&apikey=${process.env.ALPHA_VANTAGE_API_KEY}`);
+    if (mostActiveResponse.ok) {
+      const mostActiveData = await mostActiveResponse.json();
+      if (mostActiveData.most_actives) {
+        allStocks.push(...mostActiveData.most_actives.map(stock => ({
+          symbol: stock.ticker,
+          name: stock.ticker,
+          price: parseFloat(stock.price),
+          change: parseFloat(stock.change_amount),
+          changePercent: parseFloat(stock.change_percentage),
+          volume: parseInt(stock.volume),
+          marketCap: 'N/A',
+          sector: 'Unknown',
+          session: 'RTH',
+          marketStatus: 'Live',
+          dataAge: 'Live',
+          isNewListing: false,
+          tickerChanged: false,
+          relativeVolume: 1.0,
+          rsi: 50 + (Math.random() - 0.5) * 40,
+          macd: (Math.random() - 0.5) * 2,
+          pe: Math.random() * 50 + 10,
+          beta: Math.random() * 2 + 0.5,
+          volatility: Math.random() * 0.5 + 0.1,
+          aiScore: Math.random() * 10
+        })));
+      }
+    }
+    
+    // 3. Fetch from Finnhub - Real-time quotes for diverse stocks
+    console.log('Fetching Finnhub real-time quotes...');
+    const pennyStocks = ['SNDL', 'NAKD', 'CTRM', 'ZOM', 'OCGN', 'NOK', 'BB', 'AMC', 'GME', 'EXPR', 'KOSS', 'NAK', 'TOPS', 'SHIP', 'MARK'];
+    for (const ticker of pennyStocks) {
+      try {
+        const quoteResponse = await fetch(`https://finnhub.io/api/v1/quote?symbol=${ticker}&token=${process.env.FINNHUB_API_KEY}`);
+        if (quoteResponse.ok) {
+          const quoteData = await quoteResponse.json();
+          if (quoteData.c && quoteData.c > 0) {
+            allStocks.push({
+              symbol: ticker,
+              name: ticker,
+              price: quoteData.c,
+              change: quoteData.d,
+              changePercent: quoteData.dp,
+              volume: Math.floor(Math.random() * 10000000) + 1000000, // Simulate volume
+              marketCap: 'N/A',
+              sector: 'Unknown',
+              session: 'RTH',
+              marketStatus: 'Live',
+              dataAge: 'Live',
+              isNewListing: false,
+              tickerChanged: false,
+              relativeVolume: 1.0 + Math.random() * 2,
+              rsi: 50 + (Math.random() - 0.5) * 40,
+              macd: (Math.random() - 0.5) * 2,
+              pe: Math.random() * 50 + 10,
+              beta: Math.random() * 2 + 0.5,
+              volatility: Math.random() * 0.5 + 0.1,
+              aiScore: Math.random() * 10
+            });
+          }
+        }
+      } catch (error) {
+        console.warn(`Failed to fetch quote for ${ticker}:`, error);
+      }
+    }
+    
+    console.log(`Fetched ${allStocks.length} real stocks from APIs`);
+    
+    // Remove duplicates and return
+    const uniqueStocks = allStocks.filter((stock, index, self) => 
+      index === self.findIndex(s => s.symbol === stock.symbol)
+    );
+    
+    return uniqueStocks;
+    
+  } catch (error) {
+    console.error('Error fetching dynamic stocks:', error);
+    // Return fallback data if APIs fail
+    return getRealMarketFallbackData();
+  }
 }
 
 function checkForTickerChange(ticker) {
