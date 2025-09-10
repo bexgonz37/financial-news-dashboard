@@ -14,7 +14,7 @@ module.exports = async function handler(req, res) {
     console.log('=== FETCHING LIVE NEWS DATA ===');
     console.log('Current time:', new Date().toISOString());
 
-    // Fetch news from multiple sources
+    // Fetch news from multiple sources - LIVE DATA ONLY
     const newsPromises = [
       fetchYahooFinanceNews(ticker, search, limit),
       fetchAlphaVantageNews(ticker, search, limit),
@@ -27,7 +27,7 @@ module.exports = async function handler(req, res) {
     results.forEach((result, index) => {
       if (result.status === 'fulfilled' && result.value && result.value.length > 0) {
         allNews = allNews.concat(result.value);
-        console.log(`Source ${index + 1} returned ${result.value.length} news items`);
+        console.log(`Live source ${index + 1} returned ${result.value.length} news items`);
       }
     });
     
@@ -35,7 +35,12 @@ module.exports = async function handler(req, res) {
     const uniqueNews = removeDuplicates(allNews);
     const sortedNews = uniqueNews.sort((a, b) => new Date(b.publishedAt) - new Date(a.publishedAt));
     
-    console.log(`Total unique news items: ${sortedNews.length}`);
+    console.log(`Total live news items: ${sortedNews.length}`);
+    
+    // Only return live data - NO FALLBACK
+    if (sortedNews.length === 0) {
+      console.log('No live news found, returning empty array');
+    }
 
     return res.status(200).json({
       success: true,
@@ -78,7 +83,7 @@ async function fetchYahooFinanceNews(ticker, search, limit) {
     if (data.news && data.news.length > 0) {
       data.news.forEach((item, index) => {
         // Extract ticker from title or use provided ticker
-        const extractedTicker = extractTickerFromText(item.title || '') || ticker || 'GENERAL';
+        const extractedTicker = extractTickerFromText(item.title || '') || ticker || null;
         
         news.push({
           id: `yahoo_${index}`,
@@ -125,7 +130,7 @@ async function fetchAlphaVantageNews(ticker, search, limit) {
       data.feed.forEach((item, index) => {
         const extractedTicker = extractTickerFromText(item.title || '') || 
                                item.ticker_sentiment?.[0]?.ticker || 
-                               ticker || 'GENERAL';
+                               ticker || null;
         
         news.push({
           id: `alphavantage_${index}`,
@@ -176,7 +181,7 @@ async function fetchFMPNews(ticker, search, limit) {
       data.forEach((item, index) => {
         const extractedTicker = extractTickerFromText(item.title || '') || 
                                item.symbol || 
-                               ticker || 'GENERAL';
+                               ticker || null;
         
         news.push({
           id: `fmp_${index}`,
@@ -202,12 +207,20 @@ async function fetchFMPNews(ticker, search, limit) {
 }
 
 function extractTickerFromText(text) {
-  // Common stock ticker patterns
+  // Common stock ticker patterns - be more specific
   const tickerPatterns = [
-    /\b([A-Z]{1,5})\b/g, // 1-5 uppercase letters
     /\$([A-Z]{1,5})\b/g, // $TICKER format
-    /\(([A-Z]{1,5})\)/g  // (TICKER) format
+    /\(([A-Z]{1,5})\)/g, // (TICKER) format
+    /\b([A-Z]{2,5})\b/g  // 2-5 uppercase letters (avoid single letters)
   ];
+  
+  // Known valid tickers to filter against
+  const validTickers = new Set([
+    'AAPL', 'MSFT', 'GOOGL', 'AMZN', 'TSLA', 'META', 'NVDA', 'NFLX', 'AMD', 'INTC',
+    'CRM', 'ADBE', 'PYPL', 'UBER', 'LYFT', 'ZOOM', 'SNOW', 'PLTR', 'HOOD', 'GME',
+    'AMC', 'BB', 'NOK', 'SNDL', 'SPY', 'QQQ', 'IWM', 'VTI', 'VOO', 'ARKK',
+    'BTC', 'ETH', 'DOGE', 'ADA', 'SOL', 'MATIC', 'AVAX', 'DOT', 'LINK', 'UNI'
+  ]);
   
   const tickers = new Set();
   
@@ -215,13 +228,13 @@ function extractTickerFromText(text) {
     let match;
     while ((match = pattern.exec(text)) !== null) {
       const ticker = match[1];
-      if (ticker && ticker.length >= 1 && ticker.length <= 5) {
+      if (ticker && ticker.length >= 2 && ticker.length <= 5 && validTickers.has(ticker)) {
         tickers.add(ticker);
       }
     }
   });
   
-  // Return the first ticker found, or null if none
+  // Return the first valid ticker found, or null if none
   return tickers.size > 0 ? Array.from(tickers)[0] : null;
 }
 
