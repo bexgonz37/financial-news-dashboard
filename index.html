@@ -669,8 +669,8 @@
       const limit = 50;
       
       try {
-        // Call the universal scanner API for comprehensive data
-        const response = await fetch(`/api/universal-scanner?preset=${preset}&limit=${limit}`);
+        // Call the real scanner API for comprehensive data
+        const response = await fetch(`/api/real-scanner?preset=${preset}&limit=${limit}`);
         const data = await response.json();
         
         if (data.success && data.data.stocks) {

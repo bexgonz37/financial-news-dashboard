@@ -76,9 +76,11 @@ class TickerExtractor {
       }
     }
     
-    // 2. Look for company names and aliases
+    // 2. Look for company names and aliases with better matching
     for (const [alias, symbol] of this.companyCache) {
-      if (textLower.includes(alias) && !tickers.has(symbol)) {
+      // Use word boundaries for better matching
+      const regex = new RegExp(`\\b${alias.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'gi');
+      if (regex.test(text) && !tickers.has(symbol)) {
         tickers.add(symbol);
       }
     }
