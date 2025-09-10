@@ -59,12 +59,12 @@ class TickerExtractor {
     }
   }
 
-  // Extract tickers from news text
+  // Extract tickers from news text using dynamic API lookup
   async extractTickers(text, maxTickers = 6) {
     if (!text) return [];
     
+    console.log('Extracting tickers from text:', text.substring(0, 100) + '...');
     const tickers = new Set();
-    const textLower = text.toLowerCase();
     
     // 1. Look for explicit $TICKER or (TICKER) patterns
     const explicitPatterns = [
@@ -79,28 +79,26 @@ class TickerExtractor {
         const symbol = match[1].toUpperCase();
         if (this.isValidSymbol(symbol)) {
           tickers.add(symbol);
+          console.log('Found explicit ticker:', symbol);
         }
       }
     }
     
-    // 2. Look for company names and aliases with better matching
-    for (const [alias, symbol] of this.companyCache) {
-      // Use word boundaries for better matching
-      const regex = new RegExp(`\\b${alias.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'gi');
-      if (regex.test(text) && !tickers.has(symbol)) {
-        tickers.add(symbol);
-      }
-    }
+    // 2. Extract company names and lookup via API
+    const companyNames = this.extractCompanyNames(text);
+    console.log('Extracted company names:', companyNames);
     
-    // 3. If we still need more tickers, try API lookup for company names
-    if (tickers.size < maxTickers) {
-      const companyNames = this.extractCompanyNames(text);
-      for (const companyName of companyNames) {
-        if (tickers.size >= maxTickers) break;
+    for (const companyName of companyNames) {
+      if (tickers.size >= maxTickers) break;
         
-        const symbol = await this.lookupCompanySymbol(companyName);
-        if (symbol && !tickers.has(symbol)) {
-          tickers.add(symbol);
+        try {
+          const symbol = await this.lookupCompanySymbol(companyName);
+          if (symbol && !tickers.has(symbol)) {
+            tickers.add(symbol);
+            console.log(`Found ticker ${symbol} for company ${companyName}`);
+          }
+        } catch (error) {
+          console.warn(`Failed to lookup ticker for ${companyName}:`, error);
         }
       }
     }
