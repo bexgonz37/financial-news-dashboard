@@ -1,7 +1,6 @@
 const fetch = require('node-fetch');
 const { saveNews, getNews, getMarketSession } = require('./database');
-const TickerExtractor = require('./ticker-extractor');
-const tickerExtractor = new TickerExtractor();
+const tickerExtractor = require('./ticker-extractor');
 
 module.exports = async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
