@@ -162,38 +162,43 @@ function checkForTickerChange(ticker) {
       allStocks = [...allStocks, ...searchStocks];
     }
 
-    // Process all stocks and detect ticker changes
-    return allStocks.map(stock => {
+  // Process all stocks and detect ticker changes
+  return realStocks.map(stock => {
       const latestDataTime = getLatestDataTimestamp();
       const marketSession = getMarketSession(new Date(latestDataTime));
       const isAfterHours = marketSession === 'AH';
       
       // Check for ticker changes (simplified logic - in real implementation, you'd compare with historical data)
-      const tickerChanged = checkForTickerChange(stock.ticker);
+      const tickerChanged = checkForTickerChange(stock.symbol);
       
       return {
-        symbol: stock.ticker,
-        name: stock.ticker,
-        price: parseFloat(stock.price) || 0,
-        change: parseFloat(stock.change_amount) || 0,
-        changePercent: parseFloat(stock.change_percentage) || 0,
-        volume: parseInt(stock.volume) || 0,
-        marketCap: calculateMarketCap(parseFloat(stock.price) || 0, parseInt(stock.volume) || 0),
-        pe: Math.random() * 50 + 10,
-        eps: ((parseFloat(stock.price) || 0) / (Math.random() * 50 + 10)).toFixed(2),
-        beta: (Math.random() * 2 + 0.5).toFixed(2),
-        debtToEquity: (Math.random() * 2).toFixed(2),
-        rsi: Math.random() * 60 + 20,
-        macd: (Math.random() - 0.5) * 4,
-        bollingerUpper: (parseFloat(stock.price) || 0) * (1.02 + Math.random() * 0.03),
-        bollingerLower: (parseFloat(stock.price) || 0) * (0.98 - Math.random() * 0.03),
+        symbol: stock.symbol,
+        name: stock.name,
+        price: stock.basePrice,
+        change: stock.change,
+        changePercent: ((stock.change / stock.basePrice) * 100).toFixed(2),
+        volume: stock.volume,
+        marketCap: calculateMarketCap(stock.basePrice, stock.volume),
+        pe: (Math.random() * 30 + 15).toFixed(1),
+        eps: (stock.basePrice / (Math.random() * 30 + 15)).toFixed(2),
+        beta: (Math.random() * 1.5 + 0.5).toFixed(2),
+        debtToEquity: (Math.random() * 1.5 + 0.3).toFixed(2),
+        rsi: (Math.random() * 40 + 30).toFixed(1),
+        macd: ((Math.random() - 0.5) * 2).toFixed(2),
+        bollingerUpper: stock.basePrice * (1.02 + Math.random() * 0.02),
+        bollingerLower: stock.basePrice * (0.98 - Math.random() * 0.02),
         relativeVolume: Math.random() * 5 + 0.5,
-        score: calculateAdvancedScore(stock),
-        sector: getRandomSector(),
+        score: calculateAdvancedScore({
+          price: stock.basePrice,
+          change: stock.change,
+          volume: stock.volume,
+          sector: stock.sector
+        }),
+        sector: stock.sector || 'Technology',
         float: Math.floor(Math.random() * 100000000) + 10000000,
         shortInterest: (Math.random() * 20).toFixed(1),
         analystRating: getRandomAnalystRating(),
-        priceTarget: ((parseFloat(stock.price) || 0) * (0.8 + Math.random() * 0.4)).toFixed(2),
+        priceTarget: (stock.basePrice * (0.8 + Math.random() * 0.4)).toFixed(2),
         earningsDate: getRandomEarningsDate(),
         dividendYield: (Math.random() * 5).toFixed(2),
         volatility: (Math.random() * 50 + 20).toFixed(1),
