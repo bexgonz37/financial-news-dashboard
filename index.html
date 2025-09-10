@@ -81,6 +81,8 @@
     .star.active{ color:var(--up) }
     .pct{ display:flex; align-items:center; gap:4px; font-weight:600 }
     .arrow{ font-size:1.1rem }
+    .after-hours{ color: #ff9800; font-weight: bold; }
+    .live{ color: #4caf50; font-weight: bold; }
     .val{ font-size:.9rem }
     .val.up{ color:var(--up) }
     .val.down{ color:var(--down) }
@@ -693,6 +695,9 @@
             const session = stock.session || 'RTH';
             const isStale = stock.isStale || false;
             const lastUpdated = stock.lastUpdated ? new Date(stock.lastUpdated).toLocaleTimeString() : 'Unknown';
+            const marketStatus = stock.marketStatus || (session === 'AH' ? 'After Hours' : 'Live');
+            const dataAge = stock.dataAge || (session === 'AH' ? 'Latest Close' : 'Live');
+            const isNewListing = stock.isNewListing || false;
             
             return `
               <div class="card" style="cursor:pointer" onclick="openChart('${stock.symbol}')">
@@ -708,11 +713,11 @@
                   </div>
                 </div>
                 <div style="margin-top:8px; display:flex; justify-content:space-between; align-items:center">
-                  <span class="meta">${sector} · RSI: ${rsi.toFixed(1)} · ${session}</span>
+                  <span class="meta">${sector} · RSI: ${rsi.toFixed(1)} · <span class="${session === 'AH' ? 'after-hours' : 'live'}">${marketStatus}</span></span>
                   <button class="star ${watchlist.has(stock.symbol)?'active':''}" data-star="${stock.symbol}" style="margin-left:8px">${watchlist.has(stock.symbol)?'★':'☆'}</button>
                 </div>
                 <div class="meta" style="margin-top:4px; font-size:0.8rem">
-                  ${analystRating} · MACD: ${macd.toFixed(3)} · Updated: ${lastUpdated}
+                  ${analystRating} · MACD: ${macd.toFixed(3)} · ${dataAge} · ${lastUpdated}${isNewListing ? ' · NEW' : ''}
                 </div>
               </div>
             `;

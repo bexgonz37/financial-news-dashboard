@@ -63,7 +63,7 @@ async function fetchComprehensiveMarketData() {
   }
 
   try {
-    // Fetch from multiple sources for comprehensive coverage
+    // Fetch from multiple sources for comprehensive coverage - always get latest data
     const [gainersResponse, mostActiveResponse, listingResponse, sectorResponse] = await Promise.all([
       fetch(`https://www.alphavantage.co/query?function=TOP_GAINERS_LOSERS&apikey=${apiKey}`),
       fetch(`https://www.alphavantage.co/query?function=MOST_ACTIVE&apikey=${apiKey}`),
@@ -127,10 +127,11 @@ async function fetchComprehensiveMarketData() {
       allStocks = [...allStocks, ...newListings];
     }
 
-    // Process all stocks
+    // Process all stocks with latest available data
     return allStocks.map(stock => {
-      const publishedAt = new Date().toISOString();
-      const marketSession = getMarketSession(new Date(publishedAt));
+      const latestDataTime = getLatestDataTimestamp();
+      const marketSession = getMarketSession(new Date(latestDataTime));
+      const isAfterHours = marketSession === 'AH';
       
       return {
         symbol: stock.ticker,
@@ -159,9 +160,11 @@ async function fetchComprehensiveMarketData() {
         dividendYield: (Math.random() * 5).toFixed(2),
         volatility: (Math.random() * 50 + 20).toFixed(1),
         session: marketSession,
-        lastUpdated: publishedAt,
+        lastUpdated: latestDataTime,
         isStale: false,
-        isNewListing: !stock.price || parseFloat(stock.price) === 0
+        isNewListing: !stock.price || parseFloat(stock.price) === 0,
+        dataAge: isAfterHours ? 'Latest Close' : 'Live',
+        marketStatus: isAfterHours ? 'After Hours' : 'Live'
       };
     });
 
@@ -316,6 +319,35 @@ function getMarketSession(date = new Date()) {
   } else {
     return 'AH'; // After Hours
   }
+}
+
+// Get the latest available data timestamp (last trading day if market is closed)
+function getLatestDataTimestamp() {
+  const now = new Date();
+  const hour = now.getUTCHours();
+  const minute = now.getUTCMinutes();
+  const timeInMinutes = hour * 60 + minute;
+  
+  // If it's after hours or weekend, get data from last trading day
+  const marketOpen = 14 * 60 + 30; // 14:30 UTC
+  const marketClose = 21 * 60; // 21:00 UTC
+  const isWeekend = now.getDay() === 0 || now.getDay() === 6; // Sunday or Saturday
+  
+  if (timeInMinutes < marketOpen || timeInMinutes > marketClose || isWeekend) {
+    // Return timestamp from last trading day (yesterday or Friday)
+    const lastTradingDay = new Date(now);
+    if (isWeekend) {
+      // If weekend, go back to Friday
+      lastTradingDay.setDate(now.getDate() - (now.getDay() === 0 ? 2 : 1));
+    } else {
+      // If after hours, use today's data
+      lastTradingDay.setDate(now.getDate());
+    }
+    lastTradingDay.setHours(21, 0, 0, 0); // Set to market close
+    return lastTradingDay.toISOString();
+  }
+  
+  return now.toISOString();
 }
 
 function getRandomSector() {
