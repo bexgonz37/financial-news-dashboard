@@ -434,6 +434,18 @@
       }
     }
 
+    // ---------- URL VALIDATION ----------
+    function isLikelyArticle(u) {
+      try {
+        const url = new URL(u);
+        if (/\/search/i.test(url.pathname)) return false;
+        if (['q','query','s'].some(k => url.searchParams.has(k))) return false;
+        return true;
+      } catch { 
+        return false; 
+      }
+    }
+
     // ---------- SPARKLINE CHARTS ----------
     async function drawSparkline(container, ticker){
       // Ensure we're in browser environment
@@ -464,6 +476,8 @@
         const r = await fetch(`/api/ohlc?ticker=${encodeURIComponent(ticker)}&interval=5min&limit=20&last=1&_t=${Date.now()}`);
         const payload = r.ok ? await r.json() : {data: {candles: []}};
         const candles = payload.data?.candles || [];
+        
+        console.debug('SPARKLINE DATA', ticker, { sample: candles[0] });
         
         if(candles.length < 2){
           container.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--meta);font-size:0.7rem;">No data</div>';
@@ -850,7 +864,7 @@
               <button class="star ${starred}" data-star="${t}">${starred?'★':'☆'}</button>
             </div>
             <div class="title">${n.title||''}</div>
-            <div class="summary">${n.summary||''} ${n.url && n.url.startsWith('http') ? `<a href="${n.url}" target="_blank" rel="noopener noreferrer" class="read-btn" style="display:inline-block;padding:4px 8px;background:var(--accent);color:white;text-decoration:none;border-radius:4px;font-size:0.8rem;margin-left:8px;">Read</a>`:'<span style="color:red;font-size:0.8rem;">No URL</span>'}</div>
+            <div class="summary">${n.summary||''} ${n.url && /^https?:\/\//i.test(n.url) && isLikelyArticle(n.url) ? `<a href="${n.url}" target="_blank" rel="noopener noreferrer" class="read-btn" style="display:inline-block;padding:4px 8px;background:var(--accent);color:white;text-decoration:none;border-radius:4px;font-size:0.8rem;margin-left:8px;">Read</a>`:'<span style="color:red;font-size:0.8rem;">No URL</span>'}</div>
             ${tickers.length > 0 ? `
               <div style="margin: 8px 0; display: flex; flex-wrap: wrap; gap: 4px;">
                 ${tickers.map(ticker => `

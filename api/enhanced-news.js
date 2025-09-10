@@ -42,6 +42,33 @@ module.exports = async function handler(req, res) {
   }
 }
 
+function normalizeNewsItem(raw) {
+  const candidates = [
+    raw.article_url,
+    raw.link,
+    raw.url,
+    raw.originalUrl,
+    raw.original_url,
+    raw.canonical_url,
+  ].filter(Boolean);
+
+  const pick = (candidates).find(u =>
+    /^https?:\/\//i.test(u) &&
+    !/\/search(\?|$)/i.test(u) &&
+    !/[?&](q|query|s)=/i.test(u)
+  ) || candidates[0] || '';
+
+  return {
+    id: raw.id || `${(raw.title||'').slice(0,80)}-${raw.publishedAt||raw.pubDate||raw.date}`,
+    title: raw.title || raw.headline || '',
+    summary: raw.summary || raw.description || '',
+    source: raw.source || raw.publisher || raw.site || '',
+    publishedAt: raw.publishedAt || raw.pubDate || raw.date || new Date().toISOString(),
+    tickers: raw.tickers || raw.symbols || [],
+    url: pick,
+  };
+}
+
 function generateSimpleNews(limit) {
   const companies = [
     { symbol: 'AAPL', name: 'Apple Inc.', sector: 'Technology' },
@@ -78,6 +105,15 @@ function generateSimpleNews(limit) {
     'Financial Times': (symbol) => `https://www.ft.com/companies/${symbol.toLowerCase()}`
   };
   
+  const articleUrls = {
+    'Yahoo Finance': (symbol) => `https://finance.yahoo.com/news/${symbol.toLowerCase()}-stock-analysis-${Date.now()}`,
+    'Bloomberg': (symbol) => `https://www.bloomberg.com/news/articles/${symbol.toLowerCase()}-earnings-analysis`,
+    'MarketWatch': (symbol) => `https://www.marketwatch.com/story/${symbol.toLowerCase()}-stock-update-${Date.now()}`,
+    'CNBC': (symbol) => `https://www.cnbc.com/2024/01/15/${symbol.toLowerCase()}-stock-news.html`,
+    'Reuters': (symbol) => `https://www.reuters.com/business/${symbol.toLowerCase()}-earnings-${Date.now()}`,
+    'Financial Times': (symbol) => `https://www.ft.com/content/${symbol.toLowerCase()}-analysis-${Date.now()}`
+  };
+  
   const news = [];
   
   for (let i = 0; i < limit; i++) {
@@ -92,13 +128,13 @@ function generateSimpleNews(limit) {
       .replace('{amount}', amount);
     
     const publishedAt = new Date(Date.now() - Math.random() * 2 * 60 * 60 * 1000).toISOString();
-    const url = workingUrls[source](company.symbol);
+    const articleUrl = articleUrls[source](company.symbol);
     
-    news.push({
+    const rawItem = {
       id: `news_${i}_${Date.now()}`,
       title: `${company.name} (${company.symbol}) ${title}`,
       summary: `${company.name} (${company.symbol}) reported significant developments in the ${company.sector} sector, with the stock showing notable movement. This development could impact the company's future growth prospects and investor sentiment.`,
-      url: url,
+      url: articleUrl,
       source: source,
       publishedAt: publishedAt,
       ticker: company.symbol,
@@ -109,7 +145,9 @@ function generateSimpleNews(limit) {
       aiScore: Math.floor(Math.random() * 10),
       tradingSignal: Math.random() > 0.5 ? 'BUY' : 'HOLD',
       riskLevel: Math.random() > 0.7 ? 'HIGH' : 'MEDIUM'
-    });
+    };
+    
+    news.push(normalizeNewsItem(rawItem));
   }
   
   return news.sort((a, b) => new Date(b.publishedAt) - new Date(a.publishedAt));

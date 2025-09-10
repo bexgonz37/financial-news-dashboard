@@ -102,12 +102,12 @@ function generateRealisticLiveCandles(ticker, interval, limit) {
     }
     
     candles.push({
-      time: time,
-      open: parseFloat(open.toFixed(2)),
-      high: parseFloat(high.toFixed(2)),
-      low: parseFloat(low.toFixed(2)),
-      close: parseFloat(close.toFixed(2)),
-      volume: Math.floor(volume)
+      t: Math.floor(time),
+      o: Number(open.toFixed(2)),
+      h: Number(high.toFixed(2)),
+      l: Number(low.toFixed(2)),
+      c: Number(close.toFixed(2)),
+      v: Math.floor(volume)
     });
     
     // Update trend slightly (random walk)
