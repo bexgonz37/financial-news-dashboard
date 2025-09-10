@@ -465,14 +465,14 @@ async function fetchFinnhubNews(ticker, search, limit) {
 function getRealNewsUrl(symbol, source, index) {
   // Generate real, working URLs for different sources
   const baseUrls = {
-    'Financial Times': `https://www.ft.com/content/${symbol.toLowerCase()}-market-update`,
-    'Reuters': `https://www.reuters.com/business/finance/${symbol.toLowerCase()}-stock-news`,
-    'Bloomberg': `https://www.bloomberg.com/news/articles/${symbol.toLowerCase()}-market-analysis`,
-    'MarketWatch': `https://www.marketwatch.com/story/${symbol.toLowerCase()}-stock-news`,
-    'CNBC': `https://www.cnbc.com/2024/${symbol.toLowerCase()}-market-update`,
-    'Yahoo Finance': `https://finance.yahoo.com/news/${symbol.toLowerCase()}-stock-analysis`,
-    'Seeking Alpha': `https://seekingalpha.com/news/${symbol.toLowerCase()}-earnings-analysis`,
-    'InvestorPlace': `https://investorplace.com/2024/${symbol.toLowerCase()}-stock-news`,
+    'Financial Times': `https://www.ft.com/search?q=${symbol}`,
+    'Reuters': `https://www.reuters.com/search/news?blob=${symbol}`,
+    'Bloomberg': `https://www.bloomberg.com/search?query=${symbol}`,
+    'MarketWatch': `https://www.marketwatch.com/search?q=${symbol}`,
+    'CNBC': `https://www.cnbc.com/search/?query=${symbol}`,
+    'Yahoo Finance': `https://finance.yahoo.com/quote/${symbol}/news`,
+    'Seeking Alpha': `https://seekingalpha.com/symbol/${symbol}/news`,
+    'InvestorPlace': `https://investorplace.com/?s=${symbol}`,
     'Motley Fool': `https://www.fool.com/investing/${symbol.toLowerCase()}-stock-analysis`,
     'Benzinga': `https://www.benzinga.com/news/${symbol.toLowerCase()}-market-update`,
     'Zacks': `https://www.zacks.com/stock/news/${symbol.toLowerCase()}-earnings`,
