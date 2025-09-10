@@ -40,8 +40,8 @@ async function fetchCandles(ticker, interval, limit, last) {
   // Use your exact Vercel variable name
   const apiKey = process.env.FINNHUB_KEY;
   if (!apiKey) {
-    console.log('Finnhub API key not configured, using fallback data');
-    return generateFallbackCandles(ticker, limit);
+    console.log('Finnhub API key not configured, returning empty array');
+    return [];
   }
 
   try {
@@ -86,13 +86,13 @@ async function fetchCandles(ticker, interval, limit, last) {
       }
     }
     
-    // If all intervals fail, return fallback data
-    console.warn(`All intervals failed for ${ticker}, using fallback data`);
-    return generateFallbackCandles(ticker, limit);
+    // If all intervals fail, return empty array
+    console.warn(`All intervals failed for ${ticker}, returning empty array`);
+    return [];
     
   } catch (error) {
     console.error(`Error fetching candles for ${ticker}:`, error);
-    return generateFallbackCandles(ticker, limit);
+    return [];
   }
 }
 

@@ -77,9 +77,10 @@ module.exports = async function handler(req, res) {
       }
     }
 
-    // Final fallback
+    // NO FALLBACK - return empty if no live data
     if (!liveData.symbol) {
-      liveData = getFallbackLiveData(ticker);
+      console.log(`No live data found for ${ticker}, returning empty data`);
+      liveData = {};
     }
 
     return res.status(200).json({
@@ -92,8 +93,8 @@ module.exports = async function handler(req, res) {
     console.error('Live data error:', error);
     return res.status(500).json({
       success: false,
-      error: 'Failed to fetch live data',
-      data: getFallbackLiveData(ticker)
+      error: 'Failed to fetch live data - NO FALLBACK',
+      data: {}
     });
   }
 }
