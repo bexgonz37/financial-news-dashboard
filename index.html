@@ -538,7 +538,7 @@
           console.warn(`Failed to get live quote for ${ticker}:`, e);
         }
 
-        const prices = C.map(c => c.c);
+        const prices = candles.map(c => c.c);
         const minPrice = Math.min(...prices);
         const maxPrice = Math.max(...prices);
         const range = maxPrice - minPrice;
@@ -906,7 +906,9 @@
               <button class="star ${starred}" data-star="${t}">${starred?'★':'☆'}</button>
             </div>
             <div class="title">${n.title||''}</div>
-            <div class="summary">${n.summary||''} ${n.url && /^https?:\/\//i.test(n.url) ? `<a href="${n.url}" target="_blank" rel="noopener noreferrer" class="read-btn">Read</a>` : '<span style="color:red;font-size:0.8rem;">No URL</span>'}</div>
+            <div class="summary">${n.summary||''} ${n.url && /^https?:\/\//i.test(n.url)
+  ? `<a href="${n.url}" data-url="${n.url}" target="_blank" rel="noopener noreferrer" class="read-btn">Read</a>`
+  : '<span style="color:red;font-size:0.8rem;">No URL</span>'}</div>
             ${tickers.length > 0 ? `
               <div style="margin: 8px 0; display: flex; flex-wrap: wrap; gap: 4px;">
                 ${tickers.map(ticker => `
@@ -1629,10 +1631,13 @@
       }
       if (e.target.matches('.read-btn')) {
         e.preventDefault();
-        const href = e.target.getAttribute('data-url');
+        const href = e.target.getAttribute('data-url') || e.target.getAttribute('href');
         const finalUrl = await resolveArticleUrl(href);
-        if (finalUrl) window.open(finalUrl, '_blank', 'noopener,noreferrer');
-        else alert('Invalid article URL');
+        if (finalUrl && /^https?:\/\//i.test(finalUrl)) {
+          window.open(finalUrl, '_blank', 'noopener,noreferrer');
+        } else {
+          alert('Invalid article URL');
+        }
       }
     });
     
