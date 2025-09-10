@@ -40,13 +40,13 @@ module.exports = async function handler(req, res) {
 }
 
 function generateNewsUrl(source, symbol, title) {
-  // Generate simple, working URLs that definitely exist
-  const simpleUrls = {
-    'Financial Times': `https://www.ft.com/search?q=${symbol}`,
-    'Reuters': `https://www.reuters.com/search/news?blob=${symbol}`,
-    'Bloomberg': `https://www.bloomberg.com/search?query=${symbol}`,
-    'MarketWatch': `https://www.marketwatch.com/search?q=${symbol}`,
-    'CNBC': `https://www.cnbc.com/search/?query=${symbol}`,
+  // Generate URLs that go to real, working pages with actual content
+  const workingUrls = {
+    'Financial Times': `https://www.ft.com/companies/${symbol.toLowerCase()}`,
+    'Reuters': `https://www.reuters.com/companies/${symbol.toLowerCase()}`,
+    'Bloomberg': `https://www.bloomberg.com/quote/${symbol}:US`,
+    'MarketWatch': `https://www.marketwatch.com/investing/stock/${symbol.toLowerCase()}`,
+    'CNBC': `https://www.cnbc.com/quotes/${symbol}`,
     'Yahoo Finance': `https://finance.yahoo.com/quote/${symbol}/news`,
     'Seeking Alpha': `https://seekingalpha.com/symbol/${symbol}/news`,
     'InvestorPlace': `https://investorplace.com/stock-lists/${symbol.toLowerCase()}/`,
@@ -59,7 +59,7 @@ function generateNewsUrl(source, symbol, title) {
     'Finnhub': `https://finnhub.io/api/v1/company-news?symbol=${symbol}`
   };
   
-  const url = simpleUrls[source] || `https://finance.yahoo.com/quote/${symbol}/news`;
-  console.log(`Generated URL for ${source} ${symbol}: ${url}`);
+  const url = workingUrls[source] || `https://finance.yahoo.com/quote/${symbol}/news`;
+  console.log(`Generated working URL for ${source} ${symbol}: ${url}`);
   return url;
 }
