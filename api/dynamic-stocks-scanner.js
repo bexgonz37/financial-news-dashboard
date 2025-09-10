@@ -78,10 +78,13 @@ async function fetchDynamicStocks() {
     // 1. Fetch from Alpha Vantage - Top Gainers/Losers (includes penny stocks)
     console.log('Fetching Alpha Vantage gainers/losers...');
     const alphaKey = process.env.ALPHAVANTAGE_KEY;
-    const gainersResponse = await fetch(`https://www.alphavantage.co/query?function=TOP_GAINERS_LOSERS&apikey=${alphaKey}`);
-    if (gainersResponse.ok) {
-      const gainersData = await gainersResponse.json();
-      if (gainersData.top_gainers) {
+    
+    if (alphaKey) {
+      const gainersResponse = await fetch(`https://www.alphavantage.co/query?function=TOP_GAINERS_LOSERS&apikey=${alphaKey}`);
+      if (gainersResponse.ok) {
+        const gainersData = await gainersResponse.json();
+        console.log('Alpha Vantage response:', gainersData);
+        if (gainersData.top_gainers) {
         allStocks.push(...gainersData.top_gainers.map(stock => ({
           symbol: stock.ticker,
           name: stock.ticker, // Alpha Vantage doesn't provide company names
@@ -105,8 +108,8 @@ async function fetchDynamicStocks() {
           aiScore: Math.random() * 10,
           score: Math.abs(parseFloat(stock.change_percentage)) + Math.random() * 5 // Calculate score based on movement
         })));
-      }
-      if (gainersData.top_losers) {
+        }
+        if (gainersData.top_losers) {
         allStocks.push(...gainersData.top_losers.map(stock => ({
           symbol: stock.ticker,
           name: stock.ticker,
@@ -130,10 +133,56 @@ async function fetchDynamicStocks() {
           aiScore: Math.random() * 10,
           score: Math.abs(parseFloat(stock.change_percentage)) + Math.random() * 5
         })));
+        }
+      } else {
+        console.log('Alpha Vantage API failed:', gainersResponse.status);
+      }
+    } else {
+      console.log('No Alpha Vantage API key provided');
+    }
+    
+    // 2. Fetch from FMP for comprehensive stock data
+    console.log('Fetching FMP data...');
+    const fmpKey = process.env.FMP_KEY;
+    if (fmpKey) {
+      try {
+        // Get most active stocks
+        const fmpResponse = await fetch(`https://financialmodelingprep.com/api/v3/stock/actives?apikey=${fmpKey}`);
+        if (fmpResponse.ok) {
+          const fmpData = await fmpResponse.json();
+          console.log('FMP response:', fmpData);
+          if (Array.isArray(fmpData)) {
+            allStocks.push(...fmpData.slice(0, 20).map(stock => ({
+              symbol: stock.symbol,
+              name: stock.name || stock.symbol,
+              price: parseFloat(stock.price) || 0,
+              change: parseFloat(stock.change) || 0,
+              changePercent: parseFloat(stock.changesPercentage) || 0,
+              volume: parseInt(stock.volume) || 0,
+              marketCap: stock.marketCap || 'N/A',
+              sector: 'Unknown',
+              session: 'RTH',
+              marketStatus: 'Live',
+              dataAge: 'Live',
+              isNewListing: false,
+              tickerChanged: false,
+              relativeVolume: Math.random() * 3 + 0.5,
+              rsi: 30 + Math.random() * 40,
+              macd: (Math.random() - 0.5) * 4,
+              pe: Math.random() * 50 + 10,
+              beta: Math.random() * 2 + 0.5,
+              volatility: Math.random() * 0.5 + 0.1,
+              aiScore: Math.random() * 10,
+              score: Math.abs(parseFloat(stock.changesPercentage) || 0) + Math.random() * 5
+            })));
+          }
+        }
+      } catch (error) {
+        console.warn('FMP API error:', error);
       }
     }
     
-    // 2. Fetch from Finnhub for penny stocks and additional data
+    // 3. Fetch from Finnhub for penny stocks and additional data
     console.log('Fetching Finnhub data...');
     const finnhubKey = process.env.FINNHUB_KEY;
     if (finnhubKey) {
