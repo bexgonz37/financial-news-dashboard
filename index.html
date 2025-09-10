@@ -534,6 +534,12 @@
           if (quoteResponse.ok) {
             const quoteData = await quoteResponse.json();
             liveQuote = quoteData.data;
+            
+            // Tolerate string numbers from APIs
+            if (liveQuote && typeof liveQuote.changePercent !== 'number') {
+              const p = parseFloat(liveQuote.changePercent);
+              if (!Number.isNaN(p)) liveQuote.changePercent = p;
+            }
           }
         } catch (e) {
           console.warn(`Failed to get live quote for ${ticker}:`, e);
@@ -1613,29 +1619,42 @@
     }
     
     // ---------- EVENT HANDLERS ----------
-    document.addEventListener('click', async (e)=>{
-      if(e.target.matches('[data-star]')){
+    document.addEventListener('click', async (e) => {
+      if (e.target.matches('[data-star]')) {
         e.preventDefault();
         toggleWatchlist(e.target.dataset.star);
+        return;
       }
-      if(e.target.matches('[data-open-chart]')){
+      if (e.target.matches('[data-open-chart]')) {
         e.preventDefault();
         openChart(e.target.dataset.openChart);
+        return;
       }
-      if(e.target.matches('[data-remove]')){
+      if (e.target.matches('[data-remove]')) {
         e.preventDefault();
         watchlist.delete(e.target.dataset.remove);
         persistWatchlist();
         renderWatchlist();
+        return;
       }
+
+      // --- FIX: Read button uses href OR data-url
       if (e.target.matches('.read-btn')) {
         e.preventDefault();
-        const href = e.target.getAttribute('data-url') || e.target.getAttribute('href');
-        const finalUrl = await resolveArticleUrl(href);
-        if (finalUrl && /^https?:\/\//i.test(finalUrl)) {
-          window.open(finalUrl, '_blank', 'noopener,noreferrer');
-        } else {
+        const href = e.target.getAttribute('data-url') || e.target.getAttribute('href') || '';
+        if (!href || !/^https?:\/\//i.test(href)) {
           alert('Invalid article URL');
+          return;
+        }
+        try {
+          const finalUrl = await resolveArticleUrl(href);
+          if (finalUrl && /^https?:\/\//i.test(finalUrl)) {
+            window.open(finalUrl, '_blank', 'noopener,noreferrer');
+          } else {
+            alert('Invalid article URL');
+          }
+        } catch {
+          window.open(href, '_blank', 'noopener,noreferrer');
         }
       }
     });

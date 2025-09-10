@@ -177,13 +177,15 @@ function generateSimpleNews(limit) {
       .replace('{amount}', amount);
     
     const publishedAt = new Date(Date.now() - Math.random() * 2 * 60 * 60 * 1000).toISOString();
-    const articleUrl = articleUrls[source](company.symbol);
+    const workingUrl = workingUrls[source] ? workingUrls[source](company.symbol) : '';
+    const fakeArticle = articleUrls[source] ? articleUrls[source](company.symbol) : '';
     
     const rawItem = {
       id: `news_${i}_${Date.now()}`,
       title: `${company.name} (${company.symbol}) ${title}`,
       summary: `${company.name} (${company.symbol}) reported significant developments in the ${company.sector} sector, with the stock showing notable movement. This development could impact the company's future growth prospects and investor sentiment.`,
-      url: articleUrl,
+      url: workingUrl,          // <-- always a real, resolvable page
+      originalUrl: fakeArticle, // <-- optional: keep the "article-looking" URL
       source: source,
       publishedAt: publishedAt,
       ticker: company.symbol,
