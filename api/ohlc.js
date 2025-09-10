@@ -1,6 +1,9 @@
 // Realistic Live OHLC API - Generates Realistic Stock Chart Data
 const fetch = require('node-fetch');
 
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 module.exports = async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');

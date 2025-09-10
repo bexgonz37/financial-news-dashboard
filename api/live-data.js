@@ -1,6 +1,9 @@
 // Simple Working Live Data API - Guaranteed to Work
 const fetch = require('node-fetch');
 
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 module.exports = async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');

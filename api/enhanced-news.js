@@ -1,4 +1,44 @@
 // Simple Working News API
+const fetch = require('node-fetch');
+
+// URL helpers
+function isHttp(u) {
+  return !!u && /^https?:\/\//i.test(u);
+}
+
+function looksSearchOrTopic(u) {
+  const p = u.pathname.toLowerCase();
+  const hasQ = ['q','query','s'].some(k => u.searchParams.has(k));
+  const isSearch = p.includes('/search') || hasQ;
+  const isTopic = /(\/(quote|symbol|ticker|topic|tag)\/)/i.test(p);
+  return isSearch || isTopic;
+}
+
+function absolutize(u, base) {
+  if (isHttp(u)) return u;
+  if (!base) return '';
+  try { return new URL(u, base).toString(); } catch { return ''; }
+}
+
+async function resolveFinal(u) {
+  if (!isHttp(u)) return '';
+  try {
+    // Try HEAD first with redirect follow
+    const h = await fetch(u, { method: 'HEAD', redirect: 'follow' });
+    const final = h.url || u;
+    const U = new URL(final);
+    if (!looksSearchOrTopic(U)) return final;
+  } catch {}
+  try {
+    // Fallback GET (some hosts block HEAD)
+    const g = await fetch(u, { method: 'GET', redirect: 'follow' });
+    const final = g.url || u;
+    const U = new URL(final);
+    if (!looksSearchOrTopic(U)) return final;
+  } catch {}
+  return ''; // give up if we still landed on search/topic
+}
+
 module.exports = async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
@@ -13,16 +53,19 @@ module.exports = async function handler(req, res) {
     console.log('Request params:', { ticker, search, limit });
 
     // Generate simple, working news data
-    const news = generateSimpleNews(parseInt(limit));
+    const rawNews = generateSimpleNews(parseInt(limit));
     
-    console.log(`Generated ${news.length} news items`);
+    // Normalize all news items with URL resolution
+    const normalized = await Promise.all(rawNews.map(normalizeItem));
+    
+    console.log(`Generated ${normalized.length} news items`);
 
     return res.status(200).json({
       success: true,
       data: {
-        news: news,
+        news: normalized,
         sources: ['yahoo', 'bloomberg', 'marketwatch', 'cnbc'],
-        total: news.length,
+        total: normalized.length,
         timestamp: new Date().toISOString()
       }
     });
@@ -42,22 +85,28 @@ module.exports = async function handler(req, res) {
   }
 }
 
-function normalizeNewsItem(raw) {
-  const candidates = [
-    raw.article_url,
-    raw.link,
-    raw.url,
-    raw.originalUrl,
-    raw.original_url,
-    raw.canonical_url,
-  ].filter(Boolean);
+function pickCandidate(raw) {
+  const c = [raw.article_url, raw.link, raw.url, raw.originalUrl, raw.original_url, raw.canonical_url]
+    .filter(Boolean);
+  return c.find(isHttp) || c[0] || '';
+}
 
-  const pick = (candidates).find(u =>
-    /^https?:\/\//i.test(u) &&
-    !/\/search(\?|$)/i.test(u) &&
-    !/[?&](q|query|s)=/i.test(u)
-  ) || candidates[0] || '';
+async function normalizeItem(raw) {
+  const base = raw.sourceUrl || raw.site || raw.sourceDomain ? `https://${(raw.sourceDomain||'').replace(/^https?:\/\//,'')}` : '';
+  let u = pickCandidate(raw);
+  if (!isHttp(u)) u = absolutize(u, base);
 
+  // unwrap common redirect params
+  try {
+    const U = new URL(u);
+    const nested = ['url','u','r','redirect','target','dest','to','out']
+      .map(k => U.searchParams.get(k))
+      .find(v => v && isHttp(v));
+    if (nested) u = nested;
+  } catch {}
+
+  // resolve to final and reject search/topic
+  const final = await resolveFinal(u);
   return {
     id: raw.id || `${(raw.title||'').slice(0,80)}-${raw.publishedAt||raw.pubDate||raw.date}`,
     title: raw.title || raw.headline || '',
@@ -65,7 +114,7 @@ function normalizeNewsItem(raw) {
     source: raw.source || raw.publisher || raw.site || '',
     publishedAt: raw.publishedAt || raw.pubDate || raw.date || new Date().toISOString(),
     tickers: raw.tickers || raw.symbols || [],
-    url: pick,
+    url: final
   };
 }
 
@@ -147,7 +196,7 @@ function generateSimpleNews(limit) {
       riskLevel: Math.random() > 0.7 ? 'HIGH' : 'MEDIUM'
     };
     
-    news.push(normalizeNewsItem(rawItem));
+    news.push(rawItem);
   }
   
   return news.sort((a, b) => new Date(b.publishedAt) - new Date(a.publishedAt));

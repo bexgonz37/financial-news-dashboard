@@ -507,22 +507,21 @@
       container.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--loading);font-size:0.8rem;">Loading...</div>';
       
       try {
-        const r = await fetch(`/api/ohlc?ticker=${encodeURIComponent(ticker)}&interval=5min&limit=20&last=1&_t=${Date.now()}`);
+        const r = await fetch(`/api/ohlc?ticker=${encodeURIComponent(ticker)}&interval=5min&limit=20&last=1&_t=${Date.now()}`, { cache: 'no-store' });
         const payload = r.ok ? await r.json() : {data: {candles: []}};
-        const candles = payload.data?.candles || [];
-        // normalize candle shape so UI can consume either API variant
-        const C = candles.map(c => ({
+        const raw = payload.data?.candles || [];
+        const candles = raw.map(c => ({
           t: c.t ?? c.time,
           o: c.o ?? c.open,
           h: c.h ?? c.high,
           l: c.l ?? c.low,
           c: c.c ?? c.close,
           v: c.v ?? c.volume,
-        })).filter(x => Number.isFinite(x.c));
+        })).filter(x => Number.isFinite(x.c) && Number.isFinite(x.t));
         
-        console.debug('SPARKLINE DATA', ticker, { sample: C[0] });
+        console.debug('SPARKLINE DATA', ticker, { sample: candles[0] });
         
-        if(C.length < 2){
+        if(candles.length < 2){
           container.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--meta);font-size:0.7rem;">No data</div>';
           return;
         }
@@ -530,7 +529,7 @@
         // Get live quote data for percentage change
         let liveQuote = null;
         try {
-          const quoteResponse = await fetch(`/api/live-data?ticker=${encodeURIComponent(ticker)}&type=quote`);
+          const quoteResponse = await fetch(`/api/live-data?ticker=${encodeURIComponent(ticker)}&type=quote&_t=${Date.now()}`, { cache: 'no-store' });
           if (quoteResponse.ok) {
             const quoteData = await quoteResponse.json();
             liveQuote = quoteData.data;
@@ -907,9 +906,7 @@
               <button class="star ${starred}" data-star="${t}">${starred?'★':'☆'}</button>
             </div>
             <div class="title">${n.title||''}</div>
-            <div class="summary">${n.summary||''} ${n.url && /^https?:\/\//i.test(n.url)
-    ? `<a href="${n.url}" data-url="${n.url}" class="read-btn" style="display:inline-block;padding:4px 8px;background:var(--accent);color:white;text-decoration:none;border-radius:4px;font-size:0.8rem;margin-left:8px;">Read</a>`
-    : '<span style="color:red;font-size:0.8rem;">No URL</span>'}</div>
+            <div class="summary">${n.summary||''} ${n.url && /^https?:\/\//i.test(n.url) ? `<a href="${n.url}" target="_blank" rel="noopener noreferrer" class="read-btn">Read</a>` : '<span style="color:red;font-size:0.8rem;">No URL</span>'}</div>
             ${tickers.length > 0 ? `
               <div style="margin: 8px 0; display: flex; flex-wrap: wrap; gap: 4px;">
                 ${tickers.map(ticker => `
@@ -1014,11 +1011,9 @@
           console.log('Found stocks:', stocks.length);
           
           if (!stocks.length) {
-            grid.innerHTML = `<div class="card">No stocks match the current filters.</div>`;
-            return;
-          }
-
-          grid.innerHTML = stocks.map(stock => {
+            grid.innerHTML = `<div class="card">No stocks yet — waiting for live scanner data…</div>`;
+          } else {
+            grid.innerHTML = stocks.map(stock => {
             const pct = stock.changePercent || 0;
             const price = stock.price || 0;
             const volume = stock.volume || 0;
@@ -1057,9 +1052,21 @@
                 <div class="meta" style="margin-top:4px; font-size:0.8rem">
                   ${analystRating} · MACD: ${macd.toFixed(3)} · ${dataAge} · ${lastUpdated}${isNewListing ? ' · NEW' : ''}${tickerChanged ? ' · CHANGED' : ''}
                 </div>
+                <div class="mini-chart" style="width:100%;height:60px;margin-top:8px;"></div>
               </div>
             `;
-          });
+          }).join('');
+          
+          // Draw mini-charts for all rendered cards
+          setTimeout(() => {
+            stocks.forEach(stock => {
+              const container = document.querySelector(`[onclick="openChart('${stock.symbol}')"] .mini-chart`);
+              if (container) {
+                drawSparkline(container, stock.symbol);
+              }
+            });
+          }, 100);
+          }
           
           // Set up auto-refresh based on market session
           if (data.data.refreshInterval) {
@@ -1459,15 +1466,18 @@
       try {
         // Fetch multiple timeframes for comprehensive view
         const [hourlyResponse, dailyResponse] = await Promise.all([
-          fetch(`/api/ohlc?ticker=${encodeURIComponent(ticker)}&interval=1hour&limit=100`),
-          fetch(`/api/ohlc?ticker=${encodeURIComponent(ticker)}&interval=1day&limit=30`)
+          fetch(`/api/ohlc?ticker=${encodeURIComponent(ticker)}&interval=1hour&limit=100&_t=${Date.now()}`, { cache: 'no-store' }),
+          fetch(`/api/ohlc?ticker=${encodeURIComponent(ticker)}&interval=1day&limit=30&_t=${Date.now()}`, { cache: 'no-store' })
         ]);
         
         const hourlyData = hourlyResponse.ok ? await hourlyResponse.json() : {data: {candles: []}};
         const dailyData = dailyResponse.ok ? await dailyResponse.json() : {data: {candles: []}};
         
-        const hourlyCandles = hourlyData.data?.candles || [];
-        const dailyCandles = dailyData.data?.candles || [];
+        const norm = (arr=[]) => arr.map(c => ({
+          t: c.t ?? c.time, o: c.o ?? c.open, h: c.h ?? c.high, l: c.l ?? c.low, c: c.c ?? c.close, v: c.v ?? c.volume
+        })).filter(x => Number.isFinite(x.c) && Number.isFinite(x.t));
+        const hourlyCandles = norm(hourlyData.data?.candles);
+        const dailyCandles = norm(dailyData.data?.candles);
         
         if(hourlyCandles.length < 2 && dailyCandles.length < 2){
           body.innerHTML = '<div class="loading" style="color:var(--down);">Insufficient data for chart</div>';
@@ -1475,16 +1485,7 @@
         }
         
         // Use hourly data if available, otherwise daily
-        const rawCandles = hourlyCandles.length >= 2 ? hourlyCandles : dailyCandles;
-        
-        const C = rawCandles.map(c => ({
-          t: c.t ?? c.time,
-          o: c.o ?? c.open,
-          h: c.h ?? c.high,
-          l: c.l ?? c.low,
-          c: c.c ?? c.close,
-          v: c.v ?? c.volume,
-        })).filter(x => Number.isFinite(x.c) && Number.isFinite(x.o) && Number.isFinite(x.t));
+        const candles = hourlyCandles.length >= 2 ? hourlyCandles : dailyCandles;
         
         const chart = LightweightCharts.createChart(body, {
           width: body.offsetWidth,
@@ -1506,14 +1507,8 @@
           priceScaleId: '', scaleMargins: { top: 0.8, bottom: 0 }
         });
         
-        const data = C.map(c => ({
-          time: Math.floor(c.t / 1000), open: c.o, high: c.h, low: c.l, close: c.c
-        }));
-        const volData = C.map(c => ({
-          time: Math.floor(c.t / 1000),
-          value: c.v,
-          color: c.c >= c.o ? '#24e39c' : '#ff5b6e'
-        }));
+        const data = candles.map(c => ({ time: Math.floor(c.t/1000), open: c.o, high: c.h, low: c.l, close: c.c }));
+        const volData = candles.map(c => ({ time: Math.floor(c.t/1000), value: c.v, color: c.c >= c.o ? '#24e39c' : '#ff5b6e' }));
         
         candlestickSeries.setData(data);
         volumeSeries.setData(volData);
