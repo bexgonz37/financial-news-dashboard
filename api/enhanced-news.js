@@ -124,11 +124,14 @@ function generateFreshNewsData(ticker, search, limit) {
     // Generate recent timestamps (last 2 hours)
     const publishedAt = new Date(Date.now() - Math.random() * 2 * 60 * 60 * 1000).toISOString();
     
+    // Generate proper URL based on source
+    const url = generateNewsUrl(source, company.symbol, title);
+    
     news.push({
       id: `fresh_news_${i}_${Date.now()}`,
       title: `${company.name} (${company.symbol}) ${title}`,
       summary: `${company.name} (${company.symbol}) reported significant developments in the ${company.sector} sector, with the stock showing notable movement. This development could impact the company's future growth prospects and investor sentiment.`,
-      url: `https://finance.yahoo.com/quote/${company.symbol}/news`,
+      url: url,
       source: source,
       publishedAt: publishedAt,
       ticker: company.symbol,
@@ -157,4 +160,35 @@ function generateFreshNewsData(ticker, search, limit) {
   }
   
   return news.sort((a, b) => new Date(b.publishedAt) - new Date(a.publishedAt));
+}
+
+function generateNewsUrl(source, symbol, title) {
+  const baseUrls = {
+    'Financial Times': 'https://www.ft.com',
+    'Reuters': 'https://www.reuters.com',
+    'Bloomberg': 'https://www.bloomberg.com',
+    'MarketWatch': 'https://www.marketwatch.com',
+    'CNBC': 'https://www.cnbc.com',
+    'Yahoo Finance': `https://finance.yahoo.com/quote/${symbol}/news`,
+    'Seeking Alpha': 'https://seekingalpha.com',
+    'InvestorPlace': 'https://investorplace.com',
+    'Motley Fool': 'https://www.fool.com',
+    'Benzinga': 'https://www.benzinga.com',
+    'Zacks': 'https://www.zacks.com',
+    'The Street': 'https://www.thestreet.com',
+    'Alpha Vantage': `https://www.alphavantage.co/query?function=NEWS_SENTIMENT&tickers=${symbol}`,
+    'Financial Modeling Prep': `https://financialmodelingprep.com/company/${symbol}`,
+    'Finnhub': `https://finnhub.io/api/v1/company-news?symbol=${symbol}`
+  };
+  
+  const baseUrl = baseUrls[source] || `https://finance.yahoo.com/quote/${symbol}/news`;
+  
+  // For most sources, create a search URL with the title
+  if (source === 'Yahoo Finance' || source === 'Alpha Vantage' || source === 'Financial Modeling Prep' || source === 'Finnhub') {
+    return baseUrl;
+  } else {
+    // For news sites, create a search URL
+    const searchQuery = encodeURIComponent(`${symbol} ${title}`);
+    return `${baseUrl}/search?q=${searchQuery}`;
+  }
 }
