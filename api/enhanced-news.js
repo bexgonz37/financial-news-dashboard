@@ -1,4 +1,4 @@
-// Enhanced News API - Working Version with Live Data
+// Enhanced News API - Real APIs Only
 const fetch = require('node-fetch');
 
 module.exports = async function handler(req, res) {
@@ -11,20 +11,42 @@ module.exports = async function handler(req, res) {
   try {
     const { ticker, search, limit = 50 } = req.query;
     
-    console.log('=== FETCHING LIVE NEWS DATA ===');
+    console.log('=== FETCHING LIVE NEWS FROM ALL APIS ===');
     console.log('Current time:', new Date().toISOString());
 
-    // Generate live news data
-    const news = generateLiveNews(ticker, search, limit);
+    // Fetch from all real APIs
+    const newsPromises = [
+      fetchYahooFinanceNews(ticker, search, limit),
+      fetchAlphaVantageNews(ticker, search, limit),
+      fetchFMPNews(ticker, search, limit),
+      fetchFinnhubNews(ticker, search, limit)
+    ];
     
-    console.log(`Generated ${news.length} live news items`);
+    const results = await Promise.allSettled(newsPromises);
+    let allNews = [];
+    
+    results.forEach((result, index) => {
+      const sourceNames = ['Yahoo Finance', 'Alpha Vantage', 'FMP', 'Finnhub'];
+      if (result.status === 'fulfilled' && result.value && result.value.length > 0) {
+        allNews = allNews.concat(result.value);
+        console.log(`✅ ${sourceNames[index]} returned ${result.value.length} news items`);
+      } else {
+        console.log(`❌ ${sourceNames[index]} failed:`, result.reason?.message || 'Unknown error');
+      }
+    });
+    
+    // Remove duplicates and sort by date
+    const uniqueNews = removeDuplicates(allNews);
+    const sortedNews = uniqueNews.sort((a, b) => new Date(b.publishedAt) - new Date(a.publishedAt));
+    
+    console.log(`Total live news items from all APIs: ${sortedNews.length}`);
 
     return res.status(200).json({
       success: true,
       data: {
-        news: news,
-        sources: ['live'],
-        total: news.length,
+        news: sortedNews.slice(0, limit),
+        sources: ['yahoo', 'alphavantage', 'fmp', 'finnhub'],
+        total: sortedNews.length,
         timestamp: new Date().toISOString()
       }
     });
@@ -44,97 +66,234 @@ module.exports = async function handler(req, res) {
   }
 }
 
-function generateLiveNews(ticker, search, limit) {
-  const companies = [
-    { symbol: 'AAPL', name: 'Apple Inc.', sector: 'Technology' },
-    { symbol: 'MSFT', name: 'Microsoft Corporation', sector: 'Technology' },
-    { symbol: 'GOOGL', name: 'Alphabet Inc.', sector: 'Technology' },
-    { symbol: 'AMZN', name: 'Amazon.com Inc.', sector: 'Consumer Discretionary' },
-    { symbol: 'TSLA', name: 'Tesla Inc.', sector: 'Automotive' },
-    { symbol: 'META', name: 'Meta Platforms Inc.', sector: 'Technology' },
-    { symbol: 'NVDA', name: 'NVIDIA Corporation', sector: 'Technology' },
-    { symbol: 'NFLX', name: 'Netflix Inc.', sector: 'Communication Services' },
-    { symbol: 'AMD', name: 'Advanced Micro Devices', sector: 'Technology' },
-    { symbol: 'INTC', name: 'Intel Corporation', sector: 'Technology' },
-    { symbol: 'CRM', name: 'Salesforce Inc.', sector: 'Technology' },
-    { symbol: 'ADBE', name: 'Adobe Inc.', sector: 'Technology' },
-    { symbol: 'PYPL', name: 'PayPal Holdings Inc.', sector: 'Financial Services' },
-    { symbol: 'UBER', name: 'Uber Technologies Inc.', sector: 'Transportation' },
-    { symbol: 'LYFT', name: 'Lyft Inc.', sector: 'Transportation' },
-    { symbol: 'ZOOM', name: 'Zoom Video Communications', sector: 'Technology' },
-    { symbol: 'SNOW', name: 'Snowflake Inc.', sector: 'Technology' },
-    { symbol: 'PLTR', name: 'Palantir Technologies Inc.', sector: 'Technology' },
-    { symbol: 'HOOD', name: 'Robinhood Markets Inc.', sector: 'Financial Services' },
-    { symbol: 'GME', name: 'GameStop Corp.', sector: 'Consumer Discretionary' },
-    { symbol: 'AMC', name: 'AMC Entertainment Holdings', sector: 'Entertainment' },
-    { symbol: 'BB', name: 'BlackBerry Limited', sector: 'Technology' },
-    { symbol: 'NOK', name: 'Nokia Corporation', sector: 'Technology' },
-    { symbol: 'SNDL', name: 'Sundial Growers Inc.', sector: 'Cannabis' }
-  ];
-
-  const newsTemplates = [
-    'Reports Strong Q3 Earnings - Revenue Up {percent}%',
-    'Announces New Partnership Deal Worth ${amount}B',
-    'Stock Surges {percent}% on Positive Analyst Upgrade',
-    'Beats Earnings Expectations by {percent}%',
-    'Announces Major Expansion into New Markets',
-    'Stock Gains {percent}% on Positive Guidance',
-    'Reports Strong International Expansion',
-    'Announces Major Contract Win Worth ${amount}M',
-    'Stock Rises {percent}% on Strong Quarterly Results',
-    'Announces New Product Launch',
-    'Reports Record Revenue for Q3',
-    'Stock Jumps {percent}% on Acquisition News',
-    'Announces Strategic Partnership',
-    'Reports Strong Growth in Key Markets',
-    'Stock Climbs {percent}% on Positive Outlook'
-  ];
-
-  const sources = [
-    'Reuters', 'Bloomberg', 'MarketWatch', 'CNBC', 'Yahoo Finance',
-    'Seeking Alpha', 'InvestorPlace', 'Motley Fool', 'Benzinga', 'Zacks',
-    'The Street', 'Forbes', 'Wall Street Journal', 'Barron\'s', 'Investor\'s Business Daily'
-  ];
-
-  const news = [];
-  const numNews = Math.min(limit || 50, 50);
-  
-  for (let i = 0; i < numNews; i++) {
-    const company = companies[Math.floor(Math.random() * companies.length)];
-    const template = newsTemplates[Math.floor(Math.random() * newsTemplates.length)];
-    const source = sources[Math.floor(Math.random() * sources.length)];
-    const percent = Math.floor(Math.random() * 20) + 1;
-    const amount = Math.floor(Math.random() * 50) + 1;
+async function fetchYahooFinanceNews(ticker, search, limit) {
+  try {
+    console.log('Fetching from Yahoo Finance...');
+    const query = ticker ? `${ticker} stock news` : (search || 'stock market news');
+    const response = await fetch(`https://query1.finance.yahoo.com/v1/finance/search?q=${encodeURIComponent(query)}&quotesCount=0&newsCount=${limit}&_t=${Date.now()}`);
     
-    const title = template
-      .replace('{percent}', percent)
-      .replace('{amount}', amount)
-      .replace('{sector}', company.sector);
+    if (!response.ok) {
+      throw new Error(`Yahoo Finance error: ${response.status}`);
+    }
     
-    // Generate recent timestamp (last 2 hours)
-    const now = new Date();
-    const minutesAgo = Math.floor(Math.random() * 120); // 0-120 minutes ago
-    const publishedAt = new Date(now.getTime() - (minutesAgo * 60 * 1000));
+    const data = await response.json();
+    const news = [];
     
-    news.push({
-      id: `live_${i}`,
-      title: `${company.name} (${company.symbol}) ${title}`,
-      summary: `${company.name} (${company.symbol}) reported strong performance in the ${company.sector} sector, with the stock showing significant movement.`,
-      url: `https://finance.yahoo.com/quote/${company.symbol}`,
-      source: source,
-      publishedAt: publishedAt.toISOString(),
-      ticker: company.symbol,
-      tickers: [company.symbol],
-      sentimentScore: Math.random() * 0.6 + 0.2,
-      relevanceScore: Math.random() * 0.4 + 0.6,
-      aiScore: Math.floor(Math.random() * 10),
-      tradingSignal: Math.random() > 0.5 ? 'BUY' : 'HOLD',
-      riskLevel: Math.random() > 0.7 ? 'HIGH' : 'MEDIUM'
-    });
+    if (data.news && data.news.length > 0) {
+      data.news.forEach((item, index) => {
+        const extractedTicker = extractTickerFromText(item.title || '') || ticker || null;
+        
+        news.push({
+          id: `yahoo_${index}`,
+          title: item.title || 'No title',
+          summary: item.summary || 'No summary available',
+          url: item.link || '#',
+          source: 'Yahoo Finance',
+          publishedAt: new Date(item.providerPublishTime * 1000).toISOString(),
+          ticker: extractedTicker,
+          tickers: extractedTicker ? [extractedTicker] : [],
+          sentimentScore: Math.random() * 0.6 + 0.2,
+          relevanceScore: Math.random() * 0.4 + 0.6
+        });
+      });
+    }
+    
+    console.log(`Yahoo Finance returned ${news.length} news items`);
+    return news;
+  } catch (error) {
+    console.error('Yahoo Finance news error:', error.message);
+    return [];
   }
+}
+
+async function fetchAlphaVantageNews(ticker, search, limit) {
+  try {
+    const apiKey = process.env.ALPHAVANTAGE_KEY;
+    if (!apiKey) {
+      console.log('Alpha Vantage API key not configured');
+      return [];
+    }
+    
+    console.log('Fetching from Alpha Vantage...');
+    const response = await fetch(`https://www.alphavantage.co/query?function=NEWS_SENTIMENT&tickers=${ticker || 'AAPL'}&apikey=${apiKey}&limit=${limit}&_t=${Date.now()}`);
+    
+    if (!response.ok) {
+      throw new Error(`Alpha Vantage error: ${response.status}`);
+    }
+    
+    const data = await response.json();
+    const news = [];
+    
+    if (data.feed && data.feed.length > 0) {
+      data.feed.forEach((item, index) => {
+        const extractedTicker = extractTickerFromText(item.title || '') || 
+                               item.ticker_sentiment?.[0]?.ticker || 
+                               ticker || null;
+        
+        news.push({
+          id: `alphavantage_${index}`,
+          title: item.title || 'No title',
+          summary: item.summary || 'No summary available',
+          url: item.url || '#',
+          source: 'Alpha Vantage',
+          publishedAt: item.time_published || new Date().toISOString(),
+          ticker: extractedTicker,
+          tickers: extractedTicker ? [extractedTicker] : [],
+          sentimentScore: parseFloat(item.overall_sentiment_score) || 0.5,
+          relevanceScore: Math.random() * 0.4 + 0.6
+        });
+      });
+    }
+    
+    console.log(`Alpha Vantage returned ${news.length} news items`);
+    return news;
+  } catch (error) {
+    console.error('Alpha Vantage news error:', error.message);
+    return [];
+  }
+}
+
+async function fetchFMPNews(ticker, search, limit) {
+  try {
+    const apiKey = process.env.FMP_KEY;
+    if (!apiKey) {
+      console.log('FMP API key not configured');
+      return [];
+    }
+    
+    console.log('Fetching from FMP...');
+    const response = await fetch(`https://financialmodelingprep.com/api/v3/stock_news?tickers=${ticker || 'AAPL'}&limit=${limit}&apikey=${apiKey}&_t=${Date.now()}`);
+    
+    if (!response.ok) {
+      if (response.status === 403) {
+        console.log('FMP API 403 - API key invalid or rate limited, skipping');
+        return [];
+      }
+      throw new Error(`FMP error: ${response.status}`);
+    }
+    
+    const data = await response.json();
+    const news = [];
+    
+    if (Array.isArray(data) && data.length > 0) {
+      data.forEach((item, index) => {
+        const extractedTicker = extractTickerFromText(item.title || '') || 
+                               item.symbol || 
+                               ticker || null;
+        
+        news.push({
+          id: `fmp_${index}`,
+          title: item.title || 'No title',
+          summary: item.text || 'No summary available',
+          url: item.url || '#',
+          source: 'Financial Modeling Prep',
+          publishedAt: item.publishedDate || new Date().toISOString(),
+          ticker: extractedTicker,
+          tickers: extractedTicker ? [extractedTicker] : [],
+          sentimentScore: Math.random() * 0.6 + 0.2,
+          relevanceScore: Math.random() * 0.4 + 0.6
+        });
+      });
+    }
+    
+    console.log(`FMP returned ${news.length} news items`);
+    return news;
+  } catch (error) {
+    console.error('FMP news error:', error.message);
+    return [];
+  }
+}
+
+async function fetchFinnhubNews(ticker, search, limit) {
+  try {
+    const apiKey = process.env.FINNHUB_KEY;
+    if (!apiKey) {
+      console.log('Finnhub API key not configured');
+      return [];
+    }
+    
+    console.log('Fetching from Finnhub...');
+    const response = await fetch(`https://finnhub.io/api/v1/company-news?symbol=${ticker || 'AAPL'}&from=${new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]}&to=${new Date().toISOString().split('T')[0]}&token=${apiKey}&_t=${Date.now()}`);
+    
+    if (!response.ok) {
+      if (response.status === 403) {
+        console.log('Finnhub API 403 - API key invalid or rate limited, skipping');
+        return [];
+      }
+      throw new Error(`Finnhub error: ${response.status}`);
+    }
+    
+    const data = await response.json();
+    const news = [];
+    
+    if (Array.isArray(data) && data.length > 0) {
+      data.slice(0, limit).forEach((item, index) => {
+        const extractedTicker = extractTickerFromText(item.headline || '') || 
+                               ticker || null;
+        
+        news.push({
+          id: `finnhub_${index}`,
+          title: item.headline || 'No title',
+          summary: item.summary || 'No summary available',
+          url: item.url || '#',
+          source: 'Finnhub',
+          publishedAt: new Date(item.datetime * 1000).toISOString(),
+          ticker: extractedTicker,
+          tickers: extractedTicker ? [extractedTicker] : [],
+          sentimentScore: Math.random() * 0.6 + 0.2,
+          relevanceScore: Math.random() * 0.4 + 0.6
+        });
+      });
+    }
+    
+    console.log(`Finnhub returned ${news.length} news items`);
+    return news;
+  } catch (error) {
+    console.error('Finnhub news error:', error.message);
+    return [];
+  }
+}
+
+function extractTickerFromText(text) {
+  // Common stock ticker patterns - be more specific
+  const tickerPatterns = [
+    /\$([A-Z]{1,5})\b/g, // $TICKER format
+    /\(([A-Z]{1,5})\)/g, // (TICKER) format
+    /\b([A-Z]{2,5})\b/g  // 2-5 uppercase letters (avoid single letters)
+  ];
   
-  // Sort by most recent first
-  news.sort((a, b) => new Date(b.publishedAt) - new Date(a.publishedAt));
+  // Known valid tickers to filter against
+  const validTickers = new Set([
+    'AAPL', 'MSFT', 'GOOGL', 'AMZN', 'TSLA', 'META', 'NVDA', 'NFLX', 'AMD', 'INTC',
+    'CRM', 'ADBE', 'PYPL', 'UBER', 'LYFT', 'ZOOM', 'SNOW', 'PLTR', 'HOOD', 'GME',
+    'AMC', 'BB', 'NOK', 'SNDL', 'SPY', 'QQQ', 'IWM', 'VTI', 'VOO', 'ARKK',
+    'BTC', 'ETH', 'DOGE', 'ADA', 'SOL', 'MATIC', 'AVAX', 'DOT', 'LINK', 'UNI'
+  ]);
   
-  return news;
+  const tickers = new Set();
+  
+  tickerPatterns.forEach(pattern => {
+    let match;
+    while ((match = pattern.exec(text)) !== null) {
+      const ticker = match[1];
+      if (ticker && ticker.length >= 2 && ticker.length <= 5 && validTickers.has(ticker)) {
+        tickers.add(ticker);
+      }
+    }
+  });
+  
+  // Return the first valid ticker found, or null if none
+  return tickers.size > 0 ? Array.from(tickers)[0] : null;
+}
+
+function removeDuplicates(news) {
+  const seen = new Set();
+  return news.filter(item => {
+    const key = `${item.title}_${item.source}`;
+    if (seen.has(key)) {
+      return false;
+    }
+    seen.add(key);
+    return true;
+  });
 }

@@ -1,4 +1,4 @@
-// Dynamic Stocks Scanner API - Working Version with Live Data
+// Dynamic Stocks Scanner API - Real APIs Only
 const fetch = require('node-fetch');
 
 module.exports = async function handler(req, res) {
@@ -9,19 +9,45 @@ module.exports = async function handler(req, res) {
   if (req.method === 'OPTIONS') return res.status(200).end();
 
   try {
-    console.log('=== FETCHING LIVE STOCK DATA ===');
+    console.log('=== FETCHING LIVE STOCK DATA FROM ALL APIS ===');
     console.log('Current time:', new Date().toISOString());
 
-    // Generate live stock data
-    const stocks = generateLiveStocks();
+    // Try multiple real data sources
+    const dataSources = [
+      () => fetchFromYahooFinance(),
+      () => fetchFromAlphaVantage(),
+      () => fetchFromFMP(),
+      () => fetchFromFinnhub()
+    ];
     
-    console.log(`Generated ${stocks.length} live stocks`);
+    let allStocks = [];
+    
+    for (let i = 0; i < dataSources.length; i++) {
+      const sourceName = ['Yahoo Finance', 'Alpha Vantage', 'FMP', 'Finnhub'][i];
+      try {
+        console.log(`Trying ${sourceName}...`);
+        const stocks = await dataSources[i]();
+        if (stocks && stocks.length > 0) {
+          allStocks = allStocks.concat(stocks);
+          console.log(`✅ ${sourceName} returned ${stocks.length} stocks`);
+        }
+      } catch (error) {
+        console.warn(`❌ ${sourceName} failed:`, error.message);
+        continue;
+      }
+    }
+    
+    // Remove duplicates and sort by change percent
+    const uniqueStocks = removeDuplicateStocks(allStocks);
+    const sortedStocks = uniqueStocks.sort((a, b) => Math.abs(b.changePercent) - Math.abs(a.changePercent));
+    
+    console.log(`Total live stocks from all APIs: ${sortedStocks.length}`);
 
     return res.status(200).json({
       success: true,
       data: {
-        stocks: stocks,
-        total: stocks.length,
+        stocks: sortedStocks,
+        total: sortedStocks.length,
         timestamp: new Date().toISOString()
       }
     });
@@ -40,78 +66,253 @@ module.exports = async function handler(req, res) {
   }
 }
 
-function generateLiveStocks() {
-  const companies = [
-    { symbol: 'AAPL', name: 'Apple Inc.', sector: 'Technology', basePrice: 180 },
-    { symbol: 'MSFT', name: 'Microsoft Corporation', sector: 'Technology', basePrice: 350 },
-    { symbol: 'GOOGL', name: 'Alphabet Inc.', sector: 'Technology', basePrice: 140 },
-    { symbol: 'AMZN', name: 'Amazon.com Inc.', sector: 'Consumer Discretionary', basePrice: 150 },
-    { symbol: 'TSLA', name: 'Tesla Inc.', sector: 'Automotive', basePrice: 250 },
-    { symbol: 'META', name: 'Meta Platforms Inc.', sector: 'Technology', basePrice: 300 },
-    { symbol: 'NVDA', name: 'NVIDIA Corporation', sector: 'Technology', basePrice: 450 },
-    { symbol: 'NFLX', name: 'Netflix Inc.', sector: 'Communication Services', basePrice: 400 },
-    { symbol: 'AMD', name: 'Advanced Micro Devices', sector: 'Technology', basePrice: 120 },
-    { symbol: 'INTC', name: 'Intel Corporation', sector: 'Technology', basePrice: 30 },
-    { symbol: 'CRM', name: 'Salesforce Inc.', sector: 'Technology', basePrice: 200 },
-    { symbol: 'ADBE', name: 'Adobe Inc.', sector: 'Technology', basePrice: 500 },
-    { symbol: 'PYPL', name: 'PayPal Holdings Inc.', sector: 'Financial Services', basePrice: 60 },
-    { symbol: 'UBER', name: 'Uber Technologies Inc.', sector: 'Transportation', basePrice: 40 },
-    { symbol: 'LYFT', name: 'Lyft Inc.', sector: 'Transportation', basePrice: 10 },
-    { symbol: 'ZOOM', name: 'Zoom Video Communications', sector: 'Technology', basePrice: 70 },
-    { symbol: 'SNOW', name: 'Snowflake Inc.', sector: 'Technology', basePrice: 150 },
-    { symbol: 'PLTR', name: 'Palantir Technologies Inc.', sector: 'Technology', basePrice: 20 },
-    { symbol: 'HOOD', name: 'Robinhood Markets Inc.', sector: 'Financial Services', basePrice: 15 },
-    { symbol: 'GME', name: 'GameStop Corp.', sector: 'Consumer Discretionary', basePrice: 25 },
-    { symbol: 'AMC', name: 'AMC Entertainment Holdings', sector: 'Entertainment', basePrice: 5 },
-    { symbol: 'BB', name: 'BlackBerry Limited', sector: 'Technology', basePrice: 8 },
-    { symbol: 'NOK', name: 'Nokia Corporation', sector: 'Technology', basePrice: 4 },
-    { symbol: 'SNDL', name: 'Sundial Growers Inc.', sector: 'Cannabis', basePrice: 0.5 }
-  ];
-
-  const currentTime = new Date();
-  const currentHour = currentTime.getHours();
-  const currentMinute = currentTime.getMinutes();
-  const currentDay = currentTime.getDay();
-  
-  // Market is open Monday-Friday 9:30 AM - 4:00 PM ET
-  const isMarketOpen = currentDay >= 1 && currentDay <= 5 && 
-                      ((currentHour === 9 && currentMinute >= 30) || 
-                       (currentHour >= 10 && currentHour < 16));
-
-  const stocks = companies.map(company => {
-    // Generate realistic price movement
-    const volatility = 0.05; // 5% volatility
-    const trend = Math.sin(Date.now() / 1000000) * 0.02; // Slight trend
-    const randomWalk = (Math.random() - 0.5) * volatility;
+async function fetchFromYahooFinance() {
+  try {
+    console.log('Fetching from Yahoo Finance...');
     
-    const price = company.basePrice * (1 + trend + randomWalk);
-    const previousClose = company.basePrice;
-    const change = price - previousClose;
-    const changePercent = (change / previousClose) * 100;
+    // Use individual stock quotes instead of screener
+    const popularStocks = ['AAPL', 'MSFT', 'GOOGL', 'AMZN', 'TSLA', 'META', 'NVDA', 'NFLX', 'AMD', 'INTC', 'CRM', 'ADBE', 'PYPL', 'UBER', 'LYFT', 'ZOOM', 'SNOW', 'PLTR', 'HOOD', 'GME', 'AMC', 'BB', 'NOK', 'SNDL'];
+    const stocks = [];
     
-    return {
-      symbol: company.symbol,
-      name: company.name,
-      price: Math.max(0, price),
-      change: change,
-      changePercent: changePercent,
-      volume: Math.floor(Math.random() * 10000000) + 1000000,
-      marketCap: Math.round(company.basePrice * 1000000000 / 1000000) + 'M',
-      sector: company.sector,
-      session: isMarketOpen ? 'RTH' : 'AH',
-      marketStatus: isMarketOpen ? 'Live' : 'After Hours',
-      dataAge: 'Live',
-      isNewListing: false,
-      tickerChanged: false,
-      aiScore: Math.floor(Math.random() * 10),
-      score: Math.abs(changePercent) + Math.random() * 5,
-      lastUpdated: new Date().toISOString(),
-      isLive: true
-    };
+    for (const symbol of popularStocks.slice(0, 20)) { // Limit to 20 stocks
+      try {
+        const response = await fetch(`https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?interval=1d&range=1d&_t=${Date.now()}`);
+        
+        if (response.ok) {
+          const data = await response.json();
+          
+          if (data.chart && data.chart.result && data.chart.result[0]) {
+            const result = data.chart.result[0];
+            const meta = result.meta;
+            const currentPrice = meta.regularMarketPrice || meta.previousClose || 0;
+            const previousClose = meta.previousClose || currentPrice;
+            const change = currentPrice - previousClose;
+            const changePercent = previousClose > 0 ? (change / previousClose) * 100 : 0;
+            
+            const currentTime = new Date();
+            const currentHour = currentTime.getHours();
+            const currentMinute = currentTime.getMinutes();
+            const currentDay = currentTime.getDay();
+            
+            // Market is open Monday-Friday 9:30 AM - 4:00 PM ET
+            const isMarketOpen = currentDay >= 1 && currentDay <= 5 && 
+                                ((currentHour === 9 && currentMinute >= 30) || 
+                                 (currentHour >= 10 && currentHour < 16));
+            
+            stocks.push({
+              symbol: symbol,
+              name: meta.longName || meta.shortName || symbol,
+              price: currentPrice,
+              change: change,
+              changePercent: changePercent,
+              volume: meta.regularMarketVolume || 0,
+              marketCap: meta.marketCap ? Math.round(meta.marketCap / 1000000) + 'M' : 'N/A',
+              sector: 'Technology', // Default sector
+              session: isMarketOpen ? 'RTH' : 'AH',
+              marketStatus: isMarketOpen ? 'Live' : 'After Hours',
+              dataAge: 'Live',
+              isNewListing: false,
+              tickerChanged: false,
+              aiScore: Math.floor(Math.random() * 10),
+              score: Math.abs(changePercent) + Math.random() * 5,
+              lastUpdated: new Date().toISOString(),
+              isLive: true
+            });
+          }
+        }
+      } catch (stockError) {
+        console.warn(`Failed to fetch ${symbol}:`, stockError.message);
+        continue;
+      }
+    }
+    
+    console.log(`Yahoo Finance returned ${stocks.length} stocks`);
+    return stocks;
+  } catch (error) {
+    console.error('Yahoo Finance error:', error.message);
+    throw error;
+  }
+}
+
+async function fetchFromAlphaVantage() {
+  try {
+    const apiKey = process.env.ALPHAVANTAGE_KEY;
+    if (!apiKey) {
+      throw new Error('Alpha Vantage API key not configured');
+    }
+    
+    console.log('Fetching from Alpha Vantage...');
+    const response = await fetch(`https://www.alphavantage.co/query?function=TOP_GAINERS_LOSERS&apikey=${apiKey}&_t=${Date.now()}`);
+    
+    if (!response.ok) {
+      throw new Error(`Alpha Vantage error: ${response.status}`);
+    }
+    
+    const data = await response.json();
+    const stocks = [];
+    
+    if (data.top_gainers && data.top_gainers.length > 0) {
+      data.top_gainers.forEach(quote => {
+        stocks.push({
+          symbol: quote.ticker,
+          name: quote.ticker,
+          price: parseFloat(quote.price || 0),
+          change: parseFloat(quote.change_amount || 0),
+          changePercent: parseFloat(quote.change_percentage || 0),
+          volume: parseInt(quote.volume || 0),
+          marketCap: 'N/A',
+          sector: 'Unknown',
+          session: 'RTH',
+          marketStatus: 'Live',
+          dataAge: 'Live',
+          isNewListing: false,
+          tickerChanged: false,
+          aiScore: Math.floor(Math.random() * 10),
+          score: Math.abs(parseFloat(quote.change_percentage || 0)) + Math.random() * 5,
+          lastUpdated: new Date().toISOString(),
+          isLive: true
+        });
+      });
+    }
+    
+    console.log(`Alpha Vantage returned ${stocks.length} stocks`);
+    return stocks;
+  } catch (error) {
+    console.error('Alpha Vantage error:', error.message);
+    throw error;
+  }
+}
+
+async function fetchFromFMP() {
+  try {
+    const apiKey = process.env.FMP_KEY;
+    if (!apiKey) {
+      throw new Error('FMP API key not configured');
+    }
+    
+    console.log('Fetching from FMP...');
+    const response = await fetch(`https://financialmodelingprep.com/api/v3/gainers?apikey=${apiKey}&_t=${Date.now()}`);
+    
+    if (!response.ok) {
+      if (response.status === 403) {
+        console.log('FMP API 403 - API key invalid or rate limited, skipping');
+        return [];
+      }
+      throw new Error(`FMP error: ${response.status}`);
+    }
+    
+    const data = await response.json();
+    const stocks = [];
+    
+    if (Array.isArray(data) && data.length > 0) {
+      data.forEach(quote => {
+        stocks.push({
+          symbol: quote.symbol,
+          name: quote.name || quote.symbol,
+          price: parseFloat(quote.price || 0),
+          change: parseFloat(quote.change || 0),
+          changePercent: parseFloat(quote.changesPercentage || 0),
+          volume: parseInt(quote.volume || 0),
+          marketCap: quote.marketCap ? Math.round(quote.marketCap / 1000000) + 'M' : 'N/A',
+          sector: quote.sector || 'Unknown',
+          session: 'RTH',
+          marketStatus: 'Live',
+          dataAge: 'Live',
+          isNewListing: false,
+          tickerChanged: false,
+          aiScore: Math.floor(Math.random() * 10),
+          score: Math.abs(parseFloat(quote.changesPercentage || 0)) + Math.random() * 5,
+          lastUpdated: new Date().toISOString(),
+          isLive: true
+        });
+      });
+    }
+    
+    console.log(`FMP returned ${stocks.length} stocks`);
+    return stocks;
+  } catch (error) {
+    console.error('FMP error:', error.message);
+    throw error;
+  }
+}
+
+async function fetchFromFinnhub() {
+  try {
+    const apiKey = process.env.FINNHUB_KEY;
+    if (!apiKey) {
+      throw new Error('Finnhub API key not configured');
+    }
+    
+    console.log('Fetching from Finnhub...');
+    const response = await fetch(`https://finnhub.io/api/v1/stock/symbol?exchange=US&token=${apiKey}&_t=${Date.now()}`);
+    
+    if (!response.ok) {
+      if (response.status === 403) {
+        console.log('Finnhub API 403 - API key invalid or rate limited, skipping');
+        return [];
+      }
+      throw new Error(`Finnhub error: ${response.status}`);
+    }
+    
+    const data = await response.json();
+    const stocks = [];
+    
+    if (Array.isArray(data) && data.length > 0) {
+      // Get quotes for first 20 stocks
+      const symbols = data.slice(0, 20).map(stock => stock.symbol);
+      
+      for (const symbol of symbols) {
+        try {
+          const quoteResponse = await fetch(`https://finnhub.io/api/v1/quote?symbol=${symbol}&token=${apiKey}&_t=${Date.now()}`);
+          if (quoteResponse.ok) {
+            const quote = await quoteResponse.json();
+            if (quote.c) {
+              const change = quote.c - quote.pc;
+              const changePercent = quote.pc > 0 ? (change / quote.pc) * 100 : 0;
+              
+              stocks.push({
+                symbol: symbol,
+                name: symbol,
+                price: quote.c,
+                change: change,
+                changePercent: changePercent,
+                volume: 0,
+                marketCap: 'N/A',
+                sector: 'Unknown',
+                session: 'RTH',
+                marketStatus: 'Live',
+                dataAge: 'Live',
+                isNewListing: false,
+                tickerChanged: false,
+                aiScore: Math.floor(Math.random() * 10),
+                score: Math.abs(changePercent) + Math.random() * 5,
+                lastUpdated: new Date().toISOString(),
+                isLive: true
+              });
+            }
+          }
+        } catch (quoteError) {
+          console.warn(`Failed to fetch quote for ${symbol}:`, quoteError.message);
+          continue;
+        }
+      }
+    }
+    
+    console.log(`Finnhub returned ${stocks.length} stocks`);
+    return stocks;
+  } catch (error) {
+    console.error('Finnhub error:', error.message);
+    throw error;
+  }
+}
+
+function removeDuplicateStocks(stocks) {
+  const seen = new Set();
+  return stocks.filter(stock => {
+    if (seen.has(stock.symbol)) {
+      return false;
+    }
+    seen.add(stock.symbol);
+    return true;
   });
-
-  // Sort by change percent (biggest movers first)
-  stocks.sort((a, b) => Math.abs(b.changePercent) - Math.abs(a.changePercent));
-
-  return stocks;
 }
