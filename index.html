@@ -669,8 +669,8 @@
       const limit = 50;
       
       try {
-        // Call the all-stocks scanner API for comprehensive data
-        const response = await fetch(`/api/all-stocks-scanner?preset=${preset}&limit=${limit}`);
+        // Call the live stocks scanner API for real-time data including new IPOs
+        const response = await fetch(`/api/live-stocks-scanner?preset=${preset}&limit=${limit}`);
         const data = await response.json();
         
         if (data.success && data.data.stocks) {
