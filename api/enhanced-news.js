@@ -454,8 +454,9 @@ async function fetchYahooFinanceNews(ticker, search, limit) {
       queries.push('stock market', 'earnings', 'IPO', 'merger', 'acquisition', 'FDA approval', 'FDA', 'cryptocurrency', 'bitcoin', 'ethereum', 'penny stocks', 'small cap', 'biotech', 'pharma', 'tech', 'energy', 'oil', 'gas', 'renewable', 'EV', 'electric vehicle', 'AI', 'artificial intelligence', 'blockchain', 'fintech', 'banking', 'finance', 'retail', 'consumer', 'healthcare', 'aerospace', 'defense', 'real estate', 'REIT', 'utilities', 'telecom', 'media', 'entertainment', 'gaming', 'cannabis', 'marijuana', 'meme stock', 'reddit', 'wallstreetbets');
     }
     
+    const cacheBuster = Date.now();
     const newsPromises = queries.slice(0, 10).map(query => 
-      fetch(`https://query1.finance.yahoo.com/v1/finance/search?q=${encodeURIComponent(query)}&quotesCount=0&newsCount=${Math.min(limit || 20, 50)}`)
+      fetch(`https://query1.finance.yahoo.com/v1/finance/search?q=${encodeURIComponent(query)}&quotesCount=0&newsCount=${Math.min(limit || 20, 50)}&_t=${cacheBuster}`)
     );
     
     const responses = await Promise.allSettled(newsPromises);
@@ -511,20 +512,21 @@ async function fetchFMPNews(ticker, search, limit) {
     const newsPromises = [];
     
     // 1. General market news
+    const cacheBuster = Date.now();
     newsPromises.push(
-      fetch(`https://financialmodelingprep.com/api/v3/stock_news?limit=${Math.min(limit || 50, 100)}&apikey=${apiKey}`)
+      fetch(`https://financialmodelingprep.com/api/v3/stock_news?limit=${Math.min(limit || 50, 100)}&apikey=${apiKey}&_t=${cacheBuster}`)
     );
     
     // 2. If specific ticker, get ticker-specific news
     if (ticker) {
       newsPromises.push(
-        fetch(`https://financialmodelingprep.com/api/v3/stock_news?ticker=${ticker}&limit=${Math.min(limit || 50, 100)}&apikey=${apiKey}`)
+        fetch(`https://financialmodelingprep.com/api/v3/stock_news?ticker=${ticker}&limit=${Math.min(limit || 50, 100)}&apikey=${apiKey}&_t=${cacheBuster}`)
       );
     }
     
     // 3. General financial news
     newsPromises.push(
-      fetch(`https://financialmodelingprep.com/api/v3/general_news?limit=${Math.min(limit || 50, 100)}&apikey=${apiKey}`)
+      fetch(`https://financialmodelingprep.com/api/v3/general_news?limit=${Math.min(limit || 50, 100)}&apikey=${apiKey}&_t=${cacheBuster}`)
     );
     
     const responses = await Promise.allSettled(newsPromises);
@@ -580,13 +582,14 @@ async function fetchFinnhubNews(ticker, search, limit) {
     const newsPromises = [];
     
     // 1. General market news
+    const cacheBuster = Date.now();
     newsPromises.push(
-      fetch(`https://finnhub.io/api/v1/news?category=general&token=${apiKey}`)
+      fetch(`https://finnhub.io/api/v1/news?category=general&token=${apiKey}&_t=${cacheBuster}`)
     );
     
     // 2. Company news
     newsPromises.push(
-      fetch(`https://finnhub.io/api/v1/news?category=company&token=${apiKey}`)
+      fetch(`https://finnhub.io/api/v1/news?category=company&token=${apiKey}&_t=${cacheBuster}`)
     );
     
     // 3. If specific ticker, get ticker-specific news
@@ -640,28 +643,27 @@ async function fetchFinnhubNews(ticker, search, limit) {
 // Removed fetchIEXCloudNews function
 
 function getRealNewsUrl(symbol, source, index) {
-  // Generate real, working URLs for different sources
-  const baseUrls = {
-    'Financial Times': `https://www.ft.com/search?q=${symbol}`,
-    'Reuters': `https://www.reuters.com/search/news?blob=${symbol}`,
-    'Bloomberg': `https://www.bloomberg.com/search?query=${symbol}`,
-    'MarketWatch': `https://www.marketwatch.com/search?q=${symbol}`,
-    'CNBC': `https://www.cnbc.com/search/?query=${symbol}`,
-    'Yahoo Finance': `https://finance.yahoo.com/quote/${symbol}/news`,
-    'Seeking Alpha': `https://seekingalpha.com/symbol/${symbol}/news`,
-    'InvestorPlace': `https://investorplace.com/?s=${symbol}`,
-    'Motley Fool': `https://www.fool.com/investing/${symbol.toLowerCase()}-stock-analysis`,
-    'Benzinga': `https://www.benzinga.com/news/${symbol.toLowerCase()}-market-update`,
-    'Zacks': `https://www.zacks.com/stock/news/${symbol.toLowerCase()}-earnings`,
-    'The Street': `https://www.thestreet.com/investing/${symbol.toLowerCase()}-stock-news`,
-    'Forbes': `https://www.forbes.com/sites/investor/${symbol.toLowerCase()}-market-analysis`,
-    'Wall Street Journal': `https://www.wsj.com/finance/stocks/${symbol.toLowerCase()}-earnings`,
-    'Barron\'s': `https://www.barrons.com/articles/${symbol.toLowerCase()}-stock-analysis`,
-    'Investor\'s Business Daily': `https://www.investors.com/news/${symbol.toLowerCase()}-earnings-preview`
-  };
+  // Use real working news URLs that actually exist
+  const realUrls = [
+    `https://finance.yahoo.com/quote/${symbol}/news`,
+    `https://www.marketwatch.com/investing/stock/${symbol.toLowerCase()}`,
+    `https://seekingalpha.com/symbol/${symbol}`,
+    `https://www.investorplace.com/stock-quotes/${symbol.toLowerCase()}/`,
+    `https://www.fool.com/quote/${symbol.toLowerCase()}/`,
+    `https://www.benzinga.com/quote/${symbol}`,
+    `https://www.zacks.com/stock/quote/${symbol}`,
+    `https://www.thestreet.com/quote/${symbol}`,
+    `https://www.forbes.com/companies/${symbol.toLowerCase()}/`,
+    `https://www.wsj.com/market-data/quotes/${symbol}`,
+    `https://www.barrons.com/quote/${symbol}`,
+    `https://www.investors.com/stock-quotes/${symbol.toLowerCase()}/`,
+    `https://www.cnbc.com/quotes/${symbol}`,
+    `https://www.bloomberg.com/quote/${symbol}:US`,
+    `https://www.reuters.com/finance/stocks/overview/${symbol}`
+  ];
   
-  // Return a real URL or fallback to a general financial news site
-  return baseUrls[source] || `https://finance.yahoo.com/quote/${symbol}`;
+  // Return a random real URL from the list
+  return realUrls[index % realUrls.length];
 }
 
 function extractTickersFromText(text) {

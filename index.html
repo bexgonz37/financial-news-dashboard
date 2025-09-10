@@ -294,6 +294,7 @@
         </select>
         
         <button class="btn" id="rescore">🔄 Recalculate</button>
+        <button class="btn" onclick="refreshAllData()" style="background: var(--accent); color: white;">📡 Refresh Live Data</button>
         <!-- Optional metrics toggles -->
         <label class="meta" style="display:flex;align-items:center;gap:6px">
           <input type="checkbox" id="scanShowRVOL" /> Show RVOL
@@ -392,6 +393,8 @@
         
         if (view==='scanners') {
           console.log('=== SCANNER TAB CLICKED ===');
+          console.log('View:', view);
+          console.log('Panel element:', document.getElementById(`view-${view}`));
           console.log('Showing fallback data immediately...');
           // Always show fallback data immediately when scanner tab is clicked
           showFallbackScannerData();
@@ -1556,7 +1559,26 @@
     setInterval(fetchData, 30000);
     
     // Auto-refresh scanner every 5 seconds for real-time trading app feel
-    setInterval(buildScanners, 5000);
+    // Auto-refresh every 30 seconds for fresh data
+    setInterval(buildScanners, 30000);
+    
+    // Also refresh news every 2 minutes
+    setInterval(() => {
+      console.log('Auto-refreshing news...');
+      fetchData();
+    }, 120000);
+    
+    // Manual refresh function
+    function refreshAllData() {
+      console.log('=== MANUAL REFRESH TRIGGERED ===');
+      console.log('Refreshing news...');
+      fetchData();
+      console.log('Refreshing scanner...');
+      buildScanners();
+    }
+    
+    // Make refresh function global
+    window.refreshAllData = refreshAllData;
   </script>
 </body>
 </html>

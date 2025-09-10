@@ -74,13 +74,16 @@ async function fetchDynamicStocks() {
     console.log('Alpha Vantage API Key exists:', !!process.env.ALPHAVANTAGE_KEY);
     console.log('FMP API Key exists:', !!process.env.FMP_KEY);
     console.log('Finnhub API Key exists:', !!process.env.FINNHUB_KEY);
+    console.log('Current time:', new Date().toISOString());
     
     // 1. Fetch from Alpha Vantage - Top Gainers/Losers (includes penny stocks)
     console.log('Fetching Alpha Vantage gainers/losers...');
     const alphaKey = process.env.ALPHAVANTAGE_KEY;
     
     if (alphaKey) {
-      const gainersResponse = await fetch(`https://www.alphavantage.co/query?function=TOP_GAINERS_LOSERS&apikey=${alphaKey}`);
+      const cacheBuster = Date.now();
+      const gainersResponse = await fetch(`https://www.alphavantage.co/query?function=TOP_GAINERS_LOSERS&apikey=${alphaKey}&_t=${cacheBuster}`);
+      console.log('Alpha Vantage response status:', gainersResponse.status);
       if (gainersResponse.ok) {
         const gainersData = await gainersResponse.json();
         console.log('Alpha Vantage response:', gainersData);
@@ -147,7 +150,9 @@ async function fetchDynamicStocks() {
     if (fmpKey) {
       try {
         // Get most active stocks
-        const fmpResponse = await fetch(`https://financialmodelingprep.com/api/v3/stock/actives?apikey=${fmpKey}`);
+        const cacheBuster = Date.now();
+        const fmpResponse = await fetch(`https://financialmodelingprep.com/api/v3/stock/actives?apikey=${fmpKey}&_t=${cacheBuster}`);
+        console.log('FMP response status:', fmpResponse.status);
         if (fmpResponse.ok) {
           const fmpData = await fmpResponse.json();
           console.log('FMP response:', fmpData);
