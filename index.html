@@ -192,6 +192,7 @@
     .wl-tools .btn{ padding:6px 12px; font-size:.8rem }
     .checks{ display:grid; grid-template-columns:1fr 1fr; gap:6px 12px; margin:6px 0 10px }
     .checks label{ display:flex; gap:8px; align-items:center; color:var(--text); font-size:.9rem }
+    #filtersPopover.open #catChecks { display:block; }
   </style>
 </head>
 <body>
@@ -1054,18 +1055,16 @@
                 <div class="meta" style="margin-top:4px; font-size:0.8rem">
                   ${analystRating} · MACD: ${macd.toFixed(3)} · ${dataAge} · ${lastUpdated}${isNewListing ? ' · NEW' : ''}${tickerChanged ? ' · CHANGED' : ''}
                 </div>
-                <div class="mini-chart" style="width:100%;height:60px;margin-top:8px;"></div>
+                <div class="mini-chart" data-ticker="${stock.symbol}" style="width:100%;height:60px;margin-top:8px;"></div>
               </div>
             `;
           }).join('');
           
           // Draw mini-charts for all rendered cards
           setTimeout(() => {
-            stocks.forEach(stock => {
-              const container = document.querySelector(`[onclick="openChart('${stock.symbol}')"] .mini-chart`);
-              if (container) {
-                drawSparkline(container, stock.symbol);
-              }
+            document.querySelectorAll('#scanner-grid .mini-chart[data-ticker]').forEach((el) => {
+              const t = el.dataset.ticker;
+              if (t) drawSparkline(el, t);
             });
           }, 100);
           }
