@@ -20,9 +20,9 @@ export default async function handler(req, res) {
       success: true,
       data: {
         ticker: ticker.toUpperCase(),
-        interval,
+      interval,
         candles,
-        timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString()
       }
     });
 
@@ -37,62 +37,191 @@ export default async function handler(req, res) {
 }
 
 async function fetchCandles(ticker, interval, limit, last) {
-  // Use your exact Vercel variable name
+  console.log(`=== FETCHING OHLC DATA FOR ${ticker} ===`);
+  
+  // Try multiple data sources
+  const dataSources = [
+    () => fetchFromFinnhub(ticker, interval, limit, last),
+    () => fetchFromYahooFinance(ticker, interval, limit, last),
+    () => fetchFromAlphaVantage(ticker, interval, limit, last)
+  ];
+  
+  for (const fetchFunction of dataSources) {
+    try {
+      const candles = await fetchFunction();
+      if (candles && candles.length > 0) {
+        console.log(`Successfully fetched ${candles.length} candles for ${ticker}`);
+        return candles;
+      }
+    } catch (error) {
+      console.warn(`Data source failed for ${ticker}:`, error.message);
+      continue;
+    }
+  }
+  
+  console.warn(`All data sources failed for ${ticker}, returning empty array`);
+  return [];
+}
+
+async function fetchFromFinnhub(ticker, interval, limit, last) {
   const apiKey = process.env.FINNHUB_KEY;
   if (!apiKey) {
-    console.log('Finnhub API key not configured, returning empty array');
-    return [];
+    throw new Error('Finnhub API key not configured');
   }
 
-  try {
-    // Try different intervals if the requested one fails
-    const intervals = [interval, '5min', '1hour', '1day'];
-    
-    for (const currentInterval of intervals) {
-      try {
-        const response = await fetch(
-          `https://finnhub.io/api/v1/stock/candle?symbol=${ticker.toUpperCase()}&resolution=${currentInterval}&from=${getFromTimestamp(currentInterval, limit)}&to=${Math.floor(Date.now() / 1000)}&token=${apiKey}`
-        );
+  const intervals = [interval, '5min', '1hour', '1day'];
+  
+  for (const currentInterval of intervals) {
+    try {
+      const response = await fetch(
+        `https://finnhub.io/api/v1/stock/candle?symbol=${ticker.toUpperCase()}&resolution=${currentInterval}&from=${getFromTimestamp(currentInterval, limit)}&to=${Math.floor(Date.now() / 1000)}&token=${apiKey}`
+      );
 
-        if (!response.ok) {
-          if (response.status === 403) {
-            console.log('Finnhub API 403 - API key invalid or rate limited, skipping');
-            continue;
-          }
-          throw new Error(`Finnhub API error: ${response.status}`);
-        }
-
-        const data = await response.json();
-        
-        if (data.s === 'ok' && data.c && data.c.length > 0) {
-          const candles = formatCandles(data, currentInterval);
-          
-          // Apply limit and last filters
-          let filteredCandles = candles;
-          if (last) {
-            filteredCandles = candles.slice(-parseInt(last));
-          } else if (limit) {
-            filteredCandles = candles.slice(-parseInt(limit));
-          }
-          
-          return filteredCandles;
-        } else {
-          console.warn(`No data for ${ticker} with interval ${currentInterval}`);
+      if (!response.ok) {
+        if (response.status === 403) {
+          console.log('Finnhub API 403 - API key invalid or rate limited, skipping');
           continue;
         }
-      } catch (intervalError) {
-        console.warn(`Failed to fetch ${ticker} with interval ${currentInterval}:`, intervalError);
-        continue;
+        throw new Error(`Finnhub API error: ${response.status}`);
+      }
+
+      const data = await response.json();
+      
+      if (data.s === 'ok' && data.c && data.c.length > 0) {
+        const candles = formatCandles(data, currentInterval);
+        
+        // Apply limit and last filters
+        let filteredCandles = candles;
+        if (last) {
+          filteredCandles = candles.slice(-parseInt(last));
+        } else if (limit) {
+          filteredCandles = candles.slice(-parseInt(limit));
+        }
+        
+        return filteredCandles;
+      }
+    } catch (intervalError) {
+      console.warn(`Finnhub failed for ${ticker} with interval ${currentInterval}:`, intervalError.message);
+      continue;
+    }
+  }
+  
+  throw new Error('All Finnhub intervals failed');
+}
+
+async function fetchFromYahooFinance(ticker, interval, limit, last) {
+  console.log(`Trying Yahoo Finance for ${ticker}`);
+  
+  try {
+    // Convert interval to Yahoo Finance format
+    const yahooInterval = interval === '1min' ? '1m' : 
+                         interval === '5min' ? '5m' : 
+                         interval === '1hour' ? '1h' : 
+                         interval === '1day' ? '1d' : '5m';
+    
+    const response = await fetch(
+      `https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?interval=${yahooInterval}&range=1d&_t=${Date.now()}`
+    );
+    
+    if (!response.ok) {
+      throw new Error(`Yahoo Finance API error: ${response.status}`);
+    }
+    
+    const data = await response.json();
+    
+    if (data.chart && data.chart.result && data.chart.result[0]) {
+      const result = data.chart.result[0];
+      const timestamps = result.timestamp;
+      const quotes = result.indicators.quote[0];
+      
+      if (timestamps && timestamps.length > 0) {
+        const candles = timestamps.map((timestamp, index) => ({
+          time: timestamp * 1000, // Convert to milliseconds
+          open: quotes.open[index] || 0,
+          high: quotes.high[index] || 0,
+          low: quotes.low[index] || 0,
+          close: quotes.close[index] || 0,
+          volume: quotes.volume[index] || 0
+        })).filter(candle => candle.open > 0); // Filter out invalid candles
+        
+        // Apply limit and last filters
+        let filteredCandles = candles;
+        if (last) {
+          filteredCandles = candles.slice(-parseInt(last));
+        } else if (limit) {
+          filteredCandles = candles.slice(-parseInt(limit));
+        }
+        
+        console.log(`Yahoo Finance returned ${filteredCandles.length} candles for ${ticker}`);
+        return filteredCandles;
       }
     }
     
-    // If all intervals fail, return empty array
-    console.warn(`All intervals failed for ${ticker}, returning empty array`);
-    return [];
-    
+    throw new Error('No data from Yahoo Finance');
   } catch (error) {
-    console.error(`Error fetching candles for ${ticker}:`, error);
-    return [];
+    throw new Error(`Yahoo Finance failed: ${error.message}`);
+  }
+}
+
+async function fetchFromAlphaVantage(ticker, interval, limit, last) {
+  const apiKey = process.env.ALPHAVANTAGE_KEY;
+  if (!apiKey) {
+    throw new Error('Alpha Vantage API key not configured');
+  }
+
+  console.log(`Trying Alpha Vantage for ${ticker}`);
+  
+  try {
+    // Convert interval to Alpha Vantage format
+    const avInterval = interval === '1min' ? '1min' : 
+                      interval === '5min' ? '5min' : 
+                      interval === '1hour' ? '60min' : 
+                      interval === '1day' ? 'daily' : '5min';
+    
+    const response = await fetch(
+      `https://www.alphavantage.co/query?function=TIME_SERIES_INTRADAY&symbol=${ticker}&interval=${avInterval}&apikey=${apiKey}&outputsize=compact&_t=${Date.now()}`
+    );
+    
+  if (!response.ok) {
+    throw new Error(`Alpha Vantage API error: ${response.status}`);
+  }
+
+  const data = await response.json();
+  
+    // Find the time series key
+    const timeSeriesKey = Object.keys(data).find(key => key.includes('Time Series'));
+    
+    if (timeSeriesKey && data[timeSeriesKey]) {
+      const timeSeries = data[timeSeriesKey];
+      const timestamps = Object.keys(timeSeries).sort();
+      
+      const candles = timestamps.map(timestamp => {
+        const quote = timeSeries[timestamp];
+        return {
+          time: new Date(timestamp).getTime(),
+          open: parseFloat(quote['1. open']),
+          high: parseFloat(quote['2. high']),
+          low: parseFloat(quote['3. low']),
+          close: parseFloat(quote['4. close']),
+          volume: parseInt(quote['5. volume'])
+        };
+      }).filter(candle => candle.open > 0);
+      
+      // Apply limit and last filters
+      let filteredCandles = candles;
+      if (last) {
+        filteredCandles = candles.slice(-parseInt(last));
+      } else if (limit) {
+        filteredCandles = candles.slice(-parseInt(limit));
+      }
+      
+      console.log(`Alpha Vantage returned ${filteredCandles.length} candles for ${ticker}`);
+      return filteredCandles;
+    }
+    
+    throw new Error('No data from Alpha Vantage');
+  } catch (error) {
+    throw new Error(`Alpha Vantage failed: ${error.message}`);
   }
 }
 
