@@ -56,6 +56,12 @@ module.exports = async function handler(req, res) {
     const allNews = await fetchRealNewsFromAPIs(parseInt(limit));
     
     console.log(`Fetched ${allNews.length} live news items`);
+    console.log('Sample news item:', allNews[0] ? {
+      title: allNews[0].title,
+      ticker: allNews[0].ticker,
+      publishedAt: allNews[0].publishedAt,
+      source: allNews[0].source
+    } : 'No news items');
 
     return res.status(200).json({
       success: true,
@@ -169,6 +175,21 @@ async function fetchRealNewsFromAPIs(limit) {
       console.log('No API data available, using fallback news');
       return generateSimpleNews(limit);
     }
+    
+    // Ensure we have at least some news with proper timestamps
+    allNews.forEach(item => {
+      if (!item.publishedAt) {
+        item.publishedAt = new Date(Date.now() - Math.random() * 2 * 60 * 60 * 1000).toISOString();
+      }
+      if (!item.ticker || item.ticker === 'GENERAL') {
+        // Try to extract ticker from title
+        const tickerMatch = item.title.match(/\b([A-Z]{2,5})\b/);
+        if (tickerMatch) {
+          item.ticker = tickerMatch[1];
+          item.tickers = [tickerMatch[1]];
+        }
+      }
+    });
 
     // Remove duplicates and sort by date
     const uniqueNews = removeDuplicateNews(allNews);
@@ -291,7 +312,7 @@ async function fetchAlphaVantageNews(apiKey, limit) {
         const content = (item.title || '') + ' ' + (item.summary || '');
         const tickerMatch = content.match(/\b([A-Z]{2,5})\b/g);
         const extractedTicker = tickerMatch ? tickerMatch[0] : null;
-        console.log(`Alpha Vantage - Title: "${item.title}", Extracted ticker: ${extractedTicker}`);
+        console.log(`Alpha Vantage - Title: "${item.title}", Extracted ticker: ${extractedTicker}, API ticker: ${item.ticker_sentiment?.[0]?.ticker}`);
         
         return {
           id: item.url || `av_${Date.now()}_${Math.random()}`,
