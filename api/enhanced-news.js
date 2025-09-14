@@ -293,8 +293,8 @@ async function fetchAlphaVantageNews(apiKey, limit) {
         url: item.url || `https://www.google.com/search?q=${encodeURIComponent(item.title || 'financial news')}`,
         source: item.source || 'Alpha Vantage',
         publishedAt: item.time_published || new Date().toISOString(),
-        ticker: item.ticker_sentiment?.[0]?.ticker || 'GENERAL',
-        tickers: item.ticker_sentiment?.map(t => t.ticker) || [],
+        ticker: extractTickerFromContent(item.title + ' ' + item.summary) || item.ticker_sentiment?.[0]?.ticker || 'GENERAL',
+        tickers: item.ticker_sentiment?.map(t => t.ticker) || [extractTickerFromContent(item.title + ' ' + item.summary)].filter(Boolean),
         sentimentScore: parseFloat(item.overall_sentiment_score) || 0,
         relevanceScore: parseFloat(item.relevance_score) || 0,
         category: 'financial',
@@ -333,8 +333,8 @@ async function fetchFMPNews(apiKey, limit) {
         url: item.url || `https://www.google.com/search?q=${encodeURIComponent(item.title || 'financial news')}`,
         source: item.site || 'FMP',
         publishedAt: item.publishedDate || new Date().toISOString(),
-        ticker: item.symbol || 'GENERAL',
-        tickers: item.symbol ? [item.symbol] : [],
+        ticker: item.symbol || extractTickerFromContent(item.title + ' ' + item.text) || 'GENERAL',
+        tickers: item.symbol ? [item.symbol] : [extractTickerFromContent(item.title + ' ' + item.text)].filter(Boolean),
         sentimentScore: 0.5,
         relevanceScore: 0.8,
         category: 'financial',
@@ -373,8 +373,8 @@ async function fetchFinnhubNews(apiKey, limit) {
         url: item.url || `https://www.google.com/search?q=${encodeURIComponent(item.headline || 'financial news')}`,
         source: item.source || 'Finnhub',
         publishedAt: new Date(item.datetime * 1000).toISOString(),
-        ticker: 'GENERAL',
-        tickers: [],
+        ticker: extractTickerFromContent(item.headline + ' ' + item.summary) || 'GENERAL',
+        tickers: [extractTickerFromContent(item.headline + ' ' + item.summary)].filter(Boolean),
         sentimentScore: 0.5,
         relevanceScore: 0.8,
         category: 'general',
@@ -440,4 +440,127 @@ function removeDuplicateNews(newsArray) {
     seen.add(key);
     return true;
   });
+}
+
+function extractTickerFromContent(content) {
+  if (!content) return null;
+  
+  // Common stock tickers and their company names
+  const tickerMap = {
+    // Major Tech
+    'AAPL': ['Apple', 'Apple Inc', 'iPhone', 'iPad', 'MacBook', 'iOS', 'App Store'],
+    'MSFT': ['Microsoft', 'Microsoft Corp', 'Windows', 'Office', 'Azure', 'Xbox', 'Surface'],
+    'GOOGL': ['Google', 'Alphabet', 'YouTube', 'Android', 'Chrome', 'Gmail', 'Google Search'],
+    'AMZN': ['Amazon', 'Amazon.com', 'AWS', 'Prime', 'Alexa', 'Echo', 'Kindle'],
+    'META': ['Meta', 'Facebook', 'Instagram', 'WhatsApp', 'Oculus', 'VR', 'Metaverse'],
+    'NVDA': ['NVIDIA', 'Nvidia', 'GPU', 'AI', 'CUDA', 'RTX', 'Gaming'],
+    'TSLA': ['Tesla', 'Elon Musk', 'Model S', 'Model 3', 'Model X', 'Model Y', 'Cybertruck'],
+    'NFLX': ['Netflix', 'Streaming', 'Netflix Inc'],
+    'AMD': ['AMD', 'Advanced Micro Devices', 'Ryzen', 'Radeon', 'EPYC'],
+    'INTC': ['Intel', 'Intel Corp', 'Core i7', 'Core i5', 'Xeon', 'Pentium'],
+    
+    // Financial
+    'JPM': ['JPMorgan', 'JPMorgan Chase', 'JP Morgan', 'Chase Bank'],
+    'BAC': ['Bank of America', 'BofA', 'Merrill Lynch'],
+    'WFC': ['Wells Fargo', 'Wells Fargo Bank'],
+    'GS': ['Goldman Sachs', 'Goldman'],
+    'MS': ['Morgan Stanley', 'Morgan'],
+    
+    // Healthcare
+    'JNJ': ['Johnson & Johnson', 'J&J', 'Johnson Johnson'],
+    'PFE': ['Pfizer', 'Pfizer Inc'],
+    'UNH': ['UnitedHealth', 'United Health', 'UnitedHealthcare'],
+    'ABBV': ['AbbVie', 'Abbvie'],
+    
+    // Consumer
+    'KO': ['Coca-Cola', 'Coca Cola', 'Coke'],
+    'PEP': ['PepsiCo', 'Pepsi', 'Pepsi Co'],
+    'WMT': ['Walmart', 'Walmart Inc'],
+    'PG': ['Procter & Gamble', 'P&G', 'Procter Gamble'],
+    'DIS': ['Disney', 'Walt Disney', 'Disney+', 'ESPN', 'Marvel'],
+    
+    // Energy
+    'XOM': ['ExxonMobil', 'Exxon Mobil', 'Exxon'],
+    'CVX': ['Chevron', 'Chevron Corp'],
+    'COP': ['ConocoPhillips', 'Conoco Phillips'],
+    
+    // Other Major
+    'V': ['Visa', 'Visa Inc'],
+    'MA': ['Mastercard', 'MasterCard', 'Master Card'],
+    'HD': ['Home Depot', 'HomeDepot'],
+    'MCD': ['McDonald\'s', 'McDonalds', 'McDonald'],
+    'NKE': ['Nike', 'Nike Inc'],
+    'SBUX': ['Starbucks', 'Starbucks Corp'],
+    'ADBE': ['Adobe', 'Adobe Inc', 'Photoshop', 'Creative Cloud'],
+    'CRM': ['Salesforce', 'Salesforce.com', 'Sales Force'],
+    'ORCL': ['Oracle', 'Oracle Corp'],
+    'IBM': ['IBM', 'International Business Machines'],
+    'CSCO': ['Cisco', 'Cisco Systems'],
+    'QCOM': ['Qualcomm', 'Qualcomm Inc'],
+    'TXN': ['Texas Instruments', 'TI'],
+    'AVGO': ['Broadcom', 'Broadcom Inc'],
+    'AMAT': ['Applied Materials', 'Applied'],
+    'LRCX': ['Lam Research', 'Lam'],
+    'KLAC': ['KLA', 'KLA Corp'],
+    'MU': ['Micron', 'Micron Technology'],
+    'SNPS': ['Synopsys', 'Synopsys Inc'],
+    'CDNS': ['Cadence', 'Cadence Design'],
+    'MRVL': ['Marvell', 'Marvell Technology'],
+    'MCHP': ['Microchip', 'Microchip Technology'],
+    'SWKS': ['Skyworks', 'Skyworks Solutions'],
+    'QRVO': ['Qorvo', 'Qorvo Inc'],
+    'SLAB': ['Silicon Labs', 'Silicon Laboratories'],
+    'CRUS': ['Cirrus Logic', 'Cirrus'],
+    'SYNA': ['Synaptics', 'Synaptics Inc'],
+    'ALGM': ['Allegro', 'Allegro Microsystems'],
+    'DIOD': ['Diodes', 'Diodes Inc'],
+    'ON': ['ON Semiconductor', 'ON Semi'],
+    'NXPI': ['NXP', 'NXP Semiconductors'],
+    'STM': ['STMicroelectronics', 'ST Micro'],
+    'IFNNY': ['Infineon', 'Infineon Technologies'],
+    'ASML': ['ASML', 'ASML Holding'],
+    'AMAT': ['Applied Materials', 'Applied'],
+    'LRCX': ['Lam Research', 'Lam'],
+    'KLAC': ['KLA', 'KLA Corp'],
+    'MU': ['Micron', 'Micron Technology'],
+    'SNPS': ['Synopsys', 'Synopsys Inc'],
+    'CDNS': ['Cadence', 'Cadence Design'],
+    'MRVL': ['Marvell', 'Marvell Technology'],
+    'MCHP': ['Microchip', 'Microchip Technology'],
+    'SWKS': ['Skyworks', 'Skyworks Solutions'],
+    'QRVO': ['Qorvo', 'Qorvo Inc'],
+    'SLAB': ['Silicon Labs', 'Silicon Laboratories'],
+    'CRUS': ['Cirrus Logic', 'Cirrus'],
+    'SYNA': ['Synaptics', 'Synaptics Inc'],
+    'ALGM': ['Allegro', 'Allegro Microsystems'],
+    'DIOD': ['Diodes', 'Diodes Inc'],
+    'ON': ['ON Semiconductor', 'ON Semi'],
+    'NXPI': ['NXP', 'NXP Semiconductors'],
+    'STM': ['STMicroelectronics', 'ST Micro'],
+    'IFNNY': ['Infineon', 'Infineon Technologies'],
+    'ASML': ['ASML', 'ASML Holding']
+  };
+  
+  const upperContent = content.toUpperCase();
+  
+  // First, try to find exact ticker symbols (3-5 uppercase letters)
+  const tickerMatch = upperContent.match(/\b([A-Z]{3,5})\b/g);
+  if (tickerMatch) {
+    for (const ticker of tickerMatch) {
+      if (tickerMap[ticker]) {
+        return ticker;
+      }
+    }
+  }
+  
+  // Then, try to find company names and map to tickers
+  for (const [ticker, companyNames] of Object.entries(tickerMap)) {
+    for (const companyName of companyNames) {
+      if (upperContent.includes(companyName.toUpperCase())) {
+        return ticker;
+      }
+    }
+  }
+  
+  return null;
 }

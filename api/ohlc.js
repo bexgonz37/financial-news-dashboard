@@ -78,8 +78,17 @@ function generateRealisticLiveCandles(ticker, interval, limit) {
   let trend = (Math.random() - 0.5) * 0.1; // Random initial trend
   let volatility = tickerData.volatility * (0.8 + Math.random() * 0.4); // Vary volatility
   
+  // Ensure we start from the most recent trading day
+  const marketOpenToday = new Date();
+  marketOpenToday.setHours(9, 30, 0, 0); // 9:30 AM ET
+  const marketCloseToday = new Date();
+  marketCloseToday.setHours(16, 0, 0, 0); // 4:00 PM ET
+  
+  // If market is closed, use the last trading day
+  const lastTradingDay = isMarketOpen(now) ? now : marketCloseToday.getTime();
+  
   for (let i = 0; i < limit; i++) {
-    const time = now - (limit - 1 - i) * intervalMs;
+    const time = lastTradingDay - (limit - 1 - i) * intervalMs;
     
     // Generate realistic OHLC data
     const open = currentPrice;
