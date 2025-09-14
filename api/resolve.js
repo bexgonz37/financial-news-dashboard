@@ -1,6 +1,18 @@
 // /api/resolve
 const fetch = require('node-fetch');
 
+function isHttp(u) {
+  return !!u && /^https?:\/\//i.test(u);
+}
+
+function looksSearchOrTopic(u) {
+  const p = u.pathname.toLowerCase();
+  const hasQ = ['q','query','s'].some(k => u.searchParams.has(k));
+  const isSearch = p.includes('/search') || hasQ;
+  const isTopic = /(\/(quote|symbol|ticker|topic|tag)\/)/i.test(p);
+  return isSearch || isTopic;
+}
+
 module.exports = async (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
@@ -13,9 +25,22 @@ module.exports = async (req, res) => {
   
   try {
     const r = await fetch(u, { method: 'HEAD', redirect: 'follow' });
-    return res.status(200).json({ ok:true, final: r.url || u });
-  } catch {
-    return res.status(200).json({ ok:false, final: u });
-  }
+    const final = r.url || u;
+    const U = new URL(final);
+    if (!looksSearchOrTopic(U)) {
+      return res.status(200).json({ ok:true, final: final });
+    }
+  } catch {}
+  
+  try {
+    const g = await fetch(u, { method: 'GET', redirect: 'follow' });
+    const final = g.url || u;
+    const U = new URL(final);
+    if (!looksSearchOrTopic(U)) {
+      return res.status(200).json({ ok:true, final: final });
+    }
+  } catch {}
+  
+  return res.status(200).json({ ok:false, final: u });
 };
 

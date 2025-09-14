@@ -146,7 +146,7 @@ function generateSimpleNews(limit) {
   ];
   
   const workingUrls = {
-    'Yahoo Finance': (symbol) => `https://finance.yahoo.com/quote/${symbol}/news`,
+    'Yahoo Finance': (symbol) => `https://finance.yahoo.com/quote/${symbol}`,
     'Bloomberg': (symbol) => `https://www.bloomberg.com/quote/${symbol}:US`,
     'MarketWatch': (symbol) => `https://www.marketwatch.com/investing/stock/${symbol.toLowerCase()}`,
     'CNBC': (symbol) => `https://www.cnbc.com/quotes/${symbol}`,
