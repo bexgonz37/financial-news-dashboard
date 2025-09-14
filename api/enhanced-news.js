@@ -120,9 +120,9 @@ async function fetchRealNewsFromAPIs(limit) {
   
   const allNews = [];
   const apiKeys = {
-    alphaVantage: process.env.ALPHA_VANTAGE_API_KEY,
-    fmp: process.env.FMP_API_KEY,
-    finnhub: process.env.FINNHUB_API_KEY,
+    alphaVantage: process.env.ALPHAVANTAGE_KEY,
+    fmp: process.env.FMP_KEY,
+    finnhub: process.env.FINNHUB_KEY,
     newsapi: process.env.NEWS_API_KEY
   };
   
@@ -171,6 +171,12 @@ async function fetchRealNewsFromAPIs(limit) {
       }
     });
 
+    // If no APIs returned data, use fallback
+    if (allNews.length === 0) {
+      console.log('No API data available, using fallback news');
+      return generateSimpleNews(limit);
+    }
+
     // Remove duplicates and sort by date
     const uniqueNews = removeDuplicateNews(allNews);
     const sortedNews = uniqueNews
@@ -182,7 +188,8 @@ async function fetchRealNewsFromAPIs(limit) {
 
   } catch (error) {
     console.error('Error fetching news from APIs:', error);
-    return [];
+    console.log('Using fallback news due to error');
+    return generateSimpleNews(limit);
   }
 }
 
@@ -290,7 +297,7 @@ async function fetchAlphaVantageNews(apiKey, limit) {
         id: item.url || `av_${Date.now()}_${Math.random()}`,
         title: item.title || '',
         summary: item.summary || '',
-        url: item.url || '',
+        url: item.url || `https://www.google.com/search?q=${encodeURIComponent(item.title || 'financial news')}`,
         source: item.source || 'Alpha Vantage',
         publishedAt: item.time_published || new Date().toISOString(),
         ticker: item.ticker_sentiment?.[0]?.ticker || 'GENERAL',
@@ -330,7 +337,7 @@ async function fetchFMPNews(apiKey, limit) {
         id: item.url || `fmp_${Date.now()}_${Math.random()}`,
         title: item.title || '',
         summary: item.text || '',
-        url: item.url || '',
+        url: item.url || `https://www.google.com/search?q=${encodeURIComponent(item.title || 'financial news')}`,
         source: item.site || 'FMP',
         publishedAt: item.publishedDate || new Date().toISOString(),
         ticker: item.symbol || 'GENERAL',
@@ -370,7 +377,7 @@ async function fetchFinnhubNews(apiKey, limit) {
         id: item.id || `finnhub_${Date.now()}_${Math.random()}`,
         title: item.headline || '',
         summary: item.summary || '',
-        url: item.url || '',
+        url: item.url || `https://www.google.com/search?q=${encodeURIComponent(item.headline || 'financial news')}`,
         source: item.source || 'Finnhub',
         publishedAt: new Date(item.datetime * 1000).toISOString(),
         ticker: 'GENERAL',
@@ -410,7 +417,7 @@ async function fetchNewsAPINews(apiKey, limit) {
         id: item.url || `newsapi_${Date.now()}_${Math.random()}`,
         title: item.title || '',
         summary: item.description || '',
-        url: item.url || '',
+        url: item.url || `https://www.google.com/search?q=${encodeURIComponent(item.title || 'financial news')}`,
         source: item.source?.name || 'NewsAPI',
         publishedAt: item.publishedAt || new Date().toISOString(),
         ticker: 'GENERAL',
