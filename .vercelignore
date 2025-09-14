@@ -1,0 +1,6 @@
+_ignore
+tests
+**/*(copy)*
+**/*(2)*
+debug-*.js
+test-*.js

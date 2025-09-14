@@ -348,6 +348,8 @@
   <!-- Lightweight Charts -->
   <script src="https://unpkg.com/lightweight-charts@4.2.0/dist/lightweight-charts.standalone.production.js"></script>
   <script>
+    console.log("DEPLOY_MARKER v14 ::", location.origin);
+    
     // ---------- CONSTANTS ----------
     const RETAIN_DAYS = 7;
 
@@ -546,6 +548,12 @@
         }
 
         const prices = candles.map(c => c.c);
+        
+        if (!prices.length) {
+          container.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--meta);font-size:0.7rem;">No data</div>';
+          return;
+        }
+        
         const minPrice = Math.min(...prices);
         const maxPrice = Math.max(...prices);
         const range = maxPrice - minPrice;
@@ -913,9 +921,11 @@
               <button class="star ${starred}" data-star="${t}">${starred?'★':'☆'}</button>
             </div>
             <div class="title">${n.title||''}</div>
-            <div class="summary">${n.summary||''} ${n.url && /^https?:\/\//i.test(n.url)
-  ? `<a href="${n.url}" data-url="${n.url}" target="_blank" rel="noopener noreferrer" class="read-btn">Read</a>`
-  : '<span style="color:red;font-size:0.8rem;">No URL</span>'}</div>
+            <div class="summary">${n.summary||''} ${
+              n.url && /^https?:\/\//i.test(n.url)
+                ? `<a href="${n.url}" data-url="${n.url}" target="_blank" rel="noopener noreferrer" class="read-btn">Read</a>`
+                : '<span style="color:red;font-size:0.8rem;">No URL</span>'
+            }</div>
             ${tickers.length > 0 ? `
               <div style="margin: 8px 0; display: flex; flex-wrap: wrap; gap: 4px;">
                 ${tickers.map(ticker => `
@@ -1041,7 +1051,7 @@
             const tickerChanged = stock.tickerChanged || false;
             
             return `
-              <div class="card" style="cursor:pointer" onclick="openChart('${stock.symbol}')">
+              <div class="card" style="cursor:pointer" onclick="openChart('${stock.symbol}')" data-symbol="${stock.symbol}">
                 <div class="kpi">
                   <div>
                     <strong>${stock.symbol}</strong>
@@ -1298,7 +1308,7 @@
         }
         
         return `
-          <div class="card" style="cursor:pointer" onclick="openChart('${stock.symbol}')">
+          <div class="card" style="cursor:pointer" onclick="openChart('${stock.symbol}')" data-symbol="${stock.symbol}">
             <div class="card-header">
               <div class="ticker">${stock.symbol} ${isNewListing ? '<span class="badge new">NEW</span>' : ''} ${tickerChanged ? '<span class="badge changed">CHANGED</span>' : ''}</div>
               <div class="pct ${pct >= 0 ? 'up' : 'down'}">
@@ -1641,20 +1651,26 @@
       // --- FIX: Read button uses href OR data-url
       if (e.target.matches('.read-btn')) {
         e.preventDefault();
-        const href = e.target.getAttribute('data-url') || e.target.getAttribute('href') || '';
-        if (!href || !/^https?:\/\//i.test(href)) {
-          alert('Invalid article URL');
+        const raw = e.target.getAttribute('href') || e.target.getAttribute('data-url');
+        if (!raw) { alert('Invalid article URL'); return; }
+        let u = raw.trim();
+
+        // If the UI normalized it away, try our URL normalizer
+        if (!/^https?:\/\//i.test(u)) {
+          alert('Invalid article URL'); 
           return;
         }
+
+        // Resolve redirects (Bloomberg/Google/Reddit often wrap)
         try {
-          const finalUrl = await resolveArticleUrl(href);
+          const finalUrl = await resolveArticleUrl(u);
           if (finalUrl && /^https?:\/\//i.test(finalUrl)) {
             window.open(finalUrl, '_blank', 'noopener,noreferrer');
           } else {
-            alert('Invalid article URL');
+            window.open(u, '_blank', 'noopener,noreferrer');
           }
         } catch {
-          window.open(href, '_blank', 'noopener,noreferrer');
+          window.open(u, '_blank', 'noopener,noreferrer');
         }
       }
     });
