@@ -61,7 +61,7 @@ module.exports = async function handler(req, res) {
       success: true,
       data: {
         news: allNews,
-        sources: ['yahoo', 'bloomberg', 'marketwatch', 'cnbc', 'reuters', 'ft'],
+        sources: ['alpha-vantage', 'fmp', 'finnhub', 'yahoo-finance'],
         total: allNews.length,
         timestamp: new Date().toISOString()
       }
@@ -122,15 +122,13 @@ async function fetchRealNewsFromAPIs(limit) {
   const apiKeys = {
     alphaVantage: process.env.ALPHAVANTAGE_KEY,
     fmp: process.env.FMP_KEY,
-    finnhub: process.env.FINNHUB_KEY,
-    newsapi: process.env.NEWS_API_KEY
+    finnhub: process.env.FINNHUB_KEY
   };
   
   console.log('API Keys available:', {
     alphaVantage: !!apiKeys.alphaVantage,
     fmp: !!apiKeys.fmp,
-    finnhub: !!apiKeys.finnhub,
-    newsapi: !!apiKeys.newsapi
+    finnhub: !!apiKeys.finnhub
   });
 
   // Fetch from multiple APIs in parallel
@@ -151,12 +149,7 @@ async function fetchRealNewsFromAPIs(limit) {
     promises.push(fetchFinnhubNews(apiKeys.finnhub, limit));
   }
 
-  // 4. NewsAPI
-  if (apiKeys.newsapi) {
-    promises.push(fetchNewsAPINews(apiKeys.newsapi, limit));
-  }
-
-  // 5. Yahoo Finance (no API key needed)
+  // 4. Yahoo Finance (no API key needed)
   promises.push(fetchYahooFinanceNews(limit));
 
   try {
@@ -399,45 +392,6 @@ async function fetchFinnhubNews(apiKey, limit) {
   }
 }
 
-async function fetchNewsAPINews(apiKey, limit) {
-  try {
-    console.log('Fetching NewsAPI news...');
-    const response = await fetch(`https://newsapi.org/v2/everything?q=finance OR stocks OR trading&apiKey=${apiKey}&pageSize=${limit}&sortBy=publishedAt`, {
-      cache: 'no-store'
-    });
-    
-    if (!response.ok) {
-      throw new Error(`NewsAPI error: ${response.status}`);
-    }
-    
-    const data = await response.json();
-    
-    if (data.articles && Array.isArray(data.articles)) {
-      return data.articles.map(item => ({
-        id: item.url || `newsapi_${Date.now()}_${Math.random()}`,
-        title: item.title || '',
-        summary: item.description || '',
-        url: item.url || `https://www.google.com/search?q=${encodeURIComponent(item.title || 'financial news')}`,
-        source: item.source?.name || 'NewsAPI',
-        publishedAt: item.publishedAt || new Date().toISOString(),
-        ticker: 'GENERAL',
-        tickers: [],
-        sentimentScore: 0.5,
-        relevanceScore: 0.8,
-        category: 'financial',
-        aiScore: Math.floor(Math.random() * 10),
-        tradingSignal: 'HOLD',
-        session: 'RTH',
-        isStale: false
-      }));
-    }
-    
-    return [];
-  } catch (error) {
-    console.error('NewsAPI error:', error);
-    return [];
-  }
-}
 
 async function fetchYahooFinanceNews(limit) {
   try {
