@@ -106,7 +106,7 @@ function generateRealisticLiveCandles(ticker, interval, limit) {
     const isMarketHours = isMarketOpen(time);
     const baseVolume = isMarketHours ? tickerData.avgVolume : tickerData.avgVolume * 0.3;
     const volumeVariation = 0.5 + Math.random(); // 0.5x to 1.5x base volume
-    const volume = Math.floor(baseVolume * volumeVariation);
+    let volume = Math.floor(baseVolume * volumeVariation);
     
     // Add some volume spikes randomly
     if (Math.random() < 0.1) { // 10% chance of volume spike
