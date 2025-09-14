@@ -320,7 +320,16 @@ async function fetchAlphaVantageNews(apiKey, limit) {
           summary: item.summary || '',
           url: item.url || `https://www.google.com/search?q=${encodeURIComponent(item.title || 'financial news')}`,
           source: item.source || 'Alpha Vantage',
-          publishedAt: item.time_published || new Date(Date.now() - Math.random() * 2 * 60 * 60 * 1000).toISOString(),
+          publishedAt: (() => {
+            // Try to parse the API date, fallback to recent random date
+            if (item.time_published) {
+              const parsed = new Date(item.time_published);
+              if (!isNaN(parsed.getTime())) {
+                return parsed.toISOString();
+              }
+            }
+            return new Date(Date.now() - Math.random() * 2 * 60 * 60 * 1000).toISOString();
+          })(),
           ticker: item.ticker_sentiment?.[0]?.ticker || extractedTicker || 'GENERAL',
           tickers: item.ticker_sentiment?.map(t => t.ticker) || (extractedTicker ? [extractedTicker] : []),
           sentimentScore: parseFloat(item.overall_sentiment_score) || 0,
@@ -367,7 +376,15 @@ async function fetchFMPNews(apiKey, limit) {
           summary: item.text || '',
           url: item.url || `https://www.google.com/search?q=${encodeURIComponent(item.title || 'financial news')}`,
           source: item.site || 'FMP',
-          publishedAt: item.publishedDate || new Date(Date.now() - Math.random() * 2 * 60 * 60 * 1000).toISOString(),
+          publishedAt: (() => {
+            if (item.publishedDate) {
+              const parsed = new Date(item.publishedDate);
+              if (!isNaN(parsed.getTime())) {
+                return parsed.toISOString();
+              }
+            }
+            return new Date(Date.now() - Math.random() * 2 * 60 * 60 * 1000).toISOString();
+          })(),
           ticker: item.symbol || extractedTicker || 'GENERAL',
           tickers: item.symbol ? [item.symbol] : (extractedTicker ? [extractedTicker] : []),
           sentimentScore: 0.5,
@@ -414,7 +431,15 @@ async function fetchFinnhubNews(apiKey, limit) {
           summary: item.summary || '',
           url: item.url || `https://www.google.com/search?q=${encodeURIComponent(item.headline || 'financial news')}`,
           source: item.source || 'Finnhub',
-          publishedAt: new Date(item.datetime * 1000).toISOString(),
+          publishedAt: (() => {
+            if (item.datetime) {
+              const parsed = new Date(item.datetime * 1000);
+              if (!isNaN(parsed.getTime())) {
+                return parsed.toISOString();
+              }
+            }
+            return new Date(Date.now() - Math.random() * 2 * 60 * 60 * 1000).toISOString();
+          })(),
           ticker: extractedTicker || 'GENERAL',
           tickers: extractedTicker ? [extractedTicker] : [],
           sentimentScore: 0.5,

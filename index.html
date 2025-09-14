@@ -1605,8 +1605,19 @@
     // ---------- UTILITIES ----------
     function timeAgo(dateStr){
       if(!dateStr) return '';
+      
+      // Debug logging
+      console.log('timeAgo input:', dateStr, 'type:', typeof dateStr);
+      
       const now = new Date();
       const then = new Date(dateStr);
+      
+      // Check if date is valid
+      if(isNaN(then.getTime())) {
+        console.warn('Invalid date string:', dateStr);
+        return 'recently';
+      }
+      
       const diff = now - then;
       const mins = Math.floor(diff / 60000);
       if(mins < 1) return 'just now';
