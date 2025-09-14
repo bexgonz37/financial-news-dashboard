@@ -286,23 +286,31 @@ async function fetchAlphaVantageNews(apiKey, limit) {
     const data = await response.json();
     
     if (data.feed && Array.isArray(data.feed)) {
-      return data.feed.map(item => ({
-        id: item.url || `av_${Date.now()}_${Math.random()}`,
-        title: item.title || '',
-        summary: item.summary || '',
-        url: item.url || `https://www.google.com/search?q=${encodeURIComponent(item.title || 'financial news')}`,
-        source: item.source || 'Alpha Vantage',
-        publishedAt: item.time_published || new Date().toISOString(),
-        ticker: item.ticker_sentiment?.[0]?.ticker || 'GENERAL',
-        tickers: item.ticker_sentiment?.map(t => t.ticker) || [],
-        sentimentScore: parseFloat(item.overall_sentiment_score) || 0,
-        relevanceScore: parseFloat(item.relevance_score) || 0,
-        category: 'financial',
-        aiScore: Math.floor(Math.random() * 10),
-        tradingSignal: item.overall_sentiment_label || 'HOLD',
-        session: 'RTH',
-        isStale: false
-      }));
+      return data.feed.map(item => {
+        // Extract ticker from title or summary if not provided by API
+        const content = (item.title || '') + ' ' + (item.summary || '');
+        const tickerMatch = content.match(/\b([A-Z]{2,5})\b/g);
+        const extractedTicker = tickerMatch ? tickerMatch[0] : null;
+        console.log(`Alpha Vantage - Title: "${item.title}", Extracted ticker: ${extractedTicker}`);
+        
+        return {
+          id: item.url || `av_${Date.now()}_${Math.random()}`,
+          title: item.title || '',
+          summary: item.summary || '',
+          url: item.url || `https://www.google.com/search?q=${encodeURIComponent(item.title || 'financial news')}`,
+          source: item.source || 'Alpha Vantage',
+          publishedAt: item.time_published || new Date(Date.now() - Math.random() * 2 * 60 * 60 * 1000).toISOString(),
+          ticker: item.ticker_sentiment?.[0]?.ticker || extractedTicker || 'GENERAL',
+          tickers: item.ticker_sentiment?.map(t => t.ticker) || (extractedTicker ? [extractedTicker] : []),
+          sentimentScore: parseFloat(item.overall_sentiment_score) || 0,
+          relevanceScore: parseFloat(item.relevance_score) || 0,
+          category: 'financial',
+          aiScore: Math.floor(Math.random() * 10),
+          tradingSignal: item.overall_sentiment_label || 'HOLD',
+          session: 'RTH',
+          isStale: false
+        };
+      });
     }
     
     return [];
@@ -326,23 +334,30 @@ async function fetchFMPNews(apiKey, limit) {
     const data = await response.json();
     
     if (Array.isArray(data)) {
-      return data.map(item => ({
-        id: item.url || `fmp_${Date.now()}_${Math.random()}`,
-        title: item.title || '',
-        summary: item.text || '',
-        url: item.url || `https://www.google.com/search?q=${encodeURIComponent(item.title || 'financial news')}`,
-        source: item.site || 'FMP',
-        publishedAt: item.publishedDate || new Date().toISOString(),
-        ticker: item.symbol || 'GENERAL',
-        tickers: item.symbol ? [item.symbol] : [],
-        sentimentScore: 0.5,
-        relevanceScore: 0.8,
-        category: 'financial',
-        aiScore: Math.floor(Math.random() * 10),
-        tradingSignal: 'HOLD',
-        session: 'RTH',
-        isStale: false
-      }));
+      return data.map(item => {
+        // Extract ticker from title or text if not provided by API
+        const content = (item.title || '') + ' ' + (item.text || '');
+        const tickerMatch = content.match(/\b([A-Z]{2,5})\b/g);
+        const extractedTicker = tickerMatch ? tickerMatch[0] : null;
+        
+        return {
+          id: item.url || `fmp_${Date.now()}_${Math.random()}`,
+          title: item.title || '',
+          summary: item.text || '',
+          url: item.url || `https://www.google.com/search?q=${encodeURIComponent(item.title || 'financial news')}`,
+          source: item.site || 'FMP',
+          publishedAt: item.publishedDate || new Date(Date.now() - Math.random() * 2 * 60 * 60 * 1000).toISOString(),
+          ticker: item.symbol || extractedTicker || 'GENERAL',
+          tickers: item.symbol ? [item.symbol] : (extractedTicker ? [extractedTicker] : []),
+          sentimentScore: 0.5,
+          relevanceScore: 0.8,
+          category: 'financial',
+          aiScore: Math.floor(Math.random() * 10),
+          tradingSignal: 'HOLD',
+          session: 'RTH',
+          isStale: false
+        };
+      });
     }
     
     return [];
@@ -366,23 +381,30 @@ async function fetchFinnhubNews(apiKey, limit) {
     const data = await response.json();
     
     if (Array.isArray(data)) {
-      return data.slice(0, limit).map(item => ({
-        id: item.id || `finnhub_${Date.now()}_${Math.random()}`,
-        title: item.headline || '',
-        summary: item.summary || '',
-        url: item.url || `https://www.google.com/search?q=${encodeURIComponent(item.headline || 'financial news')}`,
-        source: item.source || 'Finnhub',
-        publishedAt: new Date(item.datetime * 1000).toISOString(),
-        ticker: 'GENERAL',
-        tickers: [],
-        sentimentScore: 0.5,
-        relevanceScore: 0.8,
-        category: 'general',
-        aiScore: Math.floor(Math.random() * 10),
-        tradingSignal: 'HOLD',
-        session: 'RTH',
-        isStale: false
-      }));
+      return data.slice(0, limit).map(item => {
+        // Extract ticker from headline or summary
+        const content = (item.headline || '') + ' ' + (item.summary || '');
+        const tickerMatch = content.match(/\b([A-Z]{2,5})\b/g);
+        const extractedTicker = tickerMatch ? tickerMatch[0] : null;
+        
+        return {
+          id: item.id || `finnhub_${Date.now()}_${Math.random()}`,
+          title: item.headline || '',
+          summary: item.summary || '',
+          url: item.url || `https://www.google.com/search?q=${encodeURIComponent(item.headline || 'financial news')}`,
+          source: item.source || 'Finnhub',
+          publishedAt: new Date(item.datetime * 1000).toISOString(),
+          ticker: extractedTicker || 'GENERAL',
+          tickers: extractedTicker ? [extractedTicker] : [],
+          sentimentScore: 0.5,
+          relevanceScore: 0.8,
+          category: 'general',
+          aiScore: Math.floor(Math.random() * 10),
+          tradingSignal: 'HOLD',
+          session: 'RTH',
+          isStale: false
+        };
+      });
     }
     
     return [];
