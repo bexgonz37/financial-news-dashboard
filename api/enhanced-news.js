@@ -5,6 +5,7 @@ export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
 import { newsBus } from '../lib/news-bus.js';
+import { extractTickers } from '../lib/ticker-extractor.js';
 
 // URL validation and normalization
 function isHttp(url) {
@@ -742,13 +743,8 @@ export default async function handler(req, res) {
     // Add ticker extraction and sentiment analysis
     const processedNews = [];
     for (const item of result.news) {
-      // Extract ticker if not present
-      let ticker = item.ticker;
-      if (!ticker) {
-        const content = `${item.title || ''} ${item.summary || ''}`;
-        const companyMappings = await fetchLiveCompanyMappings();
-        ticker = await extractCompanyTicker(content, companyMappings);
-      }
+      // Extract tickers using robust extraction
+      const tickerData = await extractTickers(item);
       
       // Generate sentiment
       const sentiment = generateSentiment(item.title || '', item.summary || '');
@@ -758,7 +754,8 @@ export default async function handler(req, res) {
       
       processedNews.push({
         ...item,
-        ticker,
+        tickers: tickerData.tickers,
+        inferredTickersConfidence: tickerData.inferredTickersConfidence,
         sentiment,
         badges
       });

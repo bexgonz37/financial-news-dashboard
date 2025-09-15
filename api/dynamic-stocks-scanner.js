@@ -561,13 +561,16 @@ export default async function handler(req, res) {
       providerErrors.push(`Quote Bus: ${error.message}`);
     }
 
+    // Always return success, even with partial data
     if (!quotes || quotes.length === 0) {
-      return res.status(500).json({ 
-        success: false, 
-        error: 'No live data available', 
-        message: `Quote Bus failed: ${providerErrors.join(', ')}`,
-        providerErrors: providerErrors,
-        data: { stocks: [] } 
+      console.warn('No quotes available, returning empty results with errors');
+      return res.status(200).json({ 
+        success: true, 
+        data: { 
+          refreshInterval: 30000,
+          stocks: [] 
+        },
+        errors: providerErrors.length > 0 ? providerErrors : ['No live data available']
       });
     }
 
@@ -581,19 +584,23 @@ export default async function handler(req, res) {
     return res.status(200).json({ 
       success: true, 
       data: { 
+        refreshInterval: 30000,
         stocks: scored, 
-        refreshInterval: 10000,
+        count: scored.length,
         preset: preset,
-        totalScanned: quotes.length
-      } 
+        lastUpdate: new Date().toISOString()
+      },
+      errors: providerErrors.length > 0 ? providerErrors : []
     });
   } catch (err) {
     console.error('Scanner error:', err);
     return res.status(200).json({ 
-      success: false, 
-      error: 'Internal server error', 
-      message: String(err?.message || err), 
-      data: { stocks: [] } 
+      success: true, 
+      data: { 
+        refreshInterval: 30000,
+        stocks: [] 
+      },
+      errors: [`Internal server error: ${String(err?.message || err)}`]
     });
   }
 }

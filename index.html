@@ -1044,7 +1044,8 @@
         
         if (!data?.success) {
           console.error('Scanner API returned success=false:', data);
-          showApiError('scanner', 'success=false');
+          const grid = document.getElementById('scanner-grid');
+          grid.innerHTML = `<div class="card">No candidates yet (rate-limited or illiquid). Trying again in 30s.</div>`;
           return;
         }
         
@@ -1061,7 +1062,10 @@
           console.log('Found stocks:', stocks.length);
           
           if (!stocks.length) {
-            grid.innerHTML = `<div class="card">No stocks yet — waiting for live scanner data…</div>`;
+            const errorMsg = data.errors && data.errors.length > 0 
+              ? `No candidates yet (${data.errors[0]}). Trying again in 30s.`
+              : 'No candidates yet (rate-limited or illiquid). Trying again in 30s.';
+            grid.innerHTML = `<div class="card">${errorMsg}</div>`;
           } else {
             grid.innerHTML = stocks.map(stock => {
             const pct = stock.changePercent || 0;
