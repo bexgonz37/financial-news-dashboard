@@ -466,10 +466,9 @@
           .find(v => v && /^https?:\/\//i.test(v));
         if (nested) u = nested;
 
-        // drop obvious search/ticker pages (we don't want these)
+        // Only drop obvious search pages, not ticker landing pages (these might be valid articles)
         const isSearch = /\/search/i.test(U.pathname) || ['q','query','s'].some(k => U.searchParams.has(k));
-        const isTickerLanding = /(\/quote\/|\/symbol\/|\/ticker\/)/i.test(U.pathname);
-        if (isSearch || isTickerLanding) u = nested || '';
+        if (isSearch) u = nested || '';
       } catch {}
 
       return { ...n, url: u };

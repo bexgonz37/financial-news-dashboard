@@ -338,6 +338,10 @@ async function fetchFMPNews(companyMappings, limit = 100, sourceFilter = null) {
         console.warn(`FMP news rate limited (429), skipping FMP news`);
         return [];
       }
+      if (response.status >= 500) {
+        console.warn(`FMP news server error (${response.status}), skipping FMP news`);
+        return [];
+      }
       throw new Error(`FMP API error: ${response.status}`);
     }
 
@@ -378,6 +382,14 @@ async function fetchFinnhubNews(companyMappings, limit = 100, sourceFilter = nul
     });
 
     if (!response.ok) {
+      if (response.status === 429) {
+        console.warn(`Finnhub news rate limited (429), skipping Finnhub news`);
+        return [];
+      }
+      if (response.status >= 500) {
+        console.warn(`Finnhub news server error (${response.status}), skipping Finnhub news`);
+        return [];
+      }
       throw new Error(`Finnhub API error: ${response.status}`);
     }
 

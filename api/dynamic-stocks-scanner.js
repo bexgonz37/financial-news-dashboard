@@ -44,25 +44,11 @@ async function loadUniverse() {
       }
     }
 
-    // Fallback to hardcoded list of major tickers
-    const fallbackSymbols = [
-      'AAPL', 'MSFT', 'GOOGL', 'AMZN', 'TSLA', 'META', 'NVDA', 'NFLX', 'AMD', 'INTC',
-      'JPM', 'JNJ', 'V', 'PG', 'UNH', 'HD', 'MA', 'DIS', 'PYPL', 'ADBE',
-      'CRM', 'NKE', 'ABT', 'TMO', 'ACN', 'COST', 'DHR', 'VZ', 'NEE', 'WMT',
-      'BAC', 'XOM', 'T', 'PFE', 'KO', 'PEP', 'ABBV', 'CVX', 'MRK', 'LLY',
-      'AVGO', 'TXN', 'QCOM', 'CHTR', 'CMCSA', 'COF', 'GILD', 'AMGN', 'HON', 'UNP'
-    ];
-    
-    universeCache = fallbackSymbols;
-    universeCacheTime = now;
-    console.log(`Using fallback universe: ${fallbackSymbols.length} symbols`);
-    return fallbackSymbols;
+    // No fallback - must have live data
+    throw new Error('Failed to load universe from FMP API');
   } catch (error) {
     console.error('Failed to load universe:', error);
-    const fallbackSymbols = ['AAPL', 'MSFT', 'GOOGL', 'AMZN', 'TSLA', 'META', 'NVDA'];
-    universeCache = fallbackSymbols;
-    universeCacheTime = now;
-    return fallbackSymbols;
+    throw new Error(`Universe loading failed: ${error.message}`);
   }
 }
 
@@ -441,104 +427,6 @@ function generateBadges(quote, preset) {
   return badges;
 }
 
-// Fallback function with expanded universe
-async function fetchFallbackQuotes(symbols) {
-  const quotes = [];
-  
-  // Expanded universe with diverse market caps and sectors
-  const expandedUniverse = [
-    // Mega caps
-    { symbol: 'AAPL', price: 185.50, change: 2.30, changePercent: 1.25, volume: 45000000, sector: 'Technology' },
-    { symbol: 'MSFT', price: 378.85, change: -1.20, changePercent: -0.32, volume: 32000000, sector: 'Technology' },
-    { symbol: 'GOOGL', price: 142.30, change: 3.45, changePercent: 2.48, volume: 28000000, sector: 'Technology' },
-    { symbol: 'AMZN', price: 155.20, change: -0.80, changePercent: -0.51, volume: 25000000, sector: 'Consumer Discretionary' },
-    { symbol: 'TSLA', price: 245.60, change: 8.90, changePercent: 3.76, volume: 65000000, sector: 'Consumer Discretionary' },
-    { symbol: 'META', price: 485.20, change: 12.30, changePercent: 2.60, volume: 18000000, sector: 'Technology' },
-    { symbol: 'NVDA', price: 875.40, change: -15.20, changePercent: -1.71, volume: 42000000, sector: 'Technology' },
-    
-    // Large caps
-    { symbol: 'JPM', price: 175.30, change: 1.20, changePercent: 0.69, volume: 12000000, sector: 'Financials' },
-    { symbol: 'JNJ', price: 158.90, change: -0.80, changePercent: -0.50, volume: 8000000, sector: 'Healthcare' },
-    { symbol: 'V', price: 285.40, change: 2.10, changePercent: 0.74, volume: 6000000, sector: 'Financials' },
-    { symbol: 'PG', price: 152.60, change: 0.90, changePercent: 0.59, volume: 7000000, sector: 'Consumer Staples' },
-    { symbol: 'UNH', price: 520.80, change: -3.20, changePercent: -0.61, volume: 3000000, sector: 'Healthcare' },
-    { symbol: 'HD', price: 345.20, change: 4.50, changePercent: 1.32, volume: 5000000, sector: 'Consumer Discretionary' },
-    { symbol: 'MA', price: 425.60, change: 1.80, changePercent: 0.42, volume: 2000000, sector: 'Financials' },
-    { symbol: 'DIS', price: 95.40, change: -1.20, changePercent: -1.24, volume: 15000000, sector: 'Consumer Discretionary' },
-    
-    // Mid caps
-    { symbol: 'AMD', price: 128.90, change: 2.10, changePercent: 1.66, volume: 35000000, sector: 'Technology' },
-    { symbol: 'INTC', price: 45.20, change: -0.80, changePercent: -1.74, volume: 28000000, sector: 'Technology' },
-    { symbol: 'NFLX', price: 485.30, change: 5.60, changePercent: 1.17, volume: 15000000, sector: 'Consumer Discretionary' },
-    { symbol: 'CRM', price: 245.80, change: 3.20, changePercent: 1.32, volume: 8000000, sector: 'Technology' },
-    { symbol: 'NKE', price: 95.60, change: -1.40, changePercent: -1.44, volume: 12000000, sector: 'Consumer Discretionary' },
-    { symbol: 'ABT', price: 112.30, change: 0.80, changePercent: 0.72, volume: 6000000, sector: 'Healthcare' },
-    { symbol: 'TMO', price: 485.20, change: 2.10, changePercent: 0.43, volume: 2000000, sector: 'Healthcare' },
-    { symbol: 'ACN', price: 345.60, change: -2.30, changePercent: -0.66, volume: 1500000, sector: 'Technology' },
-    
-    // Small caps
-    { symbol: 'PLTR', price: 18.50, change: 0.85, changePercent: 4.82, volume: 45000000, sector: 'Technology' },
-    { symbol: 'SOFI', price: 8.90, change: -0.20, changePercent: -2.20, volume: 25000000, sector: 'Financials' },
-    { symbol: 'HOOD', price: 12.40, change: 0.60, changePercent: 5.08, volume: 18000000, sector: 'Financials' },
-    { symbol: 'RBLX', price: 35.20, change: 1.80, changePercent: 5.39, volume: 12000000, sector: 'Technology' },
-    { symbol: 'COIN', price: 145.60, change: -3.20, changePercent: -2.15, volume: 8000000, sector: 'Financials' },
-    { symbol: 'SNOW', price: 185.30, change: 4.50, changePercent: 2.49, volume: 5000000, sector: 'Technology' },
-    { symbol: 'ZM', price: 75.40, change: -1.20, changePercent: -1.57, volume: 6000000, sector: 'Technology' },
-    { symbol: 'DOCU', price: 45.80, change: 0.90, changePercent: 2.00, volume: 4000000, sector: 'Technology' },
-    
-    // Micro caps
-    { symbol: 'BB', price: 3.20, change: 0.15, changePercent: 4.92, volume: 15000000, sector: 'Technology' },
-    { symbol: 'NOK', price: 3.85, change: -0.05, changePercent: -1.28, volume: 8000000, sector: 'Technology' },
-    { symbol: 'SNDL', price: 2.10, change: 0.08, changePercent: 3.96, volume: 25000000, sector: 'Healthcare' },
-    { symbol: 'CLOV', price: 1.45, change: 0.05, changePercent: 3.57, volume: 12000000, sector: 'Healthcare' },
-    { symbol: 'WISH', price: 0.85, change: -0.02, changePercent: -2.30, volume: 5000000, sector: 'Consumer Discretionary' }
-  ];
-  
-  // Use expanded universe or generate realistic data for any symbol
-  for (const symbol of symbols.slice(0, 50)) { // Increased limit to 50
-    const mock = expandedUniverse.find(m => m.symbol === symbol) || {
-      symbol: symbol,
-      price: 5 + Math.random() * 500, // Wider price range
-      change: (Math.random() - 0.5) * 20, // Wider change range
-      changePercent: (Math.random() - 0.5) * 10, // Wider percentage range
-      volume: 100000 + Math.random() * 100000000, // Wider volume range
-      sector: ['Technology', 'Financials', 'Healthcare', 'Consumer Discretionary', 'Consumer Staples', 'Energy', 'Materials', 'Industrials', 'Utilities', 'Real Estate'][Math.floor(Math.random() * 10)]
-    };
-    
-    // Generate more realistic market cap distribution
-    const marketCap = mock.price * (1000000 + Math.random() * 1000000000); // 1M to 1B range
-    const isLargeCap = marketCap > 10000000000; // 10B+
-    const isMidCap = marketCap > 2000000000 && marketCap <= 10000000000; // 2B-10B
-    const isSmallCap = marketCap > 300000000 && marketCap <= 2000000000; // 300M-2B
-    const isMicroCap = marketCap <= 300000000; // <300M
-    
-    quotes.push({
-      symbol: mock.symbol,
-      name: mock.symbol,
-      price: mock.price,
-      change: mock.change,
-      changePercent: mock.changePercent,
-      volume: mock.volume,
-      averageDailyVolume3Month: mock.volume * (0.5 + Math.random() * 0.5), // 50-100% of current volume
-      relativeVolume: 0.5 + Math.random() * 3, // 0.5x to 3.5x
-      marketState: 'REGULAR',
-      marketCap: marketCap,
-      pe: 5 + Math.random() * 50, // 5-55 PE range
-      high52Week: mock.price * (1.1 + Math.random() * 0.3), // 110-140% of current price
-      low52Week: mock.price * (0.6 + Math.random() * 0.3), // 60-90% of current price
-      lastUpdate: new Date().toISOString(),
-      provider: 'fallback',
-      sector: mock.sector,
-      isLargeCap: isLargeCap,
-      isMidCap: isMidCap,
-      isSmallCap: isSmallCap,
-      isMicroCap: isMicroCap
-    });
-  }
-  
-  console.log(`Fallback returned ${quotes.length} quotes with diverse market caps`);
-  return quotes;
-}
 
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -559,8 +447,19 @@ export default async function handler(req, res) {
     console.log('FMP_KEY:', FMP_KEY ? 'YES' : 'NO');
 
     // Build universe (all tradable tickers) – cache for 1 day
-    const universe = await loadUniverse();
-    console.log(`Universe loaded: ${universe.length} symbols`);
+    let universe;
+    try {
+      universe = await loadUniverse();
+      console.log(`Universe loaded: ${universe.length} symbols`);
+    } catch (error) {
+      console.error('Failed to load universe:', error);
+      return res.status(500).json({
+        success: false,
+        error: 'Universe loading failed',
+        message: error.message,
+        data: { stocks: [] }
+      });
+    }
 
     // Pick a provider fallback chain for quotes
     const providers = [];
@@ -581,9 +480,10 @@ export default async function handler(req, res) {
     console.log(`Total providers available: ${providers.length}`);
 
     if (providers.length === 0) {
-      return res.status(200).json({ 
+      return res.status(500).json({ 
         success: false, 
         error: 'No API keys available', 
+        message: 'No provider API keys configured',
         data: { stocks: [] } 
       });
     }
@@ -605,17 +505,12 @@ export default async function handler(req, res) {
       }
     }
 
-    // If all providers failed, try fallback with individual quotes
     if (!quotes || quotes.length === 0) {
-      console.log('All providers failed, trying fallback with individual quotes...');
-      quotes = await fetchFallbackQuotes(universe.slice(0, 50)); // Limit to 50 for fallback
-    }
-
-    if (!quotes || quotes.length === 0) {
-      return res.status(200).json({ 
+      return res.status(500).json({ 
         success: false, 
-        error: 'No provider data', 
+        error: 'No live data available', 
         message: `All providers failed: ${errors.join(', ')}`,
+        providerErrors: errors,
         data: { stocks: [] } 
       });
     }
