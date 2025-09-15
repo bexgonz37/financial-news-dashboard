@@ -378,6 +378,12 @@ export default async function handler(req, res) {
   try {
     const { preset = 'momentum', limit = 50 } = req.query;
     console.log(`Scanner request: preset=${preset}, limit=${limit}`);
+    
+    // Debug API keys
+    console.log('API Keys available:');
+    console.log('IEX_CLOUD_KEY:', IEX_CLOUD_KEY ? 'YES' : 'NO');
+    console.log('FINNHUB_KEY:', FINNHUB_KEY ? 'YES' : 'NO');
+    console.log('FMP_KEY:', FMP_KEY ? 'YES' : 'NO');
 
     // Build universe (all tradable tickers) – cache for 1 day
     const universe = await loadUniverse();
@@ -386,9 +392,20 @@ export default async function handler(req, res) {
     // Pick a provider fallback chain for quotes
     const providers = [];
     
-    if (IEX_CLOUD_KEY) providers.push(() => quotesFromIEX(universe));
-    if (FINNHUB_KEY) providers.push(() => quotesFromFinnhub(universe));
-    if (FMP_KEY) providers.push(() => quotesFromFMP(universe));
+    if (IEX_CLOUD_KEY) {
+      console.log('Adding IEX provider');
+      providers.push(() => quotesFromIEX(universe));
+    }
+    if (FINNHUB_KEY) {
+      console.log('Adding Finnhub provider');
+      providers.push(() => quotesFromFinnhub(universe));
+    }
+    if (FMP_KEY) {
+      console.log('Adding FMP provider');
+      providers.push(() => quotesFromFMP(universe));
+    }
+    
+    console.log(`Total providers available: ${providers.length}`);
 
     if (providers.length === 0) {
       return res.status(200).json({ 
