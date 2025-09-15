@@ -103,6 +103,7 @@ module.exports = async function handler(req, res) {
     const stocks = await fetchLiveScannerData(parseInt(limit));
     
     console.log(`Generated ${stocks.length} stocks`);
+    console.log('Sample stocks:', stocks.slice(0, 3));
 
     return res.status(200).json({
       success: true,

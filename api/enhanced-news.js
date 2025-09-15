@@ -259,9 +259,11 @@ module.exports = async function handler(req, res) {
     } : 'No news items');
     
     // Debug: Show all news items with their timestamps
+    console.log('=== ALL NEWS ITEMS DEBUG ===');
     allNews.forEach((item, index) => {
       console.log(`News ${index + 1}: "${item.title}" - ${item.publishedAt} (${item.source})`);
     });
+    console.log('=== END NEWS DEBUG ===');
 
     return res.status(200).json({
       success: true,
@@ -507,6 +509,7 @@ async function fetchAlphaVantageNews(apiKey, limit, companyMappings) {
     }
     
     const data = await response.json();
+    console.log('Alpha Vantage API response:', JSON.stringify(data, null, 2));
     
     if (data.feed && Array.isArray(data.feed)) {
       return data.feed.map(item => {
@@ -577,6 +580,7 @@ async function fetchFMPNews(apiKey, limit, companyMappings) {
     }
     
     const data = await response.json();
+    console.log('FMP API response:', JSON.stringify(data, null, 2));
     
     if (Array.isArray(data)) {
       return data.map(item => {
