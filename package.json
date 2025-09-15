@@ -5,8 +5,9 @@
   "main": "index.html",
   "scripts": {
     "start": "vercel dev",
-    "build": "echo 'No build step required'",
-    "deploy": "vercel --prod"
+    "build": "node scripts/check-fallbacks.js && echo 'No build step required'",
+    "deploy": "vercel --prod",
+    "check-fallbacks": "node scripts/check-fallbacks.js"
   },
   "keywords": [
     "financial",

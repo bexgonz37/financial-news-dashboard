@@ -595,6 +595,31 @@ function generateNewsBadges(item, ticker) {
   return badges;
 }
 
+// Calculate news impact metrics (placeholder for now)
+function calculateNewsImpact(tickers, publishedAt) {
+  if (!tickers || tickers.length === 0) {
+    return {
+      impact: 'N/A',
+      change5m: 'N/A',
+      change30m: 'N/A',
+      change1h: 'N/A',
+      rvol: 'N/A',
+      breakout: false
+    };
+  }
+  
+  // TODO: Implement actual price impact calculation
+  // This would require historical price data and news timestamp matching
+  return {
+    impact: 'Moderate',
+    change5m: '+2.1%',
+    change30m: '+3.4%',
+    change1h: '+1.8%',
+    rvol: '1.2x',
+    breakout: false
+  };
+}
+
 // Main news fetching function
 async function fetchRealNewsFromAPIs(limit = 200, sourceFilter = null, dateRange = 'all', searchQuery = null) {
   console.log('Fetching live news from APIs...', { limit, sourceFilter, dateRange, searchQuery });
@@ -756,12 +781,16 @@ export default async function handler(req, res) {
       // Generate badges
       const badges = generateNewsBadges(item.title || '', item.summary || '');
       
+      // Calculate news impact
+      const newsImpact = calculateNewsImpact(finalTickers, item.publishedAt);
+      
       processedNews.push({
         ...item,
         tickers: finalTickers,
         inferredTickersConfidence: tickerData.inferredTickersConfidence,
         sentiment,
-        badges
+        badges,
+        newsImpact
       });
     }
 
