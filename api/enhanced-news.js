@@ -768,9 +768,8 @@ export default async function handler(req, res) {
     // Add ticker extraction and sentiment analysis
     const processedNews = [];
     for (const item of result.news) {
-      // Extract tickers using robust extraction - combine title and summary
-      const combinedText = `${item.title || ''} ${item.summary || ''}`;
-      const tickerData = extractTickers(combinedText);
+      // Extract tickers using robust extraction
+      const tickerData = await extractTickers(item);
       
       // Use existing tickers if available, otherwise use extracted ones
       const finalTickers = item.tickers && item.tickers.length > 0 ? item.tickers : tickerData.tickers;

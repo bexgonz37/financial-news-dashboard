@@ -847,7 +847,7 @@
         const feed = document.getElementById('news-feed');
         feed.innerHTML = '<div class="loading">Fetching live financial news…</div>';
         
-        const url = `/api/enhanced-news-v2?${params.toString()}`;
+        const url = `/api/enhanced-news?${params.toString()}`;
         const r = await fetch(url, { cache: 'no-store' });
         if (!r.ok) {
           const txt = await r.text();
@@ -1062,9 +1062,9 @@
       
       try {
         console.log('Building scanners with preset:', preset);
-        console.log('Fetching from:', `/api/enhanced-scanner-v2?preset=${preset}&limit=${limit}`);
+        console.log('Fetching from:', `/api/dynamic-stocks-scanner?preset=${preset}&limit=${limit}`);
         
-        const scannerUrl = `/api/enhanced-scanner-v2?preset=${preset}&limit=${limit}&_t=${Date.now()}&_v=2.0`;
+        const scannerUrl = `/api/dynamic-stocks-scanner?preset=${preset}&limit=${limit}&_t=${Date.now()}&_v=2.0`;
         const response = await fetch(scannerUrl, { cache: 'no-store' });
         if (!response.ok) {
           const txt = await response.text();
