@@ -947,14 +947,14 @@
       // show/hide optional metrics
       document.querySelectorAll('[data-optional="pct"]').forEach(n=> n.style.display = optShowPct ? '' : 'none');
       document.querySelectorAll('[data-optional="rvol"]').forEach(n=> n.style.display = optShowRVOL ? '' : 'none');
-      
+
       // Read buttons now use direct onclick handlers
 
       // hydrate cards (always draw mini-charts) - with delay to ensure proper rendering
       setTimeout(() => {
-        document.querySelectorAll('#news-feed .news-item').forEach(async (card)=>{
-          const t = (card.querySelector('.mini-chart')?.dataset?.ticker||'').toUpperCase();
-          if(!t || t==='GENERAL') return;
+      document.querySelectorAll('#news-feed .news-item').forEach(async (card)=>{
+        const t = (card.querySelector('.mini-chart')?.dataset?.ticker||'').toUpperCase();
+        if(!t || t==='GENERAL') return;
           
           // Clear any existing chart content
           const chartContainer = card.querySelector('.mini-chart');
@@ -989,7 +989,7 @@
         
         // Draw mini chart with retry logic
         await drawSparklineWithRetry(card.querySelector('.mini-chart'), t);
-        });
+      });
       }, 100); // 100ms delay to ensure proper rendering
     }
 
@@ -1577,6 +1577,10 @@
         
         chart.timeScale().fitContent();
         
+        // Store chart instance for real-time updates
+        window.currentChart = chart;
+        window.currentTicker = ticker;
+        
         // Handle indicator toggles
         document.querySelectorAll('.ind').forEach(ind => {
           ind.onchange = () => {
@@ -1592,6 +1596,9 @@
           ind.checked = getIndPrefs()[ind.value] !== false;
         });
         
+        // Start real-time updates while modal is open
+        startChartUpdates(ticker, chart);
+        
       } catch (error) {
         console.error('Chart error:', error);
         body.innerHTML = '<div class="loading" style="color:var(--down);">Error loading chart</div>';
@@ -1600,6 +1607,58 @@
     
     function closeChart(){
       document.getElementById('chartModal').style.display = 'none';
+      // Stop real-time updates
+      if (window.chartUpdateInterval) {
+        clearInterval(window.chartUpdateInterval);
+        window.chartUpdateInterval = null;
+      }
+      window.currentChart = null;
+      window.currentTicker = null;
+    }
+    
+    // Real-time chart updates
+    function startChartUpdates(ticker, chart) {
+      if (window.chartUpdateInterval) {
+        clearInterval(window.chartUpdateInterval);
+      }
+      
+      window.chartUpdateInterval = setInterval(async () => {
+        if (!window.currentChart || !window.currentTicker) return;
+        
+        try {
+          // Fetch latest data
+          const response = await fetch(`/api/ohlc?ticker=${encodeURIComponent(ticker)}&interval=5min&limit=20&_t=${Date.now()}`, { cache: 'no-store' });
+          if (!response.ok) return;
+          
+          const data = await response.json();
+          const candles = (data.data?.candles || []).map(c => ({
+            t: c.t ?? c.time, o: c.o ?? c.open, h: c.h ?? c.high, l: c.l ?? c.low, c: c.c ?? c.close, v: c.v ?? c.volume
+          })).filter(x => Number.isFinite(x.c) && Number.isFinite(x.t));
+          
+          if (candles.length < 2) return;
+          
+          // Update chart data
+          const chartData = candles.map(c => ({ time: Math.floor(c.t/1000), open: c.o, high: c.h, low: c.l, close: c.c }));
+          const volData = candles.map(c => ({ time: Math.floor(c.t/1000), value: c.v, color: c.c >= c.o ? '#24e39c' : '#ff5b6e' }));
+          
+          // Update candlestick series
+          const candlestickSeries = chart.series().find(s => s.seriesType() === 'Candlestick');
+          if (candlestickSeries) {
+            candlestickSeries.setData(chartData);
+          }
+          
+          // Update volume series
+          const volumeSeries = chart.series().find(s => s.seriesType() === 'Histogram');
+          if (volumeSeries) {
+            volumeSeries.setData(volData);
+          }
+          
+          console.log(`Chart updated for ${ticker}: ${candles.length} candles`);
+          
+        } catch (error) {
+          console.warn(`Chart update failed for ${ticker}:`, error.message);
+        }
+      }, 15000); // Update every 15 seconds
     }
     
     // ---------- UTILITIES ----------
@@ -1755,10 +1814,10 @@
     console.log('Loading scanner immediately...');
     buildScanners();
     
-    // Live trading dashboard - aggressive refresh for real-time feel
-    setInterval(fetchData, 5000); // News every 5 seconds for live feel
-    setInterval(buildScanners, 10000); // Scanner every 10 seconds for live data
-    setInterval(updateWatchlist, 15000); // Watchlist every 15 seconds
+    // Live trading dashboard - optimized refresh for real-time feel
+    setInterval(fetchData, 25000); // News every 25 seconds for live feel
+    setInterval(buildScanners, 15000); // Scanner every 15 seconds for live data
+    setInterval(updateWatchlist, 30000); // Watchlist every 30 seconds
     
     // Force refresh all data every 2 minutes to prevent stale data
     setInterval(() => {

@@ -1,106 +1,346 @@
-// Live Scanner API - Fetches Real Market Data
+// Full Universe Scanner - All NYSE/Nasdaq/AMEX Stocks
 const fetch = require('node-fetch');
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
-// Fetch live scanner data from real APIs
-async function fetchLiveScannerData(limit) {
+// API Keys
+const FMP_KEY = process.env.FMP_KEY;
+
+// Cache for universe and quotes
+let universeCache = {
+  symbols: [],
+  lastUpdate: 0
+};
+
+let quotesCache = {
+  data: new Map(),
+  lastUpdate: 0
+};
+
+const UNIVERSE_CACHE_DURATION = 24 * 60 * 60 * 1000; // 24 hours
+const QUOTES_CACHE_DURATION = 10 * 1000; // 10 seconds
+
+// Fetch full universe of stocks
+async function fetchFullUniverse() {
+  const now = Date.now();
+  
+  // Return cached data if still valid
+  if (universeCache.symbols.length > 0 && (now - universeCache.lastUpdate) < UNIVERSE_CACHE_DURATION) {
+    console.log(`Using cached universe: ${universeCache.symbols.length} symbols`);
+    return universeCache.symbols;
+  }
+
+  console.log('Fetching full universe of stocks...');
+  const allSymbols = new Set();
+
   try {
-    console.log('Fetching live scanner data from APIs...');
+    if (FMP_KEY) {
+      // Fetch from FMP - all exchanges
+      const exchanges = ['nasdaq', 'nyse', 'amex'];
+      
+      for (const exchange of exchanges) {
+        try {
+          const response = await fetch(`https://financialmodelingprep.com/api/v3/${exchange}_constituent?apikey=${FMP_KEY}`, {
+            cache: 'no-store'
+          });
+          
+          if (response.ok) {
+            const data = await response.json();
+            if (Array.isArray(data)) {
+              data.forEach(stock => {
+                if (stock.symbol && stock.name && stock.type === 'stock') {
+                  allSymbols.add(stock.symbol);
+                }
+              });
+              console.log(`${exchange.toUpperCase()}: ${data.length} stocks`);
+            }
+          }
+        } catch (error) {
+          console.warn(`Failed to fetch ${exchange} stocks:`, error.message);
+        }
+      }
+    } else {
+      // Fallback: Use a comprehensive list of major stocks
+      const majorStocks = [
+        'AAPL', 'MSFT', 'GOOGL', 'AMZN', 'TSLA', 'META', 'NVDA', 'BRK-B', 'UNH', 'JNJ',
+        'V', 'PG', 'JPM', 'MA', 'HD', 'DIS', 'PYPL', 'ADBE', 'NFLX', 'CRM',
+        'INTC', 'CMCSA', 'PFE', 'TMO', 'ABT', 'COST', 'PEP', 'CSCO', 'AVGO', 'ACN',
+        'WMT', 'DHR', 'VZ', 'NKE', 'ADBE', 'TXN', 'QCOM', 'NEE', 'HON', 'UNP',
+        'IBM', 'LMT', 'AMGN', 'T', 'SPGI', 'RTX', 'ORCL', 'CAT', 'GS', 'AXP',
+        'BA', 'MMM', 'CVX', 'XOM', 'JNJ', 'KO', 'MCD', 'WBA', 'CL', 'KMB',
+        'GE', 'F', 'GM', 'BAC', 'C', 'WFC', 'JPM', 'USB', 'PNC', 'TFC',
+        'SPY', 'QQQ', 'IWM', 'DIA', 'VTI', 'VEA', 'VWO', 'BND', 'TLT', 'GLD'
+      ];
+      
+      majorStocks.forEach(symbol => allSymbols.add(symbol));
+      console.log(`Fallback: Using ${majorStocks.length} major stocks`);
+    }
+
+    // Convert to array and sort
+    const symbols = Array.from(allSymbols).sort();
     
-    // Fetch from multiple live sources
-    const [gainersResponse, losersResponse, volumeResponse] = await Promise.allSettled([
-      fetch('https://financialmodelingprep.com/api/v3/gainers?apikey=demo', { cache: 'no-store' }),
-      fetch('https://financialmodelingprep.com/api/v3/losers?apikey=demo', { cache: 'no-store' }),
-      fetch('https://financialmodelingprep.com/api/v3/stock_market/actives?apikey=demo', { cache: 'no-store' })
-    ]);
+    // Update cache
+    universeCache = {
+      symbols: symbols,
+      lastUpdate: now
+    };
 
-    const liveStocks = new Map();
+    console.log(`Full universe loaded: ${symbols.length} symbols`);
+    return symbols;
 
-    // Process gainers
-    if (gainersResponse.status === 'fulfilled' && gainersResponse.value.ok) {
-      const gainers = await gainersResponse.value.json();
-      gainers.forEach(stock => {
-        liveStocks.set(stock.symbol, {
-          symbol: stock.symbol,
-          name: stock.name,
-          price: stock.price,
-          change: stock.change,
-          changePercent: stock.changesPercentage,
-          volume: stock.volume,
-          marketCap: stock.marketCap,
-          sector: stock.sector || 'Unknown',
-          avgVolume: stock.avgVolume || stock.volume,
-          source: 'gainers'
-        });
-      });
-    }
-
-    // Process losers
-    if (losersResponse.status === 'fulfilled' && losersResponse.value.ok) {
-      const losers = await losersResponse.value.json();
-      losers.forEach(stock => {
-        if (!liveStocks.has(stock.symbol)) {
-          liveStocks.set(stock.symbol, {
-            symbol: stock.symbol,
-            name: stock.name,
-            price: stock.price,
-            change: stock.change,
-            changePercent: stock.changesPercentage,
-            volume: stock.volume,
-            marketCap: stock.marketCap,
-            sector: stock.sector || 'Unknown',
-            avgVolume: stock.avgVolume || stock.volume,
-            source: 'losers'
-          });
-        }
-      });
-    }
-
-    // Process volume leaders
-    if (volumeResponse.status === 'fulfilled' && volumeResponse.value.ok) {
-      const volumeLeaders = await volumeResponse.value.json();
-      volumeLeaders.forEach(stock => {
-        if (!liveStocks.has(stock.symbol)) {
-          liveStocks.set(stock.symbol, {
-            symbol: stock.symbol,
-            name: stock.name,
-            price: stock.price,
-            change: stock.change,
-            changePercent: stock.changesPercentage,
-            volume: stock.volume,
-            marketCap: stock.marketCap,
-            sector: stock.sector || 'Unknown',
-            avgVolume: stock.avgVolume || stock.volume,
-            source: 'volume'
-          });
-        }
-      });
-    }
-
-    return Array.from(liveStocks.values()).slice(0, limit);
   } catch (error) {
-    console.error('Error fetching live scanner data:', error);
+    console.error('Universe fetch error:', error.message);
+    
+    // Return fallback if all else fails
+    const fallbackSymbols = ['AAPL', 'MSFT', 'GOOGL', 'AMZN', 'TSLA', 'META', 'NVDA'];
+    universeCache = {
+      symbols: fallbackSymbols,
+      lastUpdate: now
+    };
+    return fallbackSymbols;
+  }
+}
+
+// Fetch quotes for multiple symbols in batches
+async function fetchQuotesBatch(symbols) {
+  const now = Date.now();
+  
+  // Check cache first
+  if (quotesCache.data.size > 0 && (now - quotesCache.lastUpdate) < QUOTES_CACHE_DURATION) {
+    const cachedQuotes = [];
+    symbols.forEach(symbol => {
+      if (quotesCache.data.has(symbol)) {
+        cachedQuotes.push(quotesCache.data.get(symbol));
+      }
+    });
+    if (cachedQuotes.length > 0) {
+      console.log(`Using cached quotes: ${cachedQuotes.length}/${symbols.length}`);
+      return cachedQuotes;
+    }
+  }
+
+  console.log(`Fetching quotes for ${symbols.length} symbols...`);
+  
+  try {
+    // Yahoo Finance allows up to 200 symbols per request
+    const batchSize = 200;
+    const batches = [];
+    
+    for (let i = 0; i < symbols.length; i += batchSize) {
+      batches.push(symbols.slice(i, i + batchSize));
+    }
+
+    const allQuotes = [];
+    
+    for (const batch of batches) {
+      try {
+        const symbolsStr = batch.join(',');
+        const url = `https://query1.finance.yahoo.com/v7/finance/quote?symbols=${encodeURIComponent(symbolsStr)}`;
+        
+        const response = await fetch(url, {
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+            'Accept': 'application/json'
+          },
+          cache: 'no-store'
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          
+          if (data.quoteResponse && data.quoteResponse.result) {
+            const quotes = data.quoteResponse.result.map(quote => {
+              const price = quote.regularMarketPrice || quote.preMarketPrice || quote.postMarketPrice || 0;
+              const previousClose = quote.regularMarketPreviousClose || price;
+              const change = price - previousClose;
+              const changePercent = previousClose !== 0 ? (change / previousClose) * 100 : 0;
+              const volume = quote.regularMarketVolume || 0;
+              const avgVolume = quote.averageDailyVolume3Month || 0;
+              const relativeVolume = avgVolume > 0 ? volume / avgVolume : 0;
+              
+              // Determine market state
+              let marketState = 'REGULAR';
+              if (quote.marketState === 'PRE' || quote.preMarketPrice) {
+                marketState = 'PRE';
+              } else if (quote.marketState === 'POST' || quote.postMarketPrice) {
+                marketState = 'POST';
+              } else if (quote.marketState === 'CLOSED') {
+                marketState = 'CLOSED';
+              }
+
+              const quoteData = {
+                symbol: quote.symbol,
+                name: quote.longName || quote.shortName || quote.symbol,
+                price: Number(price.toFixed(2)),
+                change: Number(change.toFixed(2)),
+                changePercent: Number(changePercent.toFixed(2)),
+                volume: Math.floor(volume),
+                averageDailyVolume3Month: Math.floor(avgVolume),
+                relativeVolume: Number(relativeVolume.toFixed(2)),
+                marketState: marketState,
+                marketCap: quote.marketCap || null,
+                pe: quote.trailingPE || null,
+                high52Week: quote.fiftyTwoWeekHigh || null,
+                low52Week: quote.fiftyTwoWeekLow || null,
+                lastUpdate: new Date().toISOString()
+              };
+
+              // Cache the quote
+              quotesCache.data.set(quote.symbol, quoteData);
+              
+              return quoteData;
+            });
+
+            allQuotes.push(...quotes);
+            console.log(`Batch processed: ${quotes.length} quotes`);
+          }
+        }
+      } catch (error) {
+        console.warn(`Batch fetch error:`, error.message);
+      }
+    }
+
+    // Update cache timestamp
+    quotesCache.lastUpdate = now;
+
+    console.log(`Total quotes fetched: ${allQuotes.length}`);
+    return allQuotes;
+
+  } catch (error) {
+    console.error('Quotes fetch error:', error.message);
     return [];
   }
 }
 
-module.exports = async function handler(req, res) {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+// Calculate advanced metrics and score stocks
+function calculateAdvancedMetrics(quotes) {
+  return quotes.map(quote => {
+    const score = Math.abs(quote.changePercent) + (quote.relativeVolume * 0.1);
+    
+    return {
+      ...quote,
+      score: Number(score.toFixed(2)),
+      // Additional metrics
+      isGainer: quote.changePercent > 0,
+      isLoser: quote.changePercent < 0,
+      isHighVolume: quote.relativeVolume > 2,
+      isOversold: quote.changePercent < -5,
+      isOverbought: quote.changePercent > 5,
+      isBreakout: quote.changePercent > 3,
+      isShortSqueeze: quote.relativeVolume > 2 && quote.changePercent > 5
+    };
+  });
+}
 
-  if (req.method === 'OPTIONS') return res.status(200).end();
+// Apply scanner presets
+function applyPreset(quotes, preset, limit) {
+  let filtered = [...quotes];
 
+  switch (preset) {
+    case 'momentum':
+      filtered = filtered
+        .filter(q => Math.abs(q.changePercent) > 0.5) // At least 0.5% change
+        .sort((a, b) => b.score - a.score);
+      break;
+      
+    case 'volume':
+      filtered = filtered
+        .filter(q => q.volume > 100000) // At least 100k volume
+        .sort((a, b) => b.volume - a.volume);
+      break;
+      
+    case 'gainers':
+      filtered = filtered
+        .filter(q => q.changePercent > 0.5)
+        .sort((a, b) => b.changePercent - a.changePercent);
+      break;
+      
+    case 'losers':
+      filtered = filtered
+        .filter(q => q.changePercent < -0.5)
+        .sort((a, b) => a.changePercent - b.changePercent);
+      break;
+      
+    case 'oversold':
+      filtered = filtered
+        .filter(q => q.changePercent < -2 && q.relativeVolume > 1)
+        .sort((a, b) => a.changePercent - b.changePercent);
+      break;
+      
+    case 'breakout':
+      filtered = filtered
+        .filter(q => q.changePercent > 3 && q.relativeVolume > 1.5)
+        .sort((a, b) => b.changePercent - a.changePercent);
+      break;
+      
+    case 'after_hours':
+      filtered = filtered
+        .filter(q => q.marketState === 'POST' || q.marketState === 'PRE')
+        .sort((a, b) => Math.abs(b.changePercent) - Math.abs(a.changePercent));
+      break;
+      
+    case 'short_squeeze':
+      filtered = filtered
+        .filter(q => q.relativeVolume > 2 && q.changePercent > 5)
+        .sort((a, b) => b.score - a.score);
+      break;
+      
+    default:
+      // Default to momentum
+      filtered = filtered
+        .filter(q => Math.abs(q.changePercent) > 0.5)
+        .sort((a, b) => b.score - a.score);
+  }
+
+  return filtered.slice(0, limit);
+}
+
+// Main scanner function
+async function fetchLiveScannerData(preset, limit) {
+  try {
+    console.log(`=== FULL UNIVERSE SCANNER: ${preset} ===`);
+    
+    // Get full universe
+    const universe = await fetchFullUniverse();
+    console.log(`Universe size: ${universe.length} symbols`);
+    
+    // For performance, limit to top symbols if universe is too large
+    const symbolsToScan = universe.length > 1000 ? universe.slice(0, 1000) : universe;
+    console.log(`Scanning ${symbolsToScan.length} symbols`);
+    
+    // Fetch quotes
+    const quotes = await fetchQuotesBatch(symbolsToScan);
+    console.log(`Quotes fetched: ${quotes.length}`);
+    
+    if (quotes.length === 0) {
+      throw new Error('No quotes available');
+    }
+    
+    // Calculate advanced metrics
+    const enhancedQuotes = calculateAdvancedMetrics(quotes);
+    
+    // Apply preset filtering
+    const filteredQuotes = applyPreset(enhancedQuotes, preset, limit);
+    
+    console.log(`Filtered results: ${filteredQuotes.length} stocks`);
+    return filteredQuotes;
+    
+  } catch (error) {
+    console.error('Scanner error:', error.message);
+    throw error;
+  }
+}
+
+export default async function handler(req, res) {
   try {
     const { preset = 'momentum', limit = 50 } = req.query;
     
-    console.log('=== SIMPLE WORKING SCANNER API ===');
+    console.log('=== FULL UNIVERSE SCANNER API ===');
     console.log('Request params:', { preset, limit });
 
-    // Fetch live scanner data from real APIs
-    const stocks = await fetchLiveScannerData(parseInt(limit));
+    // Fetch live scanner data
+    const stocks = await fetchLiveScannerData(preset, parseInt(limit));
     
     console.log(`Generated ${stocks.length} stocks`);
     console.log('Sample stocks:', stocks.slice(0, 3));
@@ -109,93 +349,19 @@ module.exports = async function handler(req, res) {
       success: true,
       data: {
         stocks: stocks,
-        total: stocks.length,
-        timestamp: new Date().toISOString(),
-        refreshInterval: 30000
+        preset: preset,
+        count: stocks.length,
+        lastUpdate: new Date().toISOString(),
+        refreshInterval: 15000 // 15 seconds
       }
     });
 
   } catch (error) {
-    console.error('Scanner error:', error);
+    console.error('Scanner API error:', error);
     return res.status(500).json({
       success: false,
-      error: 'Failed to fetch stock data',
-      data: {
-        stocks: [],
-        total: 0,
-        timestamp: new Date().toISOString()
-      }
+      error: 'Internal server error',
+      message: error.message
     });
   }
-}
-
-function generateSimpleStocks(limit) {
-  const popularStocks = [
-    { symbol: 'AAPL', name: 'Apple Inc.', basePrice: 180, sector: 'Technology' },
-    { symbol: 'MSFT', name: 'Microsoft Corp.', basePrice: 350, sector: 'Technology' },
-    { symbol: 'GOOGL', name: 'Alphabet Inc.', basePrice: 140, sector: 'Technology' },
-    { symbol: 'AMZN', name: 'Amazon.com Inc.', basePrice: 150, sector: 'Consumer Cyclical' },
-    { symbol: 'TSLA', name: 'Tesla Inc.', basePrice: 200, sector: 'Automotive' },
-    { symbol: 'META', name: 'Meta Platforms Inc.', basePrice: 300, sector: 'Technology' },
-    { symbol: 'NVDA', name: 'NVIDIA Corp.', basePrice: 450, sector: 'Technology' },
-    { symbol: 'NFLX', name: 'Netflix Inc.', basePrice: 400, sector: 'Communication Services' },
-    { symbol: 'AMD', name: 'Advanced Micro Devices Inc.', basePrice: 100, sector: 'Technology' },
-    { symbol: 'INTC', name: 'Intel Corp.', basePrice: 35, sector: 'Technology' }
-  ];
-
-  // Get current time in Eastern Time
-  const now = new Date();
-  const etTime = new Date(now.toLocaleString("en-US", {timeZone: "America/New_York"}));
-  const currentHour = etTime.getHours();
-  const currentMinute = etTime.getMinutes();
-  const currentDay = etTime.getDay();
-
-  // Market is open Monday-Friday 9:30 AM - 4:00 PM ET
-  const isMarketOpen = currentDay >= 1 && currentDay <= 5 &&
-                      ((currentHour === 9 && currentMinute >= 30) ||
-                       (currentHour >= 10 && currentHour < 16));
-
-  const marketStatus = isMarketOpen ? 'Live' : 'After Hours';
-  const session = isMarketOpen ? 'RTH' : 'AH';
-  
-  console.log(`Market status: ${marketStatus} (ET: ${etTime.toLocaleString()})`);
-
-  const selectedStocks = popularStocks.slice(0, limit);
-  
-  return selectedStocks.map(stock => {
-    // Generate realistic price movements
-    const timeSeed = Date.now() + Math.random() * 1000;
-    const volatility = (timeSeed % 50) / 1000; // 0-5% volatility
-    const changePercent = ((timeSeed % 200) - 100) / 10; // -10% to +10% change
-    const volume = Math.floor((timeSeed % 50000000) + 10000000); // 10M to 60M volume
-
-    const price = stock.basePrice * (1 + changePercent / 100);
-    const change = price - stock.basePrice;
-
-    return {
-      symbol: stock.symbol,
-      name: stock.name,
-      price: parseFloat(price.toFixed(2)),
-      change: parseFloat(change.toFixed(2)),
-      changePercent: parseFloat(changePercent.toFixed(2)),
-      volume: volume,
-      marketCap: Math.floor(Math.random() * 100000000000) + 1000000000 + 'M',
-      sector: stock.sector,
-      session: session,
-      marketStatus: marketStatus,
-      dataAge: 'Live',
-      isNewListing: Math.random() > 0.95,
-      tickerChanged: Math.random() > 0.98,
-      aiScore: Math.floor(Math.random() * 10),
-      score: Math.abs(changePercent) + Math.random() * 5,
-      lastUpdated: new Date().toISOString(),
-      generatedAt: new Date().toISOString(),
-      isLive: true,
-      relativeVolume: Math.random() * 3 + 0.5,
-      rsi: Math.random() * 100,
-      macd: (Math.random() - 0.5) * 2,
-      analystRating: ['BUY', 'HOLD', 'SELL'][Math.floor(Math.random() * 3)],
-      isStale: false
-    };
-  }).sort((a, b) => Math.abs(b.changePercent) - Math.abs(a.changePercent));
 }
