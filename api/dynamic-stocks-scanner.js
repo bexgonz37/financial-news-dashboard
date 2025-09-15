@@ -91,6 +91,51 @@ async function fetchFullUniverse() {
   }
 }
 
+// Fetch quotes from FMP as fallback
+async function fetchFMPQuotes(symbols) {
+  if (!FMP_KEY) {
+    console.log('FMP_KEY not available for fallback');
+    return [];
+  }
+
+  try {
+    console.log(`Fetching FMP quotes for ${symbols.length} symbols...`);
+    const symbolsStr = symbols.join(',');
+    const url = `https://financialmodelingprep.com/api/v3/quote/${symbolsStr}?apikey=${FMP_KEY}`;
+    
+    const response = await fetch(url, { cache: 'no-store' });
+    
+    if (response.ok) {
+      const data = await response.json();
+      
+      if (Array.isArray(data)) {
+        return data.map(quote => ({
+          symbol: quote.symbol,
+          name: quote.name || quote.symbol,
+          price: Number(quote.price || 0),
+          change: Number(quote.change || 0),
+          changePercent: Number(quote.changesPercentage || 0),
+          volume: Math.floor(quote.volume || 0),
+          averageDailyVolume3Month: Math.floor(quote.avgVolume || 0),
+          relativeVolume: quote.avgVolume > 0 ? (quote.volume || 0) / quote.avgVolume : 0,
+          marketState: 'REGULAR',
+          marketCap: quote.marketCap || null,
+          pe: quote.pe || null,
+          high52Week: quote.yearHigh || null,
+          low52Week: quote.yearLow || null,
+          lastUpdate: new Date().toISOString()
+        }));
+      }
+    }
+    
+    console.log('FMP fallback failed');
+    return [];
+  } catch (error) {
+    console.error('FMP fallback error:', error.message);
+    return [];
+  }
+}
+
 // Fetch quotes for multiple symbols in batches
 async function fetchQuotesBatch(symbols) {
   const now = Date.now();
@@ -137,6 +182,7 @@ async function fetchQuotesBatch(symbols) {
 
         if (response.ok) {
           const data = await response.json();
+          console.log(`Yahoo response for batch:`, data.quoteResponse ? data.quoteResponse.result.length : 'no result');
           
           if (data.quoteResponse && data.quoteResponse.result) {
             const quotes = data.quoteResponse.result.map(quote => {
@@ -303,7 +349,16 @@ async function fetchLiveScannerData(preset, limit) {
     console.log(`Quotes fetched: ${quotes.length}`);
     
     if (quotes.length === 0) {
-      throw new Error('No quotes available');
+      console.log('No quotes from Yahoo Finance, trying FMP fallback...');
+      // Try FMP as fallback
+      const fmpQuotes = await fetchFMPQuotes(symbolsToScan.slice(0, 50)); // Limit to 50 for FMP
+      if (fmpQuotes.length > 0) {
+        console.log(`FMP fallback successful: ${fmpQuotes.length} quotes`);
+        const enhancedQuotes = calculateAdvancedMetrics(fmpQuotes);
+        const filteredQuotes = applyPreset(enhancedQuotes, preset, limit);
+        return filteredQuotes;
+      }
+      throw new Error('No quotes available from any provider');
     }
     
     // Calculate advanced metrics
