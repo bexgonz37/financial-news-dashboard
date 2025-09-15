@@ -47,7 +47,8 @@ export default async function handler(req, res) {
       });
     }
 
-    let result = null;
+    let quoteResult = null;
+    let ohlcResult = null;
     const providerErrors = [];
     
     if (type === 'quote') {
@@ -70,7 +71,7 @@ export default async function handler(req, res) {
           if (error) {
             providerErrors.push(`${provider}: ${error}`);
           } else if (data) {
-            result = data;
+            quoteResult = data;
             break; // Use first successful provider
           }
         } else {
@@ -78,7 +79,7 @@ export default async function handler(req, res) {
         }
       }
 
-      if (!result) {
+      if (!quoteResult) {
         return res.status(500).json({ 
           success: false, 
           error: 'No quote data available',
@@ -90,7 +91,7 @@ export default async function handler(req, res) {
 
       return res.status(200).json({
         success: true,
-        data: result,
+        data: quoteResult,
         lastUpdate: new Date().toISOString(),
         providerErrors: providerErrors
       });
@@ -115,7 +116,7 @@ export default async function handler(req, res) {
           if (error) {
             providerErrors.push(`${provider}: ${error}`);
           } else if (data.length > 0) {
-            result = data;
+            ohlcResult = data;
             break; // Use first successful provider
           }
         } else {
@@ -123,7 +124,7 @@ export default async function handler(req, res) {
         }
       }
 
-      if (!result || result.length === 0) {
+      if (!ohlcResult || ohlcResult.length === 0) {
         return res.status(500).json({ 
           success: false, 
           error: 'No OHLC data available',
@@ -136,8 +137,8 @@ export default async function handler(req, res) {
       return res.status(200).json({
         success: true,
         data: {
-          candles: result,
-          count: result.length,
+          candles: ohlcResult,
+          count: ohlcResult.length,
           ticker: ticker,
           interval: interval,
           lastUpdate: new Date().toISOString()
