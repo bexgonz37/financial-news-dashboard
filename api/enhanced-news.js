@@ -257,6 +257,11 @@ module.exports = async function handler(req, res) {
       publishedAt: allNews[0].publishedAt,
       source: allNews[0].source
     } : 'No news items');
+    
+    // Debug: Show all news items with their timestamps
+    allNews.forEach((item, index) => {
+      console.log(`News ${index + 1}: "${item.title}" - ${item.publishedAt} (${item.source})`);
+    });
 
     return res.status(200).json({
       success: true,
@@ -493,7 +498,7 @@ function generateSimpleNews(limit) {
 async function fetchAlphaVantageNews(apiKey, limit, companyMappings) {
   try {
     console.log('Fetching Alpha Vantage news...');
-    const response = await fetch(`https://www.alphavantage.co/query?function=NEWS_SENTIMENT&apikey=${apiKey}&limit=${limit}&time_from=${new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString().split('T')[0]}`, {
+    const response = await fetch(`https://www.alphavantage.co/query?function=NEWS_SENTIMENT&apikey=${apiKey}&limit=${limit}`, {
       cache: 'no-store'
     });
     
@@ -517,9 +522,19 @@ async function fetchAlphaVantageNews(apiKey, limit, companyMappings) {
           url: item.url || `https://www.google.com/search?q=${encodeURIComponent(item.title || 'financial news')}`,
           source: item.source || 'Alpha Vantage',
           publishedAt: (() => {
-            // Try to parse the API date, fallback to very recent date
+            // Try to parse the API date in various formats
             if (item.time_published) {
-              const parsed = new Date(item.time_published);
+              let parsed;
+              // Try different timestamp formats
+              if (item.time_published.includes('T')) {
+                parsed = new Date(item.time_published);
+              } else if (item.time_published.includes('-')) {
+                parsed = new Date(item.time_published);
+              } else {
+                // Assume it's a Unix timestamp
+                parsed = new Date(parseInt(item.time_published) * 1000);
+              }
+              
               if (!isNaN(parsed.getTime())) {
                 console.log(`Alpha Vantage timestamp: ${item.time_published} -> ${parsed.toISOString()}`);
                 return parsed.toISOString();
@@ -553,7 +568,7 @@ async function fetchAlphaVantageNews(apiKey, limit, companyMappings) {
 async function fetchFMPNews(apiKey, limit, companyMappings) {
   try {
     console.log('Fetching FMP news...');
-    const response = await fetch(`https://financialmodelingprep.com/api/v3/stock_news?limit=${limit}&apikey=${apiKey}&from=${new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString().split('T')[0]}&to=${new Date().toISOString().split('T')[0]}`, {
+    const response = await fetch(`https://financialmodelingprep.com/api/v3/stock_news?limit=${limit}&apikey=${apiKey}`, {
       cache: 'no-store'
     });
     
@@ -611,7 +626,7 @@ async function fetchFMPNews(apiKey, limit, companyMappings) {
 async function fetchFinnhubNews(apiKey, limit, companyMappings) {
   try {
     console.log('Fetching Finnhub news...');
-    const response = await fetch(`https://finnhub.io/api/v1/news?category=general&token=${apiKey}&from=${Math.floor((Date.now() - 24 * 60 * 60 * 1000) / 1000)}&to=${Math.floor(Date.now() / 1000)}`, {
+    const response = await fetch(`https://finnhub.io/api/v1/news?category=general&token=${apiKey}`, {
       cache: 'no-store'
     });
     
