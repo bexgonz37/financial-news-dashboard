@@ -986,12 +986,17 @@
             ${badgeHtml}
             ${tickers.length > 0 ? `
               <div style="margin: 8px 0; display: flex; flex-wrap: wrap; gap: 4px;">
-                ${tickers.map(ticker => `
-                  <span style="background: var(--accent); color: white; padding: 2px 6px; border-radius: 4px; font-size: 0.8rem; cursor: pointer;" 
-                        onclick="document.getElementById('ticker').value='${ticker}'; fetchData();">
-                    $${ticker}
-                  </span>
-                `).join('')}
+                ${tickers.map((ticker, index) => {
+                  const matchDetail = n.matchDetails?.[index];
+                  const tooltip = matchDetail ? `Matched by ${matchDetail.matchStage} (score ${matchDetail.score})` : '';
+                  return `
+                    <span style="background: var(--accent); color: white; padding: 2px 6px; border-radius: 4px; font-size: 0.8rem; cursor: pointer;" 
+                          title="${tooltip}"
+                          onclick="document.getElementById('ticker').value='${ticker}'; fetchData();">
+                      $${ticker}
+                    </span>
+                  `;
+                }).join('')}
               </div>
             ` : ''}
             <div class="mini-row">

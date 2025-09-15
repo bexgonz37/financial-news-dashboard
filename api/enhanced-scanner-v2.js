@@ -3,6 +3,7 @@
 
 import { loadSymbolMaster } from '../lib/symbol-master.js';
 import { providerManager } from '../lib/provider-manager.js';
+import { sharedDataCache } from '../lib/shared-data-cache.js';
 
 // Calculate advanced technical indicators
 function calculateTechnicalIndicators(quote, historicalData = []) {
@@ -249,43 +250,18 @@ async function scanStocks(preset = 'momentum', limit = 50, filters = {}) {
   
   console.log(`📊 Scanner universe size: ${symbolMaster.length} symbols`);
   
-  // Get quotes in batches
-  const symbols = symbolMaster.map(s => s.symbol);
-  const batchSize = 50;
-  const batches = [];
+  // Get all active symbols
+  const activeSymbols = symbolMaster
+    .filter(s => s.isActive)
+    .map(s => s.symbol);
   
-  for (let i = 0; i < symbols.length; i += batchSize) {
-    batches.push(symbols.slice(i, i + batchSize));
-  }
+  console.log(`📈 Processing ${activeSymbols.length} active symbols using shared cache...`);
   
-  console.log(`📦 Processing ${batches.length} batches of ${batchSize} symbols each...`);
+  // Use shared cache to get quotes and OHLC data
+  const cacheData = await sharedDataCache.getScannerData(activeSymbols, []);
+  const allQuotes = cacheData.quotes;
   
-  const allQuotes = [];
-  let processedBatches = 0;
-  let rateLimited = false;
-  
-  for (const batch of batches) {
-    try {
-      const quotes = await providerManager.getQuotes(batch);
-      allQuotes.push(...quotes);
-      processedBatches++;
-      
-      if (processedBatches % 10 === 0) {
-        console.log(`  📈 Processed ${processedBatches}/${batches.length} batches (${allQuotes.length} quotes)`);
-      }
-      
-      // Rate limiting protection
-      await new Promise(resolve => setTimeout(resolve, 100));
-      
-    } catch (error) {
-      console.warn(`  ⚠️ Batch failed:`, error.message);
-      if (error.message.includes('rate limit') || error.message.includes('429')) {
-        rateLimited = true;
-      }
-    }
-  }
-  
-  console.log(`✅ Retrieved ${allQuotes.length} quotes from ${symbols.length} requested symbols`);
+  console.log(`✅ Retrieved ${allQuotes.length} quotes from shared cache`);
   
   // Process quotes and calculate advanced metrics
   const processedStocks = [];
@@ -295,11 +271,18 @@ async function scanStocks(preset = 'momentum', limit = 50, filters = {}) {
       const symbol = symbolMaster.find(s => s.symbol === quote.symbol);
       if (!symbol) continue;
       
-      // Calculate technical indicators
-      const technicals = calculateTechnicalIndicators(quote);
+      // Get OHLC data for this symbol
+      const ohlcData = cacheData.ohlcData.find(o => o.symbol === quote.symbol);
       
-      // Calculate news heat (placeholder - would need news data)
-      const newsHeat = calculateNewsHeat(quote.symbol, []);
+      // Calculate technical indicators with OHLC data
+      const technicals = calculateTechnicalIndicators(quote, ohlcData ? [ohlcData] : []);
+      
+      // Get news heat for this symbol
+      const newsHeat = cacheData.newsHeat.find(n => n.symbol === quote.symbol) || {
+        symbol: quote.symbol,
+        mentions: 0,
+        heatScore: 0
+      };
       
       // Calculate AI score based on multiple factors
       const aiScore = calculateAIScore(quote, technicals, newsHeat);
