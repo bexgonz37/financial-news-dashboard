@@ -32,8 +32,8 @@
     .btn:hover{ background:#9a5ce0; transform:translateY(-1px) }
     .select{ padding:10px 14px; border:1px solid var(--border); border-radius:8px; background:var(--card); color:var(--text); font-size:.9rem; min-width:150px }
     .grid{ display:grid; grid-template-columns:repeat(auto-fill,minmax(300px,1fr)); gap:16px }
-    .card{ background:var(--card); border:1px solid var(--border); border-radius:12px; padding:20px; transition:all 0.3s ease; box-shadow:0 2px 8px rgba(0,0,0,0.1) }
-    .card:hover{ border-color:var(--accent); transform:translateY(-3px); box-shadow:0 4px 16px rgba(0,0,0,0.2) }
+    .card{ background:var(--card); border:1px solid var(--border); border-radius:12px; padding:16px; transition:all 0.3s ease; box-shadow:0 2px 8px rgba(0,0,0,0.1) }
+    .card:hover{ border-color:var(--accent); transform:translateY(-2px); box-shadow:0 4px 16px rgba(0,0,0,0.2) }
     .kpi{ display:flex; justify-content:space-between; align-items:center; margin-bottom:12px }
     .change{ font-weight:700; font-size:1.1rem }
     .change.up{ color:var(--up) }
@@ -69,7 +69,7 @@
     }
 
     .news-list{ display:grid; gap:12px }
-    .news-item{ border:1px solid var(--border); border-radius:12px; padding:20px; background:linear-gradient(180deg, rgba(32,39,58,.6), rgba(18,24,38,.9)); transition:all 0.3s ease; box-shadow:0 2px 8px rgba(0,0,0,0.1) }
+    .news-item{ border:1px solid var(--border); border-radius:12px; padding:16px; background:linear-gradient(180deg, rgba(32,39,58,.6), rgba(18,24,38,.9)); transition:all 0.3s ease; box-shadow:0 2px 8px rgba(0,0,0,0.1) }
     .news-item:hover{ border-color:var(--accent); transform:translateY(-2px); box-shadow:0 4px 16px rgba(0,0,0,0.2) }
     .item-top{ display:flex; align-items:center; gap:12px; margin-bottom:8px; flex-wrap:wrap }
     .ticker{ color:var(--accent); font-weight:700; text-decoration:none; font-size:1.1rem }
@@ -1485,7 +1485,11 @@
 
       if (e.target.matches('.read-btn')) {
         e.preventDefault();
-        const href = e.target.href; // use the real href
+        const href = e.target.href || e.target.getAttribute('data-url');
+        if (!href) {
+          alert('No article URL available');
+          return;
+        }
         const finalUrl = await resolveArticleUrl(href);
         if (finalUrl) window.open(finalUrl, '_blank', 'noopener,noreferrer');
         else alert('Invalid article URL');
@@ -1557,12 +1561,48 @@
     console.log('Loading scanner immediately...');
     buildScanners();
     
-    // Live trading dashboard - optimized refresh for real-time feel
-    setInterval(fetchData, 25000); // News every 25 seconds for live feel
-    setInterval(buildScanners, 15000); // Scanner every 15 seconds for live data
-    setInterval(updateWatchlist, 30000); // Watchlist every 30 seconds
+    // Session-aware refresh rates
+    function getRefreshRates() {
+      const now = new Date();
+      const hour = now.getHours();
+      const day = now.getDay(); // 0 = Sunday, 6 = Saturday
+      
+      // Market hours: 9:30 AM - 4:00 PM ET (14:30 - 21:00 UTC)
+      const isRTH = day >= 1 && day <= 5 && hour >= 14 && hour < 21;
+      const isPreMarket = day >= 1 && day <= 5 && hour >= 12 && hour < 14; // 8 AM - 9:30 AM ET
+      const isAfterHours = day >= 1 && day <= 5 && hour >= 21 && hour < 24; // 4 PM - 8 PM ET
+      const isWeekend = day === 0 || day === 6;
+      
+      if (isRTH) {
+        return { news: 30000, scanner: 30000, watchlist: 30000 }; // 30s during market hours
+      } else if (isPreMarket || isAfterHours) {
+        return { news: 60000, scanner: 60000, watchlist: 60000 }; // 60s during extended hours
+      } else {
+        return { news: 120000, scanner: 120000, watchlist: 120000 }; // 2min during closed hours
+      }
+    }
     
-    // Force refresh all data every 2 minutes to prevent stale data
+    function startRefreshTimers() {
+      // Clear existing timers
+      if (window.newsTimer) clearInterval(window.newsTimer);
+      if (window.scannerTimer) clearInterval(window.scannerTimer);
+      if (window.watchlistTimer) clearInterval(window.watchlistTimer);
+      
+      const rates = getRefreshRates();
+      console.log('Setting refresh rates:', rates);
+      
+      window.newsTimer = setInterval(fetchData, rates.news);
+      window.scannerTimer = setInterval(buildScanners, rates.scanner);
+      window.watchlistTimer = setInterval(updateWatchlist, rates.watchlist);
+    }
+    
+    // Start with initial refresh rates
+    startRefreshTimers();
+    
+    // Update refresh rates every hour to adapt to market sessions
+    setInterval(startRefreshTimers, 3600000); // Every hour
+    
+    // Force refresh all data every 5 minutes to prevent stale data
     setInterval(() => {
       console.log('=== FORCE REFRESH ALL DATA ===');
       fetchData();
