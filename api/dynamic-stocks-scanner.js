@@ -340,9 +340,13 @@ async function fetchLiveScannerData(preset, limit) {
     const universe = await fetchFullUniverse();
     console.log(`Universe size: ${universe.length} symbols`);
     
-    // Scan all symbols in the universe - no artificial limits
-    const symbolsToScan = universe;
-    console.log(`Scanning ALL ${symbolsToScan.length} symbols in universe`);
+    // For testing, use a smaller set of known symbols if universe is empty
+    let symbolsToScan = universe;
+    if (symbolsToScan.length === 0) {
+      console.log('Universe is empty, using fallback symbols for testing');
+      symbolsToScan = ['AAPL', 'MSFT', 'GOOGL', 'AMZN', 'TSLA', 'NVDA', 'META', 'NFLX', 'AMD', 'INTC'];
+    }
+    console.log(`Scanning ${symbolsToScan.length} symbols`);
     
     // Fetch quotes
     const quotes = await fetchQuotesBatch(symbolsToScan);
