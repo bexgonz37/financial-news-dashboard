@@ -472,15 +472,63 @@ async function normalizeNewsItem(item) {
     publishedAt = new Date().toISOString();
   }
 
+  // Extract ticker from content if not already present
+  let ticker = item.ticker;
+  if (!ticker) {
+    const content = `${item.title || ''} ${item.summary || ''}`;
+    const companyMappings = await fetchLiveCompanyMappings();
+    ticker = await extractCompanyTicker(content, companyMappings);
+  }
+
+  // Generate sentiment from title/summary
+  const sentiment = generateSentiment(item.title || '', item.summary || '');
+
   return {
     id: item.id,
     title: item.title || 'No title',
     summary: item.summary || '',
     source: item.source || 'Unknown',
     publishedAt: publishedAt,
-    ticker: item.ticker,
-    url: finalUrl
+    ticker: ticker,
+    tickers: ticker ? [ticker] : [],
+    url: finalUrl,
+    sentiment: sentiment,
+    badges: generateNewsBadges(item, ticker)
   };
+}
+
+// Generate sentiment from content
+function generateSentiment(title, summary) {
+  const content = `${title} ${summary}`.toLowerCase();
+  
+  const bullishWords = ['up', 'rise', 'gain', 'surge', 'rally', 'bullish', 'positive', 'beat', 'exceed', 'growth', 'profit', 'earnings', 'strong', 'buy', 'upgrade'];
+  const bearishWords = ['down', 'fall', 'drop', 'decline', 'crash', 'bearish', 'negative', 'miss', 'disappoint', 'loss', 'weak', 'sell', 'downgrade', 'cut'];
+  
+  const bullishCount = bullishWords.filter(word => content.includes(word)).length;
+  const bearishCount = bearishWords.filter(word => content.includes(word)).length;
+  
+  if (bullishCount > bearishCount) return 'bullish';
+  if (bearishCount > bullishCount) return 'bearish';
+  return 'neutral';
+}
+
+// Generate badges for news items
+function generateNewsBadges(item, ticker) {
+  const badges = [];
+  const content = `${item.title || ''} ${item.summary || ''}`.toLowerCase();
+  
+  if (content.includes('earnings')) badges.push('EARNINGS');
+  if (content.includes('fda') || content.includes('approval')) badges.push('FDA');
+  if (content.includes('insider') || content.includes('insider trading')) badges.push('INSIDER');
+  if (content.includes('ai') || content.includes('artificial intelligence')) badges.push('AI');
+  if (content.includes('merger') || content.includes('acquisition')) badges.push('M&A');
+  if (content.includes('ipo') || content.includes('initial public offering')) badges.push('IPO');
+  if (content.includes('bankruptcy') || content.includes('chapter 11')) badges.push('BANKRUPTCY');
+  if (content.includes('lawsuit') || content.includes('legal')) badges.push('LEGAL');
+  if (content.includes('partnership') || content.includes('deal')) badges.push('PARTNERSHIP');
+  if (content.includes('upgrade') || content.includes('downgrade')) badges.push('RATING');
+  
+  return badges;
 }
 
 // Main news fetching function

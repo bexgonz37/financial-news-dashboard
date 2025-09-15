@@ -68,41 +68,52 @@ async function loadUniverse() {
 
 // Provider functions
 async function quotesFromIEX(symbols) {
-  if (!IEX_CLOUD_KEY) throw new Error('IEX Cloud key not available');
+  if (!IEX_CLOUD_KEY) {
+    console.warn('IEX Cloud key not available');
+    return [];
+  }
   
   const quotes = [];
   const batchSize = 100;
   
-  for (let i = 0; i < symbols.length; i += batchSize) {
+  for (let i = 0; i < Math.min(symbols.length, 500); i += batchSize) { // Limit to 500 symbols
     const batch = symbols.slice(i, i + batchSize);
     const symbolsStr = batch.join(',');
     
     try {
-      const response = await fetch(`https://cloud.iexapis.com/stable/stock/market/batch?symbols=${symbolsStr}&types=quote&token=${IEX_CLOUD_KEY}`, { cache: 'no-store' });
+      const response = await fetch(`https://cloud.iexapis.com/stable/stock/market/batch?symbols=${symbolsStr}&types=quote&token=${IEX_CLOUD_KEY}`, { 
+        cache: 'no-store',
+        timeout: 10000
+      });
+      
       if (response.ok) {
         const data = await response.json();
         for (const [symbol, stockData] of Object.entries(data)) {
           if (stockData.quote) {
             const q = stockData.quote;
-            quotes.push({
-              symbol: symbol,
-              name: q.companyName || symbol,
-              price: q.latestPrice || 0,
-              change: q.change || 0,
-              changePercent: q.changePercent || 0,
-              volume: q.volume || 0,
-              averageDailyVolume3Month: q.avgTotalVolume || 0,
-              relativeVolume: q.avgTotalVolume > 0 ? (q.volume || 0) / q.avgTotalVolume : 1,
-              marketState: q.isUSMarketOpen ? 'REGULAR' : 'CLOSED',
-              marketCap: q.marketCap || null,
-              pe: q.peRatio || null,
-              high52Week: q.week52High || null,
-              low52Week: q.week52Low || null,
-              lastUpdate: new Date().toISOString(),
-              provider: 'iex'
-            });
+            if (q.latestPrice && q.latestPrice > 0) {
+              quotes.push({
+                symbol: symbol,
+                name: q.companyName || symbol,
+                price: q.latestPrice,
+                change: q.change || 0,
+                changePercent: q.changePercent || 0,
+                volume: q.volume || 0,
+                averageDailyVolume3Month: q.avgTotalVolume || 0,
+                relativeVolume: q.avgTotalVolume > 0 ? (q.volume || 0) / q.avgTotalVolume : 1,
+                marketState: q.isUSMarketOpen ? 'REGULAR' : 'CLOSED',
+                marketCap: q.marketCap || null,
+                pe: q.peRatio || null,
+                high52Week: q.week52High || null,
+                low52Week: q.week52Low || null,
+                lastUpdate: new Date().toISOString(),
+                provider: 'iex'
+              });
+            }
           }
         }
+      } else {
+        console.warn(`IEX batch ${i}-${i + batchSize} failed with status: ${response.status}`);
       }
     } catch (error) {
       console.warn(`IEX batch ${i}-${i + batchSize} failed:`, error.message);
@@ -114,13 +125,20 @@ async function quotesFromIEX(symbols) {
 }
 
 async function quotesFromFinnhub(symbols) {
-  if (!FINNHUB_KEY) throw new Error('Finnhub key not available');
+  if (!FINNHUB_KEY) {
+    console.warn('Finnhub key not available');
+    return [];
+  }
   
   const quotes = [];
   
-  for (const symbol of symbols.slice(0, 50)) { // Limit to 50 for rate limits
+  for (const symbol of symbols.slice(0, 100)) { // Limit to 100 for rate limits
     try {
-      const response = await fetch(`https://finnhub.io/api/v1/quote?symbol=${encodeURIComponent(symbol)}&token=${FINNHUB_KEY}`, { cache: 'no-store' });
+      const response = await fetch(`https://finnhub.io/api/v1/quote?symbol=${encodeURIComponent(symbol)}&token=${FINNHUB_KEY}`, { 
+        cache: 'no-store',
+        timeout: 5000
+      });
+      
       if (response.ok) {
         const data = await response.json();
         if (data.c && data.c > 0) {
@@ -142,6 +160,8 @@ async function quotesFromFinnhub(symbols) {
             provider: 'finnhub'
           });
         }
+      } else {
+        console.warn(`Finnhub quote for ${symbol} failed with status: ${response.status}`);
       }
     } catch (error) {
       console.warn(`Finnhub quote for ${symbol} failed:`, error.message);
@@ -153,17 +173,24 @@ async function quotesFromFinnhub(symbols) {
 }
 
 async function quotesFromFMP(symbols) {
-  if (!FMP_KEY) throw new Error('FMP key not available');
+  if (!FMP_KEY) {
+    console.warn('FMP key not available');
+    return [];
+  }
   
   const quotes = [];
   const batchSize = 100;
   
-  for (let i = 0; i < symbols.length; i += batchSize) {
+  for (let i = 0; i < Math.min(symbols.length, 1000); i += batchSize) { // Limit to 1000 symbols
     const batch = symbols.slice(i, i + batchSize);
     const symbolsStr = batch.join(',');
     
     try {
-      const response = await fetch(`https://financialmodelingprep.com/api/v3/quote/${symbolsStr}?apikey=${FMP_KEY}`, { cache: 'no-store' });
+      const response = await fetch(`https://financialmodelingprep.com/api/v3/quote/${symbolsStr}?apikey=${FMP_KEY}`, { 
+        cache: 'no-store',
+        timeout: 10000
+      });
+      
       if (response.ok) {
         const data = await response.json();
         if (Array.isArray(data)) {
@@ -189,6 +216,8 @@ async function quotesFromFMP(symbols) {
             }
           }
         }
+      } else {
+        console.warn(`FMP batch ${i}-${i + batchSize} failed with status: ${response.status}`);
       }
     } catch (error) {
       console.warn(`FMP batch ${i}-${i + batchSize} failed:`, error.message);
@@ -199,36 +228,143 @@ async function quotesFromFMP(symbols) {
   return quotes;
 }
 
-// Score stocks by preset
+// Advanced scoring system for different presets
 function scoreByPreset(quotes, preset) {
   return quotes.map(quote => {
     let score = 0;
     const changePercent = Math.abs(quote.changePercent || 0);
     const volume = quote.volume || 0;
     const relativeVolume = quote.relativeVolume || 1;
+    const marketCap = quote.marketCap || 0;
+    const pe = quote.pe || 0;
+    const price = quote.price || 0;
+    
+    // Base score components
+    const momentumScore = changePercent * 10;
+    const volumeScore = Math.log10(volume + 1) * 5;
+    const rvolScore = relativeVolume > 1 ? Math.min(relativeVolume * 20, 100) : 0;
+    const liquidityScore = volume > 100000 ? 20 : 0;
+    const volatilityScore = changePercent > 5 ? 30 : changePercent > 2 ? 15 : 0;
+    
+    // Market cap categories
+    const isLargeCap = marketCap > 10000000000; // > $10B
+    const isMidCap = marketCap > 2000000000 && marketCap <= 10000000000; // $2B-$10B
+    const isSmallCap = marketCap > 300000000 && marketCap <= 2000000000; // $300M-$2B
+    const isMicroCap = marketCap <= 300000000; // < $300M
     
     switch (preset) {
       case 'momentum':
-        score = changePercent * 10 + (relativeVolume > 2 ? 50 : 0) + (volume > 1000000 ? 20 : 0);
+        // Strong price movement with volume confirmation
+        score = momentumScore + rvolScore + liquidityScore + volatilityScore;
+        if (changePercent > 10) score += 50; // Big movers
+        if (relativeVolume > 3) score += 40; // High relative volume
         break;
+        
       case 'volume':
-        score = volume / 1000000 + (relativeVolume > 3 ? 100 : 0) + changePercent * 5;
+        // High volume and relative volume
+        score = volumeScore + rvolScore * 2 + liquidityScore;
+        if (relativeVolume > 5) score += 80; // Extreme volume
+        if (volume > 10000000) score += 50; // Very high absolute volume
         break;
+        
+      case 'oversold':
+        // Negative change with potential bounce
+        const negativeChange = quote.changePercent < 0 ? Math.abs(quote.changePercent) : 0;
+        score = negativeChange * 15 + rvolScore + liquidityScore;
+        if (negativeChange > 10) score += 60; // Oversold bounce potential
+        if (relativeVolume > 2) score += 30; // Volume on decline
+        break;
+        
+      case 'breakout':
+        // High momentum with volume confirmation
+        score = momentumScore * 1.5 + rvolScore + liquidityScore + volatilityScore;
+        if (changePercent > 15) score += 70; // Strong breakout
+        if (relativeVolume > 4) score += 50; // Volume confirmation
+        break;
+        
       case 'earnings':
-        score = changePercent * 15 + (relativeVolume > 1.5 ? 30 : 0) + (volume > 500000 ? 25 : 0);
+        // Moderate movement with volume (earnings season)
+        score = momentumScore + rvolScore + liquidityScore;
+        if (changePercent > 5 && changePercent < 20) score += 40; // Earnings range
+        if (relativeVolume > 2) score += 30; // Earnings volume
         break;
-      case 'gaps':
-        score = changePercent * 20 + (relativeVolume > 2 ? 40 : 0) + (volume > 2000000 ? 30 : 0);
+        
+      case 'afterhours':
+        // After hours movers
+        score = momentumScore * 1.2 + rvolScore + liquidityScore;
+        if (changePercent > 8) score += 50; // AH movers
+        if (relativeVolume > 1.5) score += 30; // AH volume
         break;
-      case 'meme':
-        score = changePercent * 25 + (relativeVolume > 5 ? 100 : 0) + (volume > 5000000 ? 50 : 0);
+        
+      case 'ai':
+        // AI-related stocks (placeholder - would need sector filtering)
+        score = momentumScore + rvolScore + liquidityScore;
+        if (changePercent > 5) score += 30; // AI momentum
         break;
+        
+      case 'insider':
+        // Insider activity (placeholder - would need insider data)
+        score = momentumScore + rvolScore + liquidityScore;
+        if (changePercent > 3) score += 25; // Insider activity
+        break;
+        
+      case 'shortsqueeze':
+        // Short squeeze potential
+        score = momentumScore * 1.3 + rvolScore * 1.5 + liquidityScore;
+        if (changePercent > 20) score += 80; // Squeeze potential
+        if (relativeVolume > 5) score += 60; // Squeeze volume
+        break;
+        
+      case 'newlistings':
+        // New listings and ticker changes
+        score = momentumScore + rvolScore + liquidityScore;
+        if (changePercent > 10) score += 40; // New listing momentum
+        break;
+        
       default:
-        score = changePercent * 10 + (relativeVolume > 1 ? 20 : 0) + (volume > 100000 ? 10 : 0);
+        // General scoring
+        score = momentumScore + rvolScore + liquidityScore + volatilityScore;
     }
     
-    return { ...quote, score };
+    // Add market cap bonus/penalty
+    if (isLargeCap) score += 10; // Large cap stability
+    if (isMidCap) score += 15; // Mid cap sweet spot
+    if (isSmallCap) score += 20; // Small cap opportunity
+    if (isMicroCap) score += 25; // Micro cap high risk/reward
+    
+    // Add PE ratio consideration
+    if (pe > 0 && pe < 20) score += 10; // Reasonable valuation
+    if (pe > 50) score -= 10; // High valuation penalty
+    
+    // Ensure minimum score for any valid data
+    if (price > 0) score = Math.max(score, 1);
+    
+    return { 
+      ...quote, 
+      score: Math.round(score),
+      badges: generateBadges(quote, preset)
+    };
   });
+}
+
+// Generate badges for different criteria
+function generateBadges(quote, preset) {
+  const badges = [];
+  const changePercent = Math.abs(quote.changePercent || 0);
+  const relativeVolume = quote.relativeVolume || 1;
+  const volume = quote.volume || 0;
+  
+  if (changePercent > 20) badges.push('BIG_MOVER');
+  if (relativeVolume > 5) badges.push('HIGH_VOLUME');
+  if (volume > 10000000) badges.push('MASSIVE_VOLUME');
+  if (changePercent > 10 && relativeVolume > 2) badges.push('BREAKOUT');
+  if (preset === 'earnings') badges.push('EARNINGS');
+  if (preset === 'ai') badges.push('AI');
+  if (preset === 'insider') badges.push('INSIDER');
+  if (preset === 'shortsqueeze') badges.push('SHORT_SQUEEZE');
+  if (preset === 'newlistings') badges.push('NEW_LISTING');
+  
+  return badges;
 }
 
 export default async function handler(req, res) {
