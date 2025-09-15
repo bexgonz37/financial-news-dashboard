@@ -19,13 +19,11 @@
     .header{ display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:30px }
     .header-left{ flex:1; text-align:left }
     .header-right{ display:flex; flex-direction:column; align-items:flex-end; gap:8px }
-    .health-panel{ display:flex; gap:16px; padding:8px 12px; background:var(--card); border:1px solid var(--border); border-radius:8px; font-size:0.8rem }
-    .health-item{ display:flex; align-items:center; gap:4px }
-    .health-label{ color:var(--meta) }
-    .health-status{ font-weight:600; padding:2px 6px; border-radius:4px; font-size:0.75rem }
-    .health-status.live{ background:rgba(36,227,156,0.2); color:var(--up) }
-    .health-status.degraded{ background:rgba(255,193,7,0.2); color:#ffc107 }
-    .health-status.offline{ background:rgba(255,91,110,0.2); color:var(--down) }
+    .health-panel{ display:flex; gap:12px; padding:8px 12px; background:var(--card); border:1px solid var(--border); border-radius:8px; font-size:0.8rem }
+    .status-indicator{ font-weight:600; padding:4px 8px; border-radius:6px; font-size:0.75rem; transition:all 0.3s ease }
+    .status-indicator.live{ background:rgba(36,227,156,0.2); color:var(--up); box-shadow:0 0 8px rgba(36,227,156,0.3) }
+    .status-indicator.degraded{ background:rgba(255,193,7,0.2); color:#ffc107; box-shadow:0 0 8px rgba(255,193,7,0.3) }
+    .status-indicator.offline{ background:rgba(255,91,110,0.2); color:var(--down); box-shadow:0 0 8px rgba(255,91,110,0.3) }
     .header h1{ font-size:2.5rem; font-weight:900; margin-bottom:10px; background:linear-gradient(135deg,var(--accent),var(--up)); -webkit-background-clip:text; -webkit-text-fill-color:transparent }
     .header p{ color:var(--meta); font-size:1.1rem }
     .status-bar{ display:flex; align-items:center; gap:8px; padding:4px 8px; border-radius:4px; background:rgba(0,255,0,0.1); border:1px solid rgba(0,255,0,0.3); font-size:0.8rem }
@@ -224,18 +222,9 @@
       </div>
       <div class="header-right">
         <div class="health-panel">
-          <div class="health-item">
-            <span class="health-label">News:</span>
-            <span id="news-status" class="health-status live">LIVE</span>
-          </div>
-          <div class="health-item">
-            <span class="health-label">Scanner:</span>
-            <span id="scanner-status" class="health-status live">LIVE</span>
-          </div>
-          <div class="health-item">
-            <span class="health-label">Symbols:</span>
-            <span id="symbols-status" class="health-status live">LIVE</span>
-          </div>
+          <span class="status-indicator live" data-type="news">News: LIVE</span>
+          <span class="status-indicator live" data-type="scanner">Scanner: LIVE</span>
+          <span class="status-indicator live" data-type="symbols">Symbols: LIVE</span>
         </div>
         <div class="status-bar" id="statusBar">
           <span class="status-indicator" id="statusIndicator">●</span>
@@ -847,7 +836,7 @@
         const feed = document.getElementById('news-feed');
         feed.innerHTML = '<div class="loading">Fetching live financial news…</div>';
         
-        const url = `/api/enhanced-news?${params.toString()}`;
+        const url = `/api/live-news-stream?${params.toString()}`;
         const r = await fetch(url, { cache: 'no-store' });
         if (!r.ok) {
           const txt = await r.text();
@@ -1069,7 +1058,7 @@
         console.log('Building scanners with preset:', preset);
         console.log('Fetching from:', `/api/dynamic-stocks-scanner?preset=${preset}&limit=${limit}`);
         
-        const scannerUrl = `/api/dynamic-stocks-scanner?preset=${preset}&limit=${limit}&_t=${Date.now()}&_v=2.0`;
+        const scannerUrl = `/api/live-scanner-stream?preset=${preset}&limit=${limit}&_t=${Date.now()}&_v=3.0`;
         const response = await fetch(scannerUrl, { cache: 'no-store' });
         if (!response.ok) {
           const txt = await response.text();
@@ -1790,6 +1779,59 @@
       }
     }
     window.openArticle = openArticle;
+    
+    // Auto-refresh functionality
+    setInterval(() => {
+      if (currentTab === 'news') {
+        fetchNews();
+      } else if (currentTab === 'scanner') {
+        fetchScanner();
+      }
+      updateHealthStatus();
+    }, 15000);
+    
+    // Update health status every 5 seconds
+    setInterval(() => {
+      updateHealthStatus();
+    }, 5000);
+    
+    // Health status function
+    async function updateHealthStatus() {
+      try {
+        const response = await fetch('/api/health-status');
+        const data = await response.json();
+        
+        if (data.success) {
+          const health = data.data;
+          updateHealthPanel(health);
+        }
+      } catch (error) {
+        console.warn('Health status update failed:', error);
+      }
+    }
+    
+    // Update health panel
+    function updateHealthPanel(health) {
+      const newsStatus = health.overall.status === 'healthy' ? 'LIVE' : 
+                        health.overall.status === 'degraded' ? 'DEGRADED' : 'OFFLINE';
+      const scannerStatus = health.overall.status === 'healthy' ? 'LIVE' : 
+                           health.overall.status === 'degraded' ? 'DEGRADED' : 'OFFLINE';
+      const symbolsStatus = health.symbols.active > 0 ? 'LIVE' : 'OFFLINE';
+      
+      // Update status indicators
+      const statusElements = document.querySelectorAll('.status-indicator');
+      statusElements.forEach(el => {
+        const type = el.dataset.type;
+        let status = 'OFFLINE';
+        
+        if (type === 'news') status = newsStatus;
+        else if (type === 'scanner') status = scannerStatus;
+        else if (type === 'symbols') status = symbolsStatus;
+        
+        el.textContent = status;
+        el.className = `status-indicator ${status.toLowerCase()}`;
+      });
+    }
   </script>
 </body>
 </html>
