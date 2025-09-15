@@ -4,8 +4,8 @@ import fetch from 'node-fetch';
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
-import { providerManager } from '../lib/provider-manager.js';
-import { extractTickers } from '../lib/advanced-ticker-extractor.js';
+import { unifiedProviderManager } from '../lib/unified-provider-manager.js';
+import { robustTickerDetector } from '../lib/robust-ticker-detector.js';
 
 // URL validation and normalization
 function isHttp(url) {
@@ -755,8 +755,8 @@ export default async function handler(req, res) {
     
     console.log('Query parameters:', { limit, source, dateRange, search });
     
-    // Use ProviderManager for fetching news
-    const result = await providerManager.getNews({
+    // Use UnifiedProviderManager for fetching news
+    const result = await unifiedProviderManager.getNews({
       limit: parseInt(limit),
       ticker: search,
       search: search,
@@ -768,8 +768,8 @@ export default async function handler(req, res) {
     // Add ticker extraction and sentiment analysis
     const processedNews = [];
     for (const item of result.news) {
-      // Extract tickers using 4-stage resolver
-      const tickerData = await extractTickers(item);
+      // Extract tickers using robust detector
+      const tickerData = await robustTickerDetector.detectTickers(item);
       
       // Use extracted tickers (no fallback to item.tickers)
       const finalTickers = tickerData.tickers;

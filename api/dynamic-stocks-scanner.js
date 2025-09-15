@@ -4,7 +4,8 @@ import fetch from 'node-fetch';
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
-import { scanStocks } from '../lib/advanced-scanner.js';
+import { unifiedProviderManager } from '../lib/unified-provider-manager.js';
+import { comprehensiveSymbolMaster } from '../lib/comprehensive-symbol-master.js';
 
 // Advanced scanner handles universe loading internally
 
