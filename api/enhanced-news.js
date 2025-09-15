@@ -333,6 +333,10 @@ async function fetchFMPNews(companyMappings, limit = 100, sourceFilter = null) {
     });
 
     if (!response.ok) {
+      if (response.status === 429) {
+        console.warn(`FMP news rate limited (429), skipping FMP news`);
+        return [];
+      }
       throw new Error(`FMP API error: ${response.status}`);
     }
 
