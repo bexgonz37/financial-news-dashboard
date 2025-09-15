@@ -808,10 +808,21 @@
           throw new Error(`enhanced-news failed ${r.status}`);
         }
         const data = await r.json();
-        if (!data?.data?.news) {
-          showApiError('enhanced-news', 'returned no "data.news"');
+        console.log('News API response:', data);
+        
+        if (!data?.success) {
+          console.error('News API returned success=false:', data);
+          showApiError('enhanced-news', 'success=false');
+          return;
         }
-        const incoming = data?.data?.news || [];
+        
+        if (!data?.data?.news) {
+          console.error('News API returned no data.news:', data);
+          showApiError('enhanced-news', 'returned no "data.news"');
+          return;
+        }
+        
+        const incoming = data.data.news;
         
         if (incoming.length === 0) {
           console.warn('No news data received from API');
@@ -990,10 +1001,15 @@
           throw new Error('scanner fetch failed');
         }
         const data = await response.json();
-        if (!data?.success) showApiError('scanner', 'success=false');
         console.log('Scanner API response:', data);
         console.log('Data success:', data.success);
         console.log('Data stocks length:', data.data?.stocks?.length);
+        
+        if (!data?.success) {
+          console.error('Scanner API returned success=false:', data);
+          showApiError('scanner', 'success=false');
+          return;
+        }
         
         // Update timestamp display
         const timestampEl = document.getElementById('scannerLastUpdate');
