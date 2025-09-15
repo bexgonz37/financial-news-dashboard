@@ -769,6 +769,14 @@
       setTimeout(()=>el.remove(), 10000);
     }
 
+    function showApiError(where, err) {
+      const msg = typeof err === 'string' ? err : (err?.message || 'Unknown error');
+      const div = document.createElement('div');
+      div.style.cssText = 'margin:8px 0;padding:12px;border:1px solid #662b2b;background:#3b0f0f;color:#ffd2d2;border-radius:8px';
+      div.textContent = `API Error (${where}): ${msg}`;
+      document.getElementById('news-feed')?.prepend(div);
+    }
+
     // ---------- REMOVED CATEGORY FILTERS ----------
     // All category filtering removed to show ALL news from ALL stocks
         // ---------- FETCH + APPLY ----------
@@ -794,12 +802,12 @@
         const r = await fetch(url, { cache: 'no-store' });
         if (!r.ok) {
           const txt = await r.text();
-          showError(`/api/enhanced-news ${r.status}: ${txt.slice(0,200)}`);
+          showApiError('enhanced-news', `${r.status}: ${txt.slice(0,200)}`);
           throw new Error(`enhanced-news failed ${r.status}`);
         }
         const data = await r.json();
         if (!data?.data?.news) {
-          showError('enhanced-news returned no "data.news"');
+          showApiError('enhanced-news', 'returned no "data.news"');
         }
         const incoming = data?.data?.news || [];
         
@@ -963,11 +971,11 @@
         const response = await fetch(scannerUrl, { cache: 'no-store' });
         if (!response.ok) {
           const txt = await response.text();
-          showError(`/api/dynamic-stocks-scanner ${response.status}: ${txt.slice(0,200)}`);
+          showApiError('scanner', `${response.status}: ${txt.slice(0,200)}`);
           throw new Error('scanner fetch failed');
         }
         const data = await response.json();
-        if (!data?.success) showError('scanner success=false');
+        if (!data?.success) showApiError('scanner', 'success=false');
         console.log('Scanner API response:', data);
         console.log('Data success:', data.success);
         console.log('Data stocks length:', data.data?.stocks?.length);
@@ -1058,295 +1066,7 @@
       }
     }
 
-    // ---------- REMOVED FALLBACK NEWS DATA ----------
-    /*
-    function showFallbackNewsData() {
-      console.log('=== SHOWING FALLBACK NEWS DATA ===');
-      const feed = document.getElementById('news-feed');
-      
-      if (!feed) {
-        console.error('News feed not found!');
-        return;
-      }
-      
-      // Real financial news from today and past days
-      const fallbackNews = [
-        {
-          id: 'fallback-1',
-          title: 'Apple Reports Strong Q4 Earnings, Stock Surges 3%',
-          url: 'https://www.ft.com/content/apple-q4-earnings-iphone-sales-exceed-expectations',
-          source: 'Financial Times',
-          publishedAt: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(), // 2 hours ago
-          summary: 'Apple Inc. reported better-than-expected quarterly earnings, with revenue up 8% year-over-year.',
-          tickers: ['AAPL'],
-          category: 'earnings'
-        },
-        {
-          id: 'fallback-2',
-          title: 'Tesla Announces New Gigafactory in Texas',
-          url: 'https://www.reuters.com/business/tesla-announces-new-gigafactory-texas/',
-          source: 'Reuters',
-          publishedAt: new Date(Date.now() - 4 * 60 * 60 * 1000).toISOString(), // 4 hours ago
-          summary: 'Tesla Inc. announced plans to build a new Gigafactory in Texas, creating 5,000 new jobs.',
-          tickers: ['TSLA'],
-          category: 'expansion'
-        },
-        {
-          id: 'fallback-3',
-          title: 'Microsoft Azure Cloud Revenue Grows 25%',
-          url: 'https://www.bloomberg.com/news/microsoft-azure-cloud-revenue-grows-25-percent',
-          source: 'Bloomberg',
-          publishedAt: new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString(), // 6 hours ago
-          summary: 'Microsoft Corporation reported strong growth in its Azure cloud computing division.',
-          tickers: ['MSFT'],
-          category: 'earnings'
-        },
-        {
-          id: 'fallback-4',
-          title: 'Robinhood Reports Record Trading Volume',
-          url: 'https://www.marketwatch.com/story/robinhood-reports-record-trading-volume',
-          source: 'MarketWatch',
-          publishedAt: new Date(Date.now() - 8 * 60 * 60 * 1000).toISOString(), // 8 hours ago
-          summary: 'Robinhood Markets Inc. reported record trading volume for the quarter, driven by retail investors.',
-          tickers: ['HOOD'],
-          category: 'earnings'
-        },
-        {
-          id: 'fallback-5',
-          title: 'Google Parent Alphabet Invests $2B in AI Research',
-          url: 'https://www.cnbc.com/2024/alphabet-invests-2-billion-ai-research/',
-          source: 'CNBC',
-          publishedAt: new Date(Date.now() - 12 * 60 * 60 * 1000).toISOString(), // 12 hours ago
-          summary: 'Alphabet Inc. announced a $2 billion investment in artificial intelligence research and development.',
-          tickers: ['GOOGL'],
-          category: 'investment'
-        },
-        {
-          id: 'fallback-6',
-          title: 'Amazon Web Services Launches New AI Tools',
-          url: 'https://techcrunch.com/2024/amazon-web-services-launches-new-ai-tools/',
-          source: 'TechCrunch',
-          publishedAt: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(), // 1 day ago
-          summary: 'Amazon.com Inc. launched new artificial intelligence tools for its cloud computing platform.',
-          tickers: ['AMZN'],
-          category: 'product'
-        },
-        {
-          id: 'fallback-7',
-          title: 'Sundial Growers (SNDL) Cannabis Revenue Surges 40%',
-          url: 'https://www.cannabisbusinesstimes.com/article/sundial-growers-cannabis-revenue-surges/',
-          source: 'Cannabis Business Times',
-          publishedAt: new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString(), // 3 hours ago
-          summary: 'Sundial Growers Inc. reported cannabis revenue surged 40% quarter-over-quarter.',
-          tickers: ['SNDL'],
-          category: 'cannabis'
-        },
-        {
-          id: 'fallback-8',
-          title: 'GameStop (GME) Meme Stock Rally Continues - Volume Explodes',
-          url: 'https://www.reddit.com/r/wallstreetbets/gamestop-rally/',
-          source: 'Reddit WallStreetBets',
-          publishedAt: new Date(Date.now() - 5 * 60 * 60 * 1000).toISOString(), // 5 hours ago
-          summary: 'GameStop Corp. shares continue their meme stock rally with explosive volume.',
-          tickers: ['GME'],
-          category: 'meme'
-        },
-        {
-          id: 'fallback-9',
-          title: 'AMC Entertainment (AMC) Box Office Numbers Beat Expectations',
-          url: 'https://ew.com/movies/amc-box-office-beats-expectations/',
-          source: 'Entertainment Weekly',
-          publishedAt: new Date(Date.now() - 7 * 60 * 60 * 1000).toISOString(), // 7 hours ago
-          summary: 'AMC Entertainment Holdings Inc. reported box office numbers that beat expectations.',
-          tickers: ['AMC'],
-          category: 'entertainment'
-        },
-        {
-          id: 'fallback-10',
-          title: 'BlackBerry (BB) Cybersecurity Division Expands',
-          url: 'https://www.cybersecuritynews.com/blackberry-cybersecurity-expansion/',
-          source: 'Cybersecurity News',
-          publishedAt: new Date(Date.now() - 9 * 60 * 60 * 1000).toISOString(), // 9 hours ago
-          summary: 'BlackBerry Limited announced expansion of its cybersecurity division.',
-          tickers: ['BB'],
-          category: 'cybersecurity'
-        },
-        {
-          id: 'fallback-11',
-          title: 'Nokia (NOK) 5G Infrastructure Deals Worth $3B',
-          url: 'https://www.5gtechnews.com/nokia-5g-deals-3-billion/',
-          source: '5G Technology News',
-          publishedAt: new Date(Date.now() - 11 * 60 * 60 * 1000).toISOString(), // 11 hours ago
-          summary: 'Nokia Corporation announced 5G infrastructure deals worth $3 billion.',
-          tickers: ['NOK'],
-          category: '5g'
-        },
-        {
-          id: 'fallback-12',
-          title: 'Palantir (PLTR) Data Analytics Revenue Up 30%',
-          url: 'https://www.techcrunch.com/palantir-data-analytics-revenue/',
-          source: 'TechCrunch',
-          publishedAt: new Date(Date.now() - 13 * 60 * 60 * 1000).toISOString(), // 13 hours ago
-          summary: 'Palantir Technologies Inc. reported data analytics revenue up 30% year-over-year.',
-          tickers: ['PLTR'],
-          category: 'data'
-        }
-      ];
-      
-      // Set the news data
-      newsData = fallbackNews;
-      
-      // Update ticker chips
-      
-      // Apply current filters
-      applyFilter();
-      
-      console.log('Fallback news data loaded:', fallbackNews.length, 'items');
-    }
-    */
 
-    // ---------- REMOVED FALLBACK SCANNER DATA ----------
-    /*
-    function showFallbackScannerData() {
-      console.log('=== SHOWING FALLBACK SCANNER DATA ===');
-      const grid = document.getElementById('scanner-grid');
-      
-      if (!grid) {
-        console.error('Scanner grid not found!');
-        return;
-      }
-      
-      console.log('Scanner grid found, populating with fallback data...');
-      
-      // Real market data from today - SUPER ADVANCED like real trading platform
-      const fallbackStocks = [
-        { symbol: 'AAPL', name: 'Apple Inc.', price: 193.58, change: 2.92, changePercent: 1.53, volume: 52000000, rsi: 65.2, vwap: 192.45, marketCap: '3.1T', sector: 'Technology', session: 'RTH', marketStatus: 'Live', dataAge: 'Live', isNewListing: false, tickerChanged: false, relativeVolume: 1.2, macd: 0.85, pe: 28.5, beta: 1.15, volatility: 0.25, aiScore: 8.5 },
-        { symbol: 'MSFT', name: 'Microsoft Corp.', price: 378.85, change: -1.20, changePercent: -0.32, volume: 32000000, rsi: 58.7, vwap: 379.20, marketCap: '2.8T', sector: 'Technology', session: 'RTH', marketStatus: 'Live', dataAge: 'Live', isNewListing: false, tickerChanged: false, relativeVolume: 0.9, macd: -0.45, pe: 32.1, beta: 0.95, volatility: 0.22, aiScore: 7.2 },
-        { symbol: 'GOOGL', name: 'Alphabet Inc.', price: 142.30, change: 3.45, changePercent: 2.48, volume: 28000000, rsi: 72.1, vwap: 141.85, marketCap: '1.8T', sector: 'Technology', session: 'RTH', marketStatus: 'Live', dataAge: 'Live', isNewListing: false, tickerChanged: false, relativeVolume: 1.1, macd: 1.25, pe: 24.8, beta: 1.05, volatility: 0.28, aiScore: 8.8 },
-        { symbol: 'AMZN', name: 'Amazon.com Inc.', price: 155.20, change: -0.85, changePercent: -0.54, volume: 38000000, rsi: 45.3, vwap: 155.80, marketCap: '1.6T', sector: 'Consumer', session: 'RTH', marketStatus: 'Live', dataAge: 'Live', isNewListing: false, tickerChanged: false, relativeVolume: 1.0, macd: -0.15, pe: 45.2, beta: 1.25, volatility: 0.35, aiScore: 6.5 },
-        { symbol: 'TSLA', name: 'Tesla Inc.', price: 248.75, change: 8.90, changePercent: 3.71, volume: 55000000, rsi: 78.9, vwap: 245.30, marketCap: '790B', sector: 'Consumer', session: 'RTH', marketStatus: 'Live', dataAge: 'Live', isNewListing: false, tickerChanged: false, relativeVolume: 1.8, macd: 2.15, pe: 65.3, beta: 2.1, volatility: 0.65, aiScore: 9.2 },
-        { symbol: 'META', name: 'Meta Platforms Inc.', price: 485.60, change: 12.30, changePercent: 2.60, volume: 25000000, rsi: 69.4, vwap: 482.15, marketCap: '1.2T', sector: 'Technology', session: 'RTH', marketStatus: 'Live', dataAge: 'Live', isNewListing: false, tickerChanged: false, relativeVolume: 1.3, macd: 1.85, pe: 22.1, beta: 1.35, volatility: 0.42, aiScore: 8.1 },
-        { symbol: 'NVDA', name: 'NVIDIA Corp.', price: 875.40, change: -15.20, changePercent: -1.71, volume: 42000000, rsi: 42.1, vwap: 880.25, marketCap: '2.1T', sector: 'Technology', session: 'RTH', marketStatus: 'Live', dataAge: 'Live', isNewListing: false, tickerChanged: false, relativeVolume: 1.5, macd: -2.25, pe: 55.8, beta: 1.65, volatility: 0.58, aiScore: 7.8 },
-        { symbol: 'NFLX', name: 'Netflix Inc.', price: 485.20, change: 5.60, changePercent: 1.17, volume: 18000000, rsi: 61.8, vwap: 482.90, marketCap: '210B', sector: 'Communication', session: 'RTH', marketStatus: 'Live', dataAge: 'Live', isNewListing: false, tickerChanged: false, relativeVolume: 0.8, macd: 0.75, pe: 28.9, beta: 1.15, volatility: 0.38, aiScore: 6.9 },
-        { symbol: 'AMD', name: 'Advanced Micro Devices', price: 142.80, change: -2.10, changePercent: -1.45, volume: 35000000, rsi: 38.7, vwap: 144.15, marketCap: '230B', sector: 'Technology', session: 'RTH', marketStatus: 'Live', dataAge: 'Live', isNewListing: false, tickerChanged: false, relativeVolume: 1.4, macd: -1.15, pe: 35.2, beta: 1.85, volatility: 0.52, aiScore: 7.1 },
-        { symbol: 'INTC', name: 'Intel Corp.', price: 45.30, change: 1.20, changePercent: 2.72, volume: 28000000, rsi: 55.2, vwap: 44.85, marketCap: '190B', sector: 'Technology', session: 'RTH', marketStatus: 'Live', dataAge: 'Live', isNewListing: false, tickerChanged: false, relativeVolume: 1.1, macd: 0.65, pe: 18.5, beta: 0.95, volatility: 0.28, aiScore: 6.3 },
-        { symbol: 'HOOD', name: 'Robinhood Markets Inc.', price: 12.45, change: 0.85, changePercent: 7.33, volume: 15000000, rsi: 82.1, vwap: 12.20, marketCap: '13B', sector: 'Financial', session: 'RTH', marketStatus: 'Live', dataAge: 'Live', isNewListing: false, tickerChanged: false, relativeVolume: 2.1, macd: 1.45, pe: 0, beta: 1.95, volatility: 0.85, aiScore: 8.7 },
-        { symbol: 'PLTR', name: 'Palantir Technologies Inc.', price: 18.75, change: -0.45, changePercent: -2.34, volume: 22000000, rsi: 48.3, vwap: 18.90, marketCap: '38B', sector: 'Technology', session: 'RTH', marketStatus: 'Live', dataAge: 'Live', isNewListing: false, tickerChanged: false, relativeVolume: 1.6, macd: -0.25, pe: 0, beta: 1.45, volatility: 0.72, aiScore: 7.4 },
-        { symbol: 'GME', name: 'GameStop Corp.', price: 15.20, change: 1.35, changePercent: 9.75, volume: 45000000, rsi: 75.8, vwap: 14.85, marketCap: '4.7B', sector: 'Consumer', session: 'RTH', marketStatus: 'Live', dataAge: 'Live', isNewListing: false, tickerChanged: false, relativeVolume: 3.2, macd: 2.15, pe: 0, beta: 2.85, volatility: 1.25, aiScore: 9.5 },
-        { symbol: 'AMC', name: 'AMC Entertainment Holdings Inc.', price: 8.90, change: 0.65, changePercent: 7.88, volume: 38000000, rsi: 68.9, vwap: 8.75, marketCap: '1.1B', sector: 'Consumer', session: 'RTH', marketStatus: 'Live', dataAge: 'Live', isNewListing: false, tickerChanged: false, relativeVolume: 2.8, macd: 1.85, pe: 0, beta: 2.15, volatility: 0.95, aiScore: 8.9 },
-        { symbol: 'BB', name: 'BlackBerry Limited', price: 3.25, change: -0.15, changePercent: -4.41, volume: 12000000, rsi: 42.1, vwap: 3.30, marketCap: '1.9B', sector: 'Technology', session: 'RTH', marketStatus: 'Live', dataAge: 'Live', isNewListing: false, tickerChanged: false, relativeVolume: 1.8, macd: -0.45, pe: 0, beta: 1.65, volatility: 0.68, aiScore: 0 }
-      ];
-      
-      grid.innerHTML = fallbackStocks.map(stock => {
-        const pct = stock.changePercent || 0;
-        const price = stock.price || 0;
-        const volume = stock.volume || 0;
-        const rsi = stock.rsi || 0;
-        const vwap = stock.vwap || 0;
-        const marketCap = stock.marketCap || 'N/A';
-        const relativeVolume = stock.relativeVolume || 0;
-        const macd = stock.macd || 0;
-        const pe = stock.pe || 0;
-        const beta = stock.beta || 0;
-        const volatility = stock.volatility || 0;
-        const session = stock.session || 'RTH';
-        const marketStatus = stock.marketStatus || 'Live';
-        const dataAge = stock.dataAge || 'Live';
-        const isNewListing = stock.isNewListing || false;
-        const tickerChanged = stock.tickerChanged || false;
-        
-        // Advanced scoring algorithm - better than MomoScreener
-        let score = Math.abs(pct) * 15 + (volume / 1000000) * 2 + (rsi > 70 ? 25 : rsi < 30 ? 25 : 0) + 
-                   (relativeVolume > 2 ? 20 : 0) + (Math.abs(macd) > 1 ? 15 : 0) + 
-                   (volatility > 0.5 ? 10 : 0) + (isNewListing ? 30 : 0) + (tickerChanged ? 25 : 0);
-        
-        // Add AI scoring boost if available
-        if (stock.aiScore) {
-          score += stock.aiScore * 5; // AI score multiplier
-        }
-        
-        return `
-          <div class="card" style="cursor:pointer" onclick="openChart('${stock.symbol}')" data-symbol="${stock.symbol}">
-            <div class="card-header">
-              <div class="ticker">${stock.symbol} ${isNewListing ? '<span class="badge new">NEW</span>' : ''} ${tickerChanged ? '<span class="badge changed">CHANGED</span>' : ''}</div>
-              <div class="pct ${pct >= 0 ? 'up' : 'down'}">
-                <span class="arrow">${pct >= 0 ? '↗' : '↘'}</span>
-                ${pct >= 0 ? '+' : ''}${pct.toFixed(2)}%
-              </div>
-            </div>
-            <div class="card-body">
-              <div class="price">$${price.toFixed(2)}</div>
-              <div class="name">${stock.name}</div>
-              <div class="session-info">
-                <span class="session ${session === 'AH' ? 'after-hours' : 'regular'}">${marketStatus}</span>
-                <span class="data-age">${dataAge}</span>
-              </div>
-              <div class="metrics">
-                <div class="metric">
-                  <span class="label">Volume:</span>
-                  <span class="value">${(volume / 1000000).toFixed(1)}M</span>
-                </div>
-                <div class="metric">
-                  <span class="label">RVOL:</span>
-                  <span class="value">${relativeVolume.toFixed(1)}x</span>
-                </div>
-                <div class="metric">
-                  <span class="label">RSI:</span>
-                  <span class="value ${rsi > 70 ? 'overbought' : rsi < 30 ? 'oversold' : ''}">${rsi.toFixed(1)}</span>
-                </div>
-                <div class="metric">
-                  <span class="label">VWAP:</span>
-                  <span class="value">$${vwap.toFixed(2)}</span>
-                </div>
-                <div class="metric">
-                  <span class="label">MACD:</span>
-                  <span class="value ${macd > 0 ? 'up' : 'down'}">${macd > 0 ? '+' : ''}${macd.toFixed(2)}</span>
-                </div>
-                <div class="metric">
-                  <span class="label">P/E:</span>
-                  <span class="value">${pe > 0 ? pe.toFixed(1) : 'N/A'}</span>
-                </div>
-                <div class="metric">
-                  <span class="label">Beta:</span>
-                  <span class="value">${beta.toFixed(2)}</span>
-                </div>
-                <div class="metric">
-                  <span class="label">Vol:</span>
-                  <span class="value">${(volatility * 100).toFixed(1)}%</span>
-                </div>
-                <div class="metric">
-                  <span class="label">Market Cap:</span>
-                  <span class="value">${marketCap}</span>
-                </div>
-                <div class="metric">
-                  <span class="label">Score:</span>
-                  <span class="value score">${score.toFixed(1)}</span>
-                </div>
-                <div class="metric">
-                  <span class="label">AI Score:</span>
-                  <span class="value ai-score">${stock.aiScore ? stock.aiScore.toFixed(1) : 'N/A'}</span>
-                </div>
-              </div>
-              <div class="mini-chart" data-ticker="${stock.symbol}"></div>
-            </div>
-            <div class="card-footer">
-              <div class="sector">${stock.sector}</div>
-            </div>
-          </div>
-        `;
-      }).join('');
-      
-      // Draw mini charts for fallback data
-      setTimeout(() => {
-        document.querySelectorAll('.mini-chart').forEach(async (chart) => {
-          const ticker = chart.dataset.ticker;
-          if (ticker) {
-            await drawSparklineWithRetry(chart, ticker);
-          }
-        });
-      }, 100);
-    }
-    */
 
     // ---------- WATCHLIST ----------
     function toggleWatchlist(t){

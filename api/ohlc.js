@@ -1,189 +1,113 @@
-// Live OHLC API - Yahoo Finance Integration
+// Live OHLC API - Real Financial Data from Multiple Providers
 import fetch from 'node-fetch';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
-// Yahoo Finance API endpoints
-const YAHOO_BASE = 'https://query1.finance.yahoo.com/v8/finance/chart';
-
-// Map intervals to Yahoo Finance periods
-const INTERVAL_MAP = {
-  '1m': { period1: '-1d', period2: 'now', interval: '1m' },
-  '5m': { period1: '-5d', period2: 'now', interval: '5m' },
-  '15m': { period1: '-15d', period2: 'now', interval: '15m' },
-  '1h': { period1: '-30d', period2: 'now', interval: '1h' },
-  '1d': { period1: '-1y', period2: 'now', interval: '1d' }
-};
-
-// Fetch live OHLC data from Yahoo Finance
-async function fetchYahooOHLC(ticker, interval = '5m', limit = 20) {
-  try {
-    const config = INTERVAL_MAP[interval] || INTERVAL_MAP['5m'];
-    const url = `${YAHOO_BASE}/${ticker}?period1=${config.period1}&period2=${config.period2}&interval=${config.interval}`;
-    
-    console.log(`Fetching Yahoo OHLC for ${ticker}: ${url}`);
-    
-    const response = await fetch(url, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-        'Accept': 'application/json',
-        'Cache-Control': 'no-cache'
-      },
-      cache: 'no-store'
-    });
-
-    if (!response.ok) {
-      throw new Error(`Yahoo Finance API error: ${response.status} ${response.statusText}`);
-    }
-
-    const data = await response.json();
-    
-    if (!data.chart || !data.chart.result || data.chart.result.length === 0) {
-      throw new Error('No chart data available');
-    }
-
-    const result = data.chart.result[0];
-    const timestamps = result.timestamp || [];
-    const quotes = result.indicators?.quote?.[0] || {};
-    
-    if (!quotes.open || !quotes.high || !quotes.low || !quotes.close) {
-      throw new Error('Missing OHLC data');
-    }
-
-    const candles = [];
-    const dataLength = Math.min(timestamps.length, limit);
-    
-    for (let i = 0; i < dataLength; i++) {
-      const time = timestamps[i] * 1000; // Convert to milliseconds
-      const open = quotes.open[i];
-      const high = quotes.high[i];
-      const low = quotes.low[i];
-      const close = quotes.close[i];
-      const volume = quotes.volume?.[i] || 0;
-
-      // Skip invalid data points
-      if (open == null || high == null || low == null || close == null) continue;
-
-      candles.push({
-        t: Math.floor(time / 1000), // Convert back to seconds for UI
-        o: Number(open.toFixed(2)),
-        h: Number(high.toFixed(2)),
-        l: Number(low.toFixed(2)),
-        c: Number(close.toFixed(2)),
-        v: Math.floor(volume || 0),
-        // Also provide the old format for compatibility
-        time: Math.floor(time / 1000),
-        open: Number(open.toFixed(2)),
-        high: Number(high.toFixed(2)),
-        low: Number(low.toFixed(2)),
-        close: Number(close.toFixed(2)),
-        volume: Math.floor(volume || 0)
-      });
-    }
-
-    console.log(`Yahoo OHLC: ${ticker} - ${candles.length} candles`);
-    return candles;
-
-  } catch (error) {
-    console.error(`Yahoo OHLC fetch error for ${ticker}:`, error.message);
-    throw error;
-  }
-}
-
-// Fallback data generator for when APIs fail
-function generateFallbackOHLC(ticker, interval = '5m', limit = 20) {
-  console.log(`Generating fallback OHLC for ${ticker}`);
-  
-  const now = Date.now();
-  const intervalMs = {
-    '1m': 60 * 1000,
-    '5m': 5 * 60 * 1000,
-    '15m': 15 * 60 * 1000,
-    '1h': 60 * 60 * 1000,
-    '1d': 24 * 60 * 60 * 1000
-  }[interval] || 5 * 60 * 1000;
-
-  const basePrice = 50 + Math.random() * 200; // Random base price between $50-$250
-  const candles = [];
-  
-  for (let i = limit - 1; i >= 0; i--) {
-    const time = now - (i * intervalMs);
-    const change = (Math.random() - 0.5) * 0.02; // ±1% change
-    const open = basePrice * (1 + change);
-    const close = open * (1 + (Math.random() - 0.5) * 0.01);
-    const high = Math.max(open, close) * (1 + Math.random() * 0.005);
-    const low = Math.min(open, close) * (1 - Math.random() * 0.005);
-    const volume = Math.floor(Math.random() * 1000000) + 100000;
-
-    candles.push({
-      t: Math.floor(time / 1000),
-      o: Number(open.toFixed(2)),
-      h: Number(high.toFixed(2)),
-      l: Number(low.toFixed(2)),
-      c: Number(close.toFixed(2)),
-      v: volume,
-      // Also provide the old format for compatibility
-      time: Math.floor(time / 1000),
-      open: Number(open.toFixed(2)),
-      high: Number(high.toFixed(2)),
-      low: Number(low.toFixed(2)),
-      close: Number(close.toFixed(2)),
-      volume: volume
-    });
-  }
-
-  return candles;
-}
+// API Keys from environment variables
+const FMP_KEY = process.env.FMP_KEY;
+const FINNHUB_KEY = process.env.FINNHUB_KEY;
+const ALPHAVANTAGE_KEY = process.env.ALPHAVANTAGE_KEY;
 
 export default async function handler(req, res) {
-  try {
-    const { ticker, interval = '5m', limit = 20 } = req.query;
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
-    if (!ticker) {
-      return res.status(400).json({
-        success: false,
-        error: 'Ticker parameter is required'
-      });
-    }
+  if (req.method === 'OPTIONS') return res.status(200).end();
+  if (req.method !== 'GET') return res.status(405).json({ success: false, error: 'Method not allowed' });
 
-    console.log(`OHLC API: ${ticker}, interval: ${interval}, limit: ${limit}`);
+  const { ticker, interval = '5min', limit = '100' } = req.query;
+  if (!ticker) return res.status(400).json({ success: false, error: 'Missing ticker' });
 
-    let candles = [];
+  const providers = [];
 
-    try {
-      // Try Yahoo Finance first
-      candles = await fetchYahooOHLC(ticker, interval, parseInt(limit));
-    } catch (error) {
-      console.warn(`Yahoo Finance failed for ${ticker}, using fallback:`, error.message);
-      // Use fallback data
-      candles = generateFallbackOHLC(ticker, interval, parseInt(limit));
-    }
-
-    if (candles.length === 0) {
-      return res.status(404).json({
-        success: false,
-        error: 'No OHLC data available'
-      });
-    }
-
-    return res.status(200).json({
-      success: true,
-      data: {
-        candles: candles,
-        ticker: ticker,
-        interval: interval,
-        count: candles.length,
-        lastUpdate: new Date().toISOString()
-      }
-    });
-
-  } catch (error) {
-    console.error('OHLC API error:', error);
-    return res.status(500).json({
-      success: false,
-      error: 'Internal server error',
-      message: error.message
+  // FMP
+  if (FMP_KEY) {
+    providers.push(async () => {
+      const r = await fetch(`https://financialmodelingprep.com/api/v3/historical-chart/${interval}/${encodeURIComponent(ticker)}?apikey=${FMP_KEY}&limit=${limit}`, { cache: 'no-store' });
+      if (!r.ok) throw new Error('FMP HTTP ' + r.status);
+      const j = await r.json();
+      if (!Array.isArray(j) || j.length === 0) throw new Error('FMP empty');
+      
+      const candles = j.map(c => ({
+        t: new Date(c.date).getTime(),
+        o: parseFloat(c.open),
+        h: parseFloat(c.high),
+        l: parseFloat(c.low),
+        c: parseFloat(c.close),
+        v: parseInt(c.volume)
+      })).sort((a, b) => a.t - b.t);
+      
+      return { data: { candles }, provider: 'fmp' };
     });
   }
+
+  // Finnhub
+  if (FINNHUB_KEY) {
+    providers.push(async () => {
+      const r = await fetch(`https://finnhub.io/api/v1/stock/candle?symbol=${encodeURIComponent(ticker)}&resolution=${interval}&token=${FINNHUB_KEY}&count=${limit}`, { cache: 'no-store' });
+      if (!r.ok) throw new Error('Finnhub HTTP ' + r.status);
+      const j = await r.json();
+      if (!j || !j.c || j.c.length === 0) throw new Error('Finnhub empty');
+      
+      const candles = j.c.map((close, i) => ({
+        t: j.t[i] * 1000, // Convert to milliseconds
+        o: j.o[i],
+        h: j.h[i],
+        l: j.l[i],
+        c: close,
+        v: j.v[i]
+      }));
+      
+      return { data: { candles }, provider: 'finnhub' };
+    });
+  }
+
+  // Alpha Vantage
+  if (ALPHAVANTAGE_KEY) {
+    providers.push(async () => {
+      const functionName = interval === '1min' ? 'TIME_SERIES_INTRADAY' : 'TIME_SERIES_DAILY';
+      const r = await fetch(`https://www.alphavantage.co/query?function=${functionName}&symbol=${encodeURIComponent(ticker)}&apikey=${ALPHAVANTAGE_KEY}&outputsize=compact`, { cache: 'no-store' });
+      if (!r.ok) throw new Error('Alpha Vantage HTTP ' + r.status);
+      const j = await r.json();
+      
+      const timeSeriesKey = interval === '1min' ? 'Time Series (1min)' : 'Time Series (Daily)';
+      const timeSeries = j[timeSeriesKey];
+      if (!timeSeries) throw new Error('Alpha Vantage empty');
+      
+      const candles = Object.entries(timeSeries)
+        .slice(0, parseInt(limit))
+        .map(([time, data]) => ({
+          t: new Date(time).getTime(),
+          o: parseFloat(data['1. open']),
+          h: parseFloat(data['2. high']),
+          l: parseFloat(data['3. low']),
+          c: parseFloat(data['4. close']),
+          v: parseInt(data['5. volume'])
+        }))
+        .sort((a, b) => a.t - b.t);
+      
+      return { data: { candles }, provider: 'alphavantage' };
+    });
+  }
+
+  const errors = [];
+  for (const p of providers) {
+    try {
+      const result = await p();
+      console.log(`OHLC data from ${result.provider} for ${ticker}: ${result.data.candles.length} candles`);
+      return res.json({ success: true, ...result });
+    } catch (e) { 
+      console.warn(`OHLC provider failed for ${ticker}:`, e.message);
+      errors.push(e.message); 
+    }
+  }
+  
+  return res.status(502).json({ 
+    success: false, 
+    error: 'No OHLC data available from any provider', 
+    providersTried: providers.length, 
+    details: errors 
+  });
 }

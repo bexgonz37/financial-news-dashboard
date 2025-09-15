@@ -353,12 +353,41 @@ async function fetchLiveScannerData(preset, limit) {
     console.log(`Quotes fetched: ${quotes.length}`);
     
     if (quotes.length === 0) {
-      console.log('No quotes from Yahoo Finance, trying FMP fallback...');
-      // Try FMP as fallback
-      const fmpQuotes = await fetchFMPQuotes(symbolsToScan.slice(0, 50)); // Limit to 50 for FMP
-      if (fmpQuotes.length > 0) {
-        console.log(`FMP fallback successful: ${fmpQuotes.length} quotes`);
-        const enhancedQuotes = calculateAdvancedMetrics(fmpQuotes);
+      console.log('No quotes from Yahoo Finance, trying live-data API fallback...');
+      // Try live-data API as fallback for individual quotes
+      const liveQuotes = [];
+      for (const symbol of symbolsToScan.slice(0, 20)) { // Limit to 20 for performance
+        try {
+          const response = await fetch(`/api/live-data?ticker=${symbol}`, { cache: 'no-store' });
+          if (response.ok) {
+            const data = await response.json();
+            if (data.success && data.data) {
+              liveQuotes.push({
+                symbol: symbol,
+                name: symbol,
+                price: data.data.price,
+                change: data.data.change,
+                changePercent: data.data.changePercent,
+                volume: data.data.volume || 0,
+                averageDailyVolume3Month: 0,
+                relativeVolume: 1,
+                marketState: 'REGULAR',
+                marketCap: null,
+                pe: null,
+                high52Week: null,
+                low52Week: null,
+                lastUpdate: data.data.timestamp || new Date().toISOString()
+              });
+            }
+          }
+        } catch (e) {
+          console.warn(`Failed to get live data for ${symbol}:`, e.message);
+        }
+      }
+      
+      if (liveQuotes.length > 0) {
+        console.log(`Live-data API fallback successful: ${liveQuotes.length} quotes`);
+        const enhancedQuotes = calculateAdvancedMetrics(liveQuotes);
         const filteredQuotes = applyPreset(enhancedQuotes, preset, limit);
         return filteredQuotes;
       }
