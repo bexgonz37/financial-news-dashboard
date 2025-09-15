@@ -399,21 +399,26 @@ export default async function handler(req, res) {
     
     const result = await scanStocks(preset, parseInt(limit), filters);
     
-    console.log(`Advanced scanner returned ${result.stocks.length} stocks from ${result.totalProcessed} processed (universe: ${result.universeSize})`);
+            console.log(`Advanced scanner returned ${result.stocks.length} stocks from ${result.totalProcessed} processed (universe: ${result.universeSize})`);
+            
+            // Comprehensive logging for observability
+            const rateLimited = result.errors && result.errors.some(err => err.includes('429') || err.includes('rate limit'));
+            console.log(`scanner_universe=${result.universeSize} processed=${result.totalProcessed} rate_limited=${rateLimited}`);
+            console.log(`scanner_results=${result.stocks.length} preset=${preset} errors=[${(result.errors || []).join(',')}]`);
 
-    return res.status(200).json({ 
-      success: true, 
-      data: { 
-        refreshInterval: 30000,
-        stocks: result.stocks, 
-        count: result.stocks.length,
-        totalProcessed: result.totalProcessed,
-        universeSize: result.universeSize,
-        preset: preset,
-        lastUpdate: result.lastUpdate
-      },
-      errors: result.errors || []
-    });
+            return res.status(200).json({ 
+              success: true, 
+              data: { 
+                refreshInterval: 30000,
+                stocks: result.stocks, 
+                count: result.stocks.length,
+                totalProcessed: result.totalProcessed,
+                universeSize: result.universeSize,
+                preset: preset,
+                lastUpdate: result.lastUpdate
+              },
+              errors: result.errors || []
+            });
   } catch (err) {
     console.error('Scanner error:', err);
     return res.status(200).json({ 

@@ -765,6 +765,13 @@ export default async function handler(req, res) {
       });
     }
 
+    // Comprehensive logging for observability
+    const tickersResolved = processedNews.filter(item => item.tickers && item.tickers.length > 0).length;
+    const unmatchedTitles = processedNews.length - tickersResolved;
+    
+    console.log(`news_live_items=${processedNews.length} providers_ok=[${result.errors.length === 0 ? 'finnhub,fmp' : 'partial'}] providers_err=[${result.errors.join(',')}]`);
+    console.log(`tickers_resolved=${tickersResolved} unmatched_titles=${unmatchedTitles}`);
+
     return res.status(200).json({
       success: true,
       data: {

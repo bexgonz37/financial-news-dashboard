@@ -213,6 +213,7 @@
       <div class="header-left">
         <h1>🚀 PRO Day Trader Dashboard</h1>
         <p>Advanced multi-source news aggregation, professional-grade screeners, and real-time market intelligence</p>
+        <div id="provider-status" style="margin-top: 8px; font-size: 0.9em;"></div>
       </div>
       <div class="header-right">
         <div class="status-bar" id="statusBar">
@@ -379,7 +380,11 @@
     const stockCache = new Map();
     // Removed category filtering
     let watchlist = new Set();
-    let usingFallbackData = false;
+    // Live data only - no fallback tracking needed
+    let providerStatus = { 
+      news: { status: 'unknown', providers: [], errors: [] },
+      scanner: { status: 'unknown', providers: [], errors: [] }
+    };
 
     // optional metrics toggles (defaults)
     let optShowPct = true;
@@ -781,7 +786,7 @@
     }
 
     // ---------- ERROR HANDLING ----------
-    const USE_DEMO = new URLSearchParams(location.search).has('demo');
+    // No demo mode - live data only
     
     function showError(msg) {
       const el = document.createElement('div');
@@ -847,8 +852,17 @@
         
         if (incoming.length === 0) {
           console.warn('No news data received from API');
+          providerStatus.news.status = 'offline';
+          providerStatus.news.errors = ['No data returned'];
         } else {
           console.log(`Received ${incoming.length} news items`);
+          providerStatus.news.status = 'live';
+          providerStatus.news.providers = ['finnhub', 'fmp'];
+          providerStatus.news.errors = data.errors || [];
+          
+          if (data.errors && data.errors.length > 0) {
+            providerStatus.news.status = 'degraded';
+          }
         }
         
         // For sticky news, we don't merge - we replace to show persistent news
@@ -1043,9 +1057,25 @@
         
         if (!data?.success) {
           console.error('Scanner API returned success=false:', data);
+          providerStatus.scanner.status = 'offline';
+          providerStatus.scanner.errors = ['API returned success=false'];
           const grid = document.getElementById('scanner-grid');
-          grid.innerHTML = `<div class="card">No candidates yet (rate-limited or illiquid). Trying again in 30s.</div>`;
+          grid.innerHTML = `<div class="card">No live scanner data available. Trying again in 30s.</div>`;
           return;
+        }
+        
+        // Update scanner provider status
+        if (data.data && data.data.stocks && data.data.stocks.length > 0) {
+          providerStatus.scanner.status = 'live';
+          providerStatus.scanner.providers = ['fmp', 'finnhub', 'alphavantage'];
+          providerStatus.scanner.errors = data.errors || [];
+          
+          if (data.errors && data.errors.length > 0) {
+            providerStatus.scanner.status = 'degraded';
+          }
+        } else {
+          providerStatus.scanner.status = 'offline';
+          providerStatus.scanner.errors = ['No data returned'];
         }
         
         // Update timestamp display
@@ -1561,49 +1591,53 @@
     console.log('Loading live scanner data...');
     buildScanners();
     
-    // remove the automatic fallback timeout during debugging
-    // setTimeout(() => {
-    //   console.log('Checking if real data loaded...');
-    //   const newsContainer = document.getElementById('news-feed');
-    //   const scannerGrid = document.getElementById('scanner-grid');
-    //   
-    //   if (newsContainer && newsContainer.children.length <= 1) {
-    //     console.log('News failed to load - no fallback data');
-    //     newsContainer.innerHTML = '<div class="loading">No live news data available. Please try again later.</div>';
-    //   }
-    //   
-    //   if (scannerGrid && scannerGrid.children.length <= 1) {
-    //     console.log('Scanner failed to load - no fallback data');
-    //     scannerGrid.innerHTML = '<div class="loading">No live scanner data available. Please try again later.</div>';
-    //   }
-    // }, 3000);
+    // Live data only - no fallback timeouts needed
     
     // Also try to load scanner immediately
     console.log('Loading scanner immediately...');
     buildScanners();
     
-    // Status tracking
-    let providerStatus = { healthy: 0, degraded: 0, error: 0 };
+    // Status tracking - already defined above
     
     function updateStatusBar() {
       const statusBar = document.getElementById('statusBar');
       const statusIndicator = document.getElementById('statusIndicator');
       const statusText = document.getElementById('statusText');
+      const providerStatusEl = document.getElementById('provider-status');
       
       if (!statusBar) return;
       
-      const total = providerStatus.healthy + providerStatus.degraded + providerStatus.error;
+      // Update main status
+      const now = new Date();
+      const timeStr = now.toLocaleTimeString();
       
-      if (providerStatus.error > 0) {
+      if (providerStatus.news.status === 'offline' && providerStatus.scanner.status === 'offline') {
         statusBar.className = 'status-bar error';
-        statusText.textContent = `Error • ${providerStatus.error}/${total} providers failed`;
-      } else if (providerStatus.degraded > 0) {
+        statusText.textContent = `Offline • Last updated: ${timeStr}`;
+      } else if (providerStatus.news.status === 'degraded' || providerStatus.scanner.status === 'degraded') {
         statusBar.className = 'status-bar degraded';
-        statusText.textContent = `Degraded • ${providerStatus.degraded}/${total} providers rate-limited`;
+        statusText.textContent = `Degraded • Last updated: ${timeStr}`;
       } else {
         statusBar.className = 'status-bar';
-        statusText.textContent = `Live • ${providerStatus.healthy}/${total} providers healthy`;
+        statusText.textContent = `Live • Last updated: ${timeStr}`;
       }
+      
+      // Update provider status display
+      if (providerStatusEl) {
+        const newsStatus = getStatusBadge(providerStatus.news.status, 'News');
+        const scannerStatus = getStatusBadge(providerStatus.scanner.status, 'Scanner');
+        providerStatusEl.innerHTML = `${newsStatus} | ${scannerStatus}`;
+      }
+    }
+    
+    function getStatusBadge(status, label) {
+      const badges = {
+        'live': `<span style="color: #00ff00; font-weight: bold;">LIVE ${label}</span>`,
+        'degraded': `<span style="color: #ffaa00; font-weight: bold;">DEGRADED ${label}</span>`,
+        'offline': `<span style="color: #ff0000; font-weight: bold;">OFFLINE ${label}</span>`,
+        'unknown': `<span style="color: #888888;">${label}</span>`
+      };
+      return badges[status] || badges['unknown'];
     }
     
     // Session-aware refresh rates
