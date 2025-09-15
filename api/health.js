@@ -1,5 +1,9 @@
 export default async function handler(req, res) {
-  const env = n => (process.env[n] ? '✔' : '✖');
+  const env = n => {
+    const val = process.env[n];
+    return val ? '✔' : '✖';
+  };
+  
   res.status(200).json({
     ok: true,
     providers: {
