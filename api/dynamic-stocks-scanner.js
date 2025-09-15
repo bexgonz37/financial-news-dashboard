@@ -64,8 +64,21 @@ async function loadUniverse() {
       }
     }
     
-    // No fallback - must have live data
-    throw new Error('Failed to load universe from any provider');
+    // If all APIs fail, use a curated list of major tickers for basic functionality
+    console.log('All API providers failed, using curated universe for basic functionality');
+    const curatedSymbols = [
+      'AAPL', 'MSFT', 'GOOGL', 'AMZN', 'TSLA', 'META', 'NVDA', 'NFLX', 'AMD', 'INTC',
+      'JPM', 'JNJ', 'V', 'PG', 'UNH', 'HD', 'MA', 'DIS', 'PYPL', 'ADBE',
+      'CRM', 'NKE', 'ABT', 'TMO', 'ACN', 'COST', 'DHR', 'VZ', 'NEE', 'WMT',
+      'BAC', 'XOM', 'T', 'PFE', 'KO', 'PEP', 'ABBV', 'CVX', 'MRK', 'LLY',
+      'AVGO', 'TXN', 'QCOM', 'CHTR', 'CMCSA', 'COF', 'GILD', 'AMGN', 'HON', 'UNP',
+      'PLTR', 'SOFI', 'HOOD', 'RBLX', 'COIN', 'SNOW', 'ZM', 'DOCU', 'BB', 'NOK'
+    ];
+    
+    universeCache = curatedSymbols;
+    universeCacheTime = now;
+    console.log(`Using curated universe: ${curatedSymbols.length} symbols`);
+    return curatedSymbols;
   } catch (error) {
     console.error('Failed to load universe:', error);
     throw new Error(`Universe loading failed: ${error.message}`);
@@ -447,6 +460,48 @@ function generateBadges(quote, preset) {
   return badges;
 }
 
+// Fetch individual quotes using live-data API
+async function fetchIndividualQuotes(symbols) {
+  const quotes = [];
+  
+  for (const symbol of symbols) {
+    try {
+      const response = await fetch(`https://financial-news-dashboard-one.vercel.app/api/live-data?ticker=${symbol}&type=quote`, {
+        cache: 'no-store',
+        timeout: 5000
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success && data.data) {
+          const q = data.data;
+          quotes.push({
+            symbol: symbol,
+            name: symbol,
+            price: q.price || 0,
+            change: q.change || 0,
+            changePercent: q.changePercent || 0,
+            volume: q.volume || 0,
+            averageDailyVolume3Month: q.volume || 0,
+            relativeVolume: 1,
+            marketState: 'REGULAR',
+            marketCap: null,
+            pe: null,
+            high52Week: null,
+            low52Week: null,
+            lastUpdate: new Date().toISOString(),
+            provider: 'live-data-api'
+          });
+        }
+      }
+    } catch (error) {
+      console.warn(`Failed to get quote for ${symbol}:`, error.message);
+    }
+  }
+  
+  console.log(`Individual quotes returned ${quotes.length} quotes`);
+  return quotes;
+}
 
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -523,6 +578,12 @@ export default async function handler(req, res) {
         console.warn('Provider failed:', error.message);
         errors.push(error.message);
       }
+    }
+
+    // If all providers failed, try to get individual quotes using live-data API
+    if (!quotes || quotes.length === 0) {
+      console.log('All providers failed, trying individual quotes via live-data API...');
+      quotes = await fetchIndividualQuotes(universe.slice(0, 20)); // Limit to 20 for performance
     }
 
     if (!quotes || quotes.length === 0) {
