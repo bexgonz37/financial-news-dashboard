@@ -305,9 +305,9 @@ async function fetchLiveScannerData(preset, limit) {
     const universe = await fetchFullUniverse();
     console.log(`Universe size: ${universe.length} symbols`);
     
-    // For performance, limit to top symbols if universe is too large
-    const symbolsToScan = universe.length > 1000 ? universe.slice(0, 1000) : universe;
-    console.log(`Scanning ${symbolsToScan.length} symbols`);
+    // Scan all symbols in the universe - no artificial limits
+    const symbolsToScan = universe;
+    console.log(`Scanning ALL ${symbolsToScan.length} symbols in universe`);
     
     // Fetch quotes
     const quotes = await fetchQuotesBatch(symbolsToScan);

@@ -79,58 +79,161 @@ async function fetchLiveCompanyMappings() {
   companyMappings.clear();
 
   try {
-    // Fetch from FMP if available
-    if (FMP_KEY) {
-      const response = await fetch(`https://financialmodelingprep.com/api/v3/stock/list?apikey=${FMP_KEY}`, {
+    // Fetch from multiple sources in parallel for comprehensive coverage
+    const [fmpResponse, yahooResponse, nasdaqResponse, sp500Response, dowResponse, nyseResponse, amexResponse] = await Promise.allSettled([
+      FMP_KEY ? fetch(`https://financialmodelingprep.com/api/v3/stock/list?apikey=${FMP_KEY}`, { cache: 'no-store' }) : Promise.resolve(null),
+      fetch('https://query1.finance.yahoo.com/v1/finance/screener?formatted=true&lang=en-US&region=US&scrIds=most_actives&count=2000', {
+        headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' },
         cache: 'no-store'
-      });
-      
-      if (response.ok) {
-        const stocks = await response.json();
-        stocks.forEach(stock => {
-          if (stock.symbol && stock.name) {
-            const name = stock.name.toLowerCase().trim();
-            const symbol = stock.symbol.toUpperCase();
-            companyMappings.set(name, symbol);
-            
-            // Also map common variations
-            const shortName = name.split(' ')[0];
-            if (shortName.length > 2) {
-              companyMappings.set(shortName, symbol);
+      }),
+      FMP_KEY ? fetch(`https://financialmodelingprep.com/api/v3/nasdaq_constituent?apikey=${FMP_KEY}`, { cache: 'no-store' }) : Promise.resolve(null),
+      FMP_KEY ? fetch(`https://financialmodelingprep.com/api/v3/sp500_constituent?apikey=${FMP_KEY}`, { cache: 'no-store' }) : Promise.resolve(null),
+      FMP_KEY ? fetch(`https://financialmodelingprep.com/api/v3/dowjones_constituent?apikey=${FMP_KEY}`, { cache: 'no-store' }) : Promise.resolve(null),
+      FMP_KEY ? fetch(`https://financialmodelingprep.com/api/v3/nyse_constituent?apikey=${FMP_KEY}`, { cache: 'no-store' }) : Promise.resolve(null),
+      FMP_KEY ? fetch(`https://financialmodelingprep.com/api/v3/amex_constituent?apikey=${FMP_KEY}`, { cache: 'no-store' }) : Promise.resolve(null)
+    ]);
+
+    // Process FMP stock list
+    if (fmpResponse.status === 'fulfilled' && fmpResponse.value) {
+      try {
+        const stocks = await fmpResponse.value.json();
+        if (Array.isArray(stocks)) {
+          stocks.forEach(stock => {
+            if (stock.symbol && stock.name) {
+              const name = stock.name.toLowerCase().trim();
+              const symbol = stock.symbol.toUpperCase();
+              companyMappings.set(name, symbol);
+              
+              // Also map common variations
+              const shortName = name.split(' ')[0];
+              if (shortName.length > 2) {
+                companyMappings.set(shortName, symbol);
+              }
             }
-          }
-        });
-        console.log(`FMP: Loaded ${companyMappings.size} company mappings`);
+          });
+          console.log(`FMP Stock List: Loaded ${companyMappings.size} mappings`);
+        }
+      } catch (error) {
+        console.warn('FMP stock list processing failed:', error.message);
       }
     }
 
-    // Fetch from Yahoo Finance as backup
-    try {
-      const response = await fetch('https://query1.finance.yahoo.com/v1/finance/search?q=stocks&quotesCount=1000', {
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-        },
-        cache: 'no-store'
-      });
-      
-      if (response.ok) {
-        const data = await response.json();
-        if (data.quotes) {
-          data.quotes.forEach(quote => {
+    // Process Yahoo Finance most actives
+    if (yahooResponse.status === 'fulfilled' && yahooResponse.value) {
+      try {
+        const data = await yahooResponse.value.json();
+        if (data.finance && data.finance.result && data.finance.result[0] && data.finance.result[0].quotes) {
+          data.finance.result[0].quotes.forEach(quote => {
             if (quote.symbol && quote.longName) {
               const name = quote.longName.toLowerCase().trim();
               const symbol = quote.symbol.toUpperCase();
               companyMappings.set(name, symbol);
             }
           });
-          console.log(`Yahoo: Total mappings now ${companyMappings.size}`);
+          console.log(`Yahoo Most Actives: Total mappings now ${companyMappings.size}`);
         }
+      } catch (error) {
+        console.warn('Yahoo most actives processing failed:', error.message);
       }
-    } catch (error) {
-      console.warn('Yahoo company mapping fetch failed:', error.message);
+    }
+
+    // Process NASDAQ constituents
+    if (nasdaqResponse.status === 'fulfilled' && nasdaqResponse.value) {
+      try {
+        const data = await nasdaqResponse.value.json();
+        if (Array.isArray(data)) {
+          data.forEach(stock => {
+            if (stock.symbol && stock.name) {
+              const name = stock.name.toLowerCase().trim();
+              const symbol = stock.symbol.toUpperCase();
+              companyMappings.set(name, symbol);
+            }
+          });
+          console.log(`NASDAQ: Total mappings now ${companyMappings.size}`);
+        }
+      } catch (error) {
+        console.warn('NASDAQ processing failed:', error.message);
+      }
+    }
+
+    // Process S&P 500 constituents
+    if (sp500Response.status === 'fulfilled' && sp500Response.value) {
+      try {
+        const data = await sp500Response.value.json();
+        if (Array.isArray(data)) {
+          data.forEach(stock => {
+            if (stock.symbol && stock.name) {
+              const name = stock.name.toLowerCase().trim();
+              const symbol = stock.symbol.toUpperCase();
+              companyMappings.set(name, symbol);
+            }
+          });
+          console.log(`S&P 500: Total mappings now ${companyMappings.size}`);
+        }
+      } catch (error) {
+        console.warn('S&P 500 processing failed:', error.message);
+      }
+    }
+
+    // Process Dow Jones constituents
+    if (dowResponse.status === 'fulfilled' && dowResponse.value) {
+      try {
+        const data = await dowResponse.value.json();
+        if (Array.isArray(data)) {
+          data.forEach(stock => {
+            if (stock.symbol && stock.name) {
+              const name = stock.name.toLowerCase().trim();
+              const symbol = stock.symbol.toUpperCase();
+              companyMappings.set(name, symbol);
+            }
+          });
+          console.log(`Dow Jones: Total mappings now ${companyMappings.size}`);
+        }
+      } catch (error) {
+        console.warn('Dow Jones processing failed:', error.message);
+      }
+    }
+
+    // Process NYSE constituents
+    if (nyseResponse.status === 'fulfilled' && nyseResponse.value) {
+      try {
+        const data = await nyseResponse.value.json();
+        if (Array.isArray(data)) {
+          data.forEach(stock => {
+            if (stock.symbol && stock.name) {
+              const name = stock.name.toLowerCase().trim();
+              const symbol = stock.symbol.toUpperCase();
+              companyMappings.set(name, symbol);
+            }
+          });
+          console.log(`NYSE: Total mappings now ${companyMappings.size}`);
+        }
+      } catch (error) {
+        console.warn('NYSE processing failed:', error.message);
+      }
+    }
+
+    // Process AMEX constituents
+    if (amexResponse.status === 'fulfilled' && amexResponse.value) {
+      try {
+        const data = await amexResponse.value.json();
+        if (Array.isArray(data)) {
+          data.forEach(stock => {
+            if (stock.symbol && stock.name) {
+              const name = stock.name.toLowerCase().trim();
+              const symbol = stock.symbol.toUpperCase();
+              companyMappings.set(name, symbol);
+            }
+          });
+          console.log(`AMEX: Total mappings now ${companyMappings.size}`);
+        }
+      } catch (error) {
+        console.warn('AMEX processing failed:', error.message);
+      }
     }
 
     mappingsLastUpdate = now;
+    console.log(`Final company mappings loaded: ${companyMappings.size} total`);
   } catch (error) {
     console.error('Company mapping fetch error:', error.message);
   }
@@ -143,32 +246,49 @@ async function extractCompanyTicker(content, mappings) {
   if (!content || !mappings) return null;
 
   const text = content.toLowerCase();
-  const words = text.split(/\s+/);
   
-  // Look for exact company name matches
-  for (const [name, symbol] of mappings) {
+  // Sort mappings by length (longest first) to prioritize more specific matches
+  const sortedMappings = Array.from(mappings.entries()).sort((a, b) => b[0].length - a[0].length);
+  
+  // Look for exact company name matches (prioritize longer names)
+  for (const [name, symbol] of sortedMappings) {
     if (text.includes(name)) {
+      console.log(`Found company match: "${name}" -> ${symbol}`);
       return symbol;
     }
   }
   
-  // Look for common ticker patterns
-  const tickerPattern = /\b([A-Z]{1,5})\b/g;
-  const matches = content.match(tickerPattern);
-  if (matches) {
-    // Return the first valid-looking ticker
-    return matches[0].toUpperCase();
+  // Look for common ticker patterns in the original content (case-sensitive)
+  const tickerPatterns = [
+    /\$([A-Z]{1,5})\b/g,  // $AAPL, $TSLA
+    /\(([A-Z]{1,5})\)/g,  // (AAPL), (TSLA)
+    /\b([A-Z]{1,5})\b/g   // AAPL, TSLA
+  ];
+  
+  for (const pattern of tickerPatterns) {
+    const matches = content.match(pattern);
+    if (matches) {
+      for (const match of matches) {
+        const potentialTicker = match.replace(/[$()]/g, '').toUpperCase();
+        // Check if this ticker exists in our mappings
+        if (Array.from(mappings.values()).includes(potentialTicker)) {
+          console.log(`Found direct ticker match: ${potentialTicker}`);
+          return potentialTicker;
+        }
+      }
+    }
   }
   
   return null;
 }
 
 // Fetch news from Alpha Vantage
-async function fetchAlphaVantageNews(companyMappings) {
+async function fetchAlphaVantageNews(companyMappings, limit = 100, sourceFilter = null) {
   if (!FMP_KEY) return [];
+  if (sourceFilter && sourceFilter !== 'Alpha Vantage' && sourceFilter !== 'all') return [];
 
   try {
-    const response = await fetch(`https://www.alphavantage.co/query?function=NEWS_SENTIMENT&apikey=${FMP_KEY}&limit=50`, {
+    const response = await fetch(`https://www.alphavantage.co/query?function=NEWS_SENTIMENT&apikey=${FMP_KEY}&limit=${Math.min(limit, 100)}`, {
       cache: 'no-store'
     });
 
@@ -203,11 +323,12 @@ async function fetchAlphaVantageNews(companyMappings) {
 }
 
 // Fetch news from FMP
-async function fetchFMPNews(companyMappings) {
+async function fetchFMPNews(companyMappings, limit = 100, sourceFilter = null) {
   if (!FMP_KEY) return [];
+  if (sourceFilter && sourceFilter !== 'Financial Modeling Prep' && sourceFilter !== 'FMP' && sourceFilter !== 'all') return [];
 
   try {
-    const response = await fetch(`https://financialmodelingprep.com/api/v3/stock_news?limit=50&apikey=${FMP_KEY}`, {
+    const response = await fetch(`https://financialmodelingprep.com/api/v3/stock_news?limit=${Math.min(limit, 100)}&apikey=${FMP_KEY}`, {
       cache: 'no-store'
     });
 
@@ -242,8 +363,9 @@ async function fetchFMPNews(companyMappings) {
 }
 
 // Fetch news from Finnhub
-async function fetchFinnhubNews(companyMappings) {
+async function fetchFinnhubNews(companyMappings, limit = 100, sourceFilter = null) {
   if (!FINNHUB_KEY) return [];
+  if (sourceFilter && sourceFilter !== 'Finnhub' && sourceFilter !== 'all') return [];
 
   try {
     const response = await fetch(`https://finnhub.io/api/v1/news?category=general&token=${FINNHUB_KEY}`, {
@@ -258,7 +380,7 @@ async function fetchFinnhubNews(companyMappings) {
     console.log('Finnhub API response:', JSON.stringify(data, null, 2));
 
     if (Array.isArray(data)) {
-      return data.map(item => {
+      return data.slice(0, Math.min(limit, data.length)).map(item => {
         const content = (item.headline || '') + ' ' + (item.summary || '');
         const extractedTicker = extractCompanyTicker(content, companyMappings);
         
@@ -281,11 +403,12 @@ async function fetchFinnhubNews(companyMappings) {
 }
 
 // Fetch news from NewsAPI
-async function fetchNewsAPINews(companyMappings) {
+async function fetchNewsAPINews(companyMappings, limit = 100, sourceFilter = null) {
   if (!NEWSAPI_KEY) return [];
+  if (sourceFilter && sourceFilter !== 'NewsAPI' && sourceFilter !== 'all') return [];
 
   try {
-    const response = await fetch(`https://newsapi.org/v2/everything?q=stocks OR trading OR market&language=en&sortBy=publishedAt&pageSize=50&apiKey=${NEWSAPI_KEY}`, {
+    const response = await fetch(`https://newsapi.org/v2/everything?q=stocks OR trading OR market&language=en&sortBy=publishedAt&pageSize=${Math.min(limit, 100)}&apiKey=${NEWSAPI_KEY}`, {
       cache: 'no-store'
     });
 
@@ -357,18 +480,38 @@ async function normalizeNewsItem(item) {
 }
 
 // Main news fetching function
-async function fetchRealNewsFromAPIs() {
-  console.log('Fetching live news from APIs...');
+async function fetchRealNewsFromAPIs(limit = 200, sourceFilter = null, dateRange = 'all', searchQuery = null) {
+  console.log('Fetching live news from APIs...', { limit, sourceFilter, dateRange, searchQuery });
   
   // Get company mappings first
   const companyMappings = await fetchLiveCompanyMappings();
   
+  // Calculate date filter
+  let dateFilter = null;
+  if (dateRange && dateRange !== 'all') {
+    const now = new Date();
+    switch (dateRange) {
+      case '1d':
+        dateFilter = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+        break;
+      case '3d':
+        dateFilter = new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000);
+        break;
+      case '7d':
+        dateFilter = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+        break;
+      case '30d':
+        dateFilter = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+        break;
+    }
+  }
+  
   // Fetch from all available sources
   const [alphaVantageNews, fmpNews, finnhubNews, newsAPINews] = await Promise.allSettled([
-    fetchAlphaVantageNews(companyMappings),
-    fetchFMPNews(companyMappings),
-    fetchFinnhubNews(companyMappings),
-    fetchNewsAPINews(companyMappings)
+    fetchAlphaVantageNews(companyMappings, limit, sourceFilter),
+    fetchFMPNews(companyMappings, limit, sourceFilter),
+    fetchFinnhubNews(companyMappings, limit, sourceFilter),
+    fetchNewsAPINews(companyMappings, limit, sourceFilter)
   ]);
 
   // Combine all news
@@ -398,9 +541,30 @@ async function fetchRealNewsFromAPIs() {
     }
   }
 
+  // Apply date filter
+  let filteredNews = normalizedNews;
+  if (dateFilter) {
+    filteredNews = normalizedNews.filter(item => {
+      const itemDate = new Date(item.publishedAt);
+      return itemDate >= dateFilter;
+    });
+    console.log(`After date filter (${dateRange}): ${filteredNews.length} items`);
+  }
+
+  // Apply search filter
+  if (searchQuery) {
+    const query = searchQuery.toLowerCase();
+    filteredNews = filteredNews.filter(item => {
+      return (item.title && item.title.toLowerCase().includes(query)) ||
+             (item.summary && item.summary.toLowerCase().includes(query)) ||
+             (item.ticker && item.ticker.toLowerCase().includes(query));
+    });
+    console.log(`After search filter ("${searchQuery}"): ${filteredNews.length} items`);
+  }
+
   // Remove duplicates by title and publishedAt
   const seen = new Set();
-  const uniqueNews = normalizedNews.filter(item => {
+  const uniqueNews = filteredNews.filter(item => {
     const key = `${item.title}_${item.publishedAt}`;
     if (seen.has(key)) return false;
     seen.add(key);
@@ -410,15 +574,33 @@ async function fetchRealNewsFromAPIs() {
   // Sort by publishedAt (newest first)
   uniqueNews.sort((a, b) => new Date(b.publishedAt) - new Date(a.publishedAt));
 
-  console.log(`Final news items: ${uniqueNews.length}`);
-  return uniqueNews;
+  // Apply final limit
+  const finalNews = uniqueNews.slice(0, limit);
+
+  console.log(`Final news items: ${finalNews.length}`);
+  return finalNews;
 }
 
 export default async function handler(req, res) {
   try {
     console.log('=== ENHANCED NEWS API ===');
     
-    const allNews = await fetchRealNewsFromAPIs();
+    // Extract query parameters
+    const { 
+      limit = 200, 
+      source = null, 
+      dateRange = 'all', 
+      search = null 
+    } = req.query;
+    
+    console.log('Query parameters:', { limit, source, dateRange, search });
+    
+    const allNews = await fetchRealNewsFromAPIs(
+      parseInt(limit), 
+      source, 
+      dateRange, 
+      search
+    );
     
     // Debug: Show all news items with their timestamps
     console.log('=== ALL NEWS ITEMS DEBUG ===');
@@ -432,7 +614,13 @@ export default async function handler(req, res) {
       data: {
         news: allNews,
         count: allNews.length,
-        lastUpdate: new Date().toISOString()
+        lastUpdate: new Date().toISOString(),
+        filters: {
+          limit: parseInt(limit),
+          source: source,
+          dateRange: dateRange,
+          search: search
+        }
       }
     });
 
