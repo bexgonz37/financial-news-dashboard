@@ -5,7 +5,7 @@ export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
 import { providerManager } from '../lib/provider-manager.js';
-import { extractTickers } from '../lib/ticker-extractor.js';
+import { extractTickers } from '../lib/simple-ticker-extractor.js';
 
 // URL validation and normalization
 function isHttp(url) {
