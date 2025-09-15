@@ -1,5 +1,5 @@
 // Live Quotes API - Yahoo Finance Integration
-const fetch = require('node-fetch');
+import fetch from 'node-fetch';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;

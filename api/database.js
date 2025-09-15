@@ -155,7 +155,7 @@ function isDataStale(lastUpdated, maxAgeSeconds = 30) {
 // Initialize database on module load
 initDatabase().catch(console.error);
 
-module.exports = {
+export default {
   saveNews,
   getNews,
   cleanupExpiredNews,

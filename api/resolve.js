@@ -1,5 +1,5 @@
 // /api/resolve
-const fetch = require('node-fetch');
+import fetch from 'node-fetch';
 
 function isHttp(u) {
   return !!u && /^https?:\/\//i.test(u);
@@ -13,7 +13,7 @@ function looksSearchOrTopic(u) {
   return isSearch || isTopic;
 }
 
-module.exports = async (req, res) => {
+export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');

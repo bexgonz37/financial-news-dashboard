@@ -1,5 +1,5 @@
 // Live News API - Real Financial News Aggregation
-const fetch = require('node-fetch');
+import fetch from 'node-fetch';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;

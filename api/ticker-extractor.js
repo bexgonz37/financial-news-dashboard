@@ -1,4 +1,4 @@
-const fetch = require('node-fetch');
+import fetch from 'node-fetch';
 
 // Enhanced ticker extraction with caching
 class TickerExtractor {
@@ -179,4 +179,4 @@ class TickerExtractor {
 // Singleton instance
 const tickerExtractor = new TickerExtractor();
 
-module.exports = tickerExtractor;
+export default tickerExtractor;

@@ -1,5 +1,5 @@
 // Advanced Stock Scanner - Better than MomoScreener
-const fetch = require('node-fetch');
+import fetch from 'node-fetch';
 
 // Live market data fetching
 async function fetchLiveMarketData() {
@@ -201,7 +201,7 @@ function isMarketOpen(timestamp) {
   return currentTime >= marketOpen && currentTime < marketClose;
 }
 
-module.exports = async function handler(req, res) {
+export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
