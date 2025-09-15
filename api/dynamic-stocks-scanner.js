@@ -4,97 +4,9 @@ import fetch from 'node-fetch';
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
-import { providerManager } from '../lib/provider-manager.js';
+import { scanStocks } from '../lib/advanced-scanner.js';
 
-// Cache for universe data (1 day)
-let universeCache = null;
-let universeCacheTime = 0;
-const UNIVERSE_CACHE_DURATION = 24 * 60 * 60 * 1000; // 24 hours
-
-// Load universe of all tradable tickers
-async function loadUniverse() {
-  const now = Date.now();
-  if (universeCache && (now - universeCacheTime) < UNIVERSE_CACHE_DURATION) {
-    return universeCache;
-  }
-
-  console.log('Loading universe of tradable tickers...');
-  
-  try {
-    // Try FMP first for comprehensive list
-    if (process.env.FMP_KEY) {
-      const response = await fetch(`https://financialmodelingprep.com/api/v3/stock/list?apikey=${process.env.FMP_KEY}`, { cache: 'no-store' });
-      if (response.ok) {
-        const data = await response.json();
-        if (Array.isArray(data) && data.length > 0) {
-          const symbols = data
-            .filter(stock => stock.symbol && stock.exchange && 
-                   ['NASDAQ', 'NYSE', 'AMEX'].includes(stock.exchange))
-            .map(stock => stock.symbol)
-            .slice(0, 2000); // Limit to 2000 for performance
-          
-          universeCache = symbols;
-          universeCacheTime = now;
-          console.log(`Loaded universe: ${symbols.length} symbols from FMP`);
-          return symbols;
-        }
-      }
-    }
-
-    // Try alternative source - Finnhub
-    if (process.env.FINNHUB_KEY) {
-      console.log('FMP failed, trying Finnhub for universe...');
-      const response = await fetch(`https://finnhub.io/api/v1/stock/symbol?exchange=US&token=${process.env.FINNHUB_KEY}`, { cache: 'no-store' });
-      if (response.ok) {
-        const data = await response.json();
-        if (Array.isArray(data) && data.length > 0) {
-          const symbols = data
-            .filter(stock => stock.symbol && stock.type === 'Common Stock' && stock.mic && ['XNAS', 'XNYS', 'XASE'].includes(stock.mic))
-            .map(stock => stock.symbol)
-            .slice(0, 1000); // Limit to 1000 for performance
-          
-          universeCache = symbols;
-          universeCacheTime = now;
-          console.log(`Loaded universe: ${symbols.length} symbols from Finnhub`);
-          return symbols;
-        }
-      }
-    }
-    
-    // If all APIs fail, use a curated list of major tickers for basic functionality
-    console.log('All API providers failed, using curated universe for basic functionality');
-    const curatedSymbols = [
-      'AAPL', 'MSFT', 'GOOGL', 'AMZN', 'TSLA', 'META', 'NVDA', 'NFLX', 'AMD', 'INTC',
-      'JPM', 'JNJ', 'V', 'PG', 'UNH', 'HD', 'MA', 'DIS', 'PYPL', 'ADBE',
-      'CRM', 'NKE', 'ABT', 'TMO', 'ACN', 'COST', 'DHR', 'VZ', 'NEE', 'WMT',
-      'BAC', 'XOM', 'T', 'PFE', 'KO', 'PEP', 'ABBV', 'CVX', 'MRK', 'LLY',
-      'AVGO', 'TXN', 'QCOM', 'CHTR', 'CMCSA', 'COF', 'GILD', 'AMGN', 'HON', 'UNP',
-      'PLTR', 'SOFI', 'HOOD', 'RBLX', 'COIN', 'SNOW', 'ZM', 'DOCU', 'BB', 'NOK'
-    ];
-    
-    universeCache = curatedSymbols;
-    universeCacheTime = now;
-    console.log(`Using curated universe: ${curatedSymbols.length} symbols`);
-    return curatedSymbols;
-  } catch (error) {
-    console.error('Failed to load universe:', error);
-    // Use curated symbols as final fallback
-    console.log('Using curated universe as final fallback');
-    const curatedSymbols = [
-      'AAPL', 'MSFT', 'GOOGL', 'AMZN', 'TSLA', 'META', 'NVDA', 'NFLX', 'AMD', 'INTC',
-      'JPM', 'JNJ', 'V', 'PG', 'UNH', 'HD', 'MA', 'DIS', 'PYPL', 'ADBE',
-      'CRM', 'NKE', 'ABT', 'TMO', 'ACN', 'COST', 'DHR', 'VZ', 'NEE', 'WMT',
-      'BAC', 'XOM', 'T', 'PFE', 'KO', 'PEP', 'ABBV', 'CVX', 'MRK', 'LLY',
-      'AVGO', 'TXN', 'QCOM', 'CHTR', 'CMCSA', 'COF', 'GILD', 'AMGN', 'HON', 'UNP',
-      'PLTR', 'SOFI', 'HOOD', 'RBLX', 'COIN', 'SNOW', 'ZM', 'DOCU', 'BB', 'NOK'
-    ];
-    
-    universeCache = curatedSymbols;
-    universeCacheTime = now;
-    console.log(`Using curated universe: ${curatedSymbols.length} symbols`);
-    return curatedSymbols;
-  }
-}
+// Advanced scanner handles universe loading internally
 
 // Provider functions
 // IEX provider removed - using ProviderManager instead
@@ -477,67 +389,30 @@ export default async function handler(req, res) {
     console.log('FMP_KEY:', process.env.FMP_KEY ? 'YES' : 'NO');
     console.log('ALPHAVANTAGE_KEY:', process.env.ALPHAVANTAGE_KEY ? 'YES' : 'NO');
 
-    // Build universe (all tradable tickers) – cache for 1 day
-    let universe;
-    try {
-      universe = await loadUniverse();
-      console.log(`Universe loaded: ${universe.length} symbols`);
-    } catch (error) {
-      console.error('Failed to load universe:', error);
-      return res.status(500).json({
-        success: false,
-        error: 'Universe loading failed',
-        message: error.message,
-        data: { stocks: [] }
-      });
-    }
+    // Advanced scanner handles universe loading internally
 
-    // Use ProviderManager for fetching quotes
-    console.log(`Fetching quotes for ${universe.length} symbols using ProviderManager`);
+    // Use advanced scanner
+    const filters = {};
+    if (req.query.minPrice) filters.minPrice = parseFloat(req.query.minPrice);
+    if (req.query.exchange) filters.exchange = req.query.exchange;
+    if (req.query.sector) filters.sector = req.query.sector;
     
-    let quotes = [];
-    let providerErrors = [];
+    const result = await scanStocks(preset, parseInt(limit), filters);
     
-    try {
-      const result = await providerManager.getQuotes(universe);
-      quotes = result.quotes;
-      providerErrors = result.errors;
-      console.log(`ProviderManager returned ${quotes.length} quotes, ${providerErrors.length} errors`);
-    } catch (error) {
-      console.error('ProviderManager error:', error);
-      providerErrors.push(`ProviderManager: ${error.message}`);
-    }
-
-    // Always return success, even with partial data
-    if (!quotes || quotes.length === 0) {
-      console.warn('No quotes available, returning empty results with errors');
-      return res.status(200).json({ 
-        success: true, 
-        data: { 
-          refreshInterval: 30000,
-          stocks: [] 
-        },
-        errors: providerErrors.length > 0 ? providerErrors : ['No live data available']
-      });
-    }
-
-    // Score/sort by preset (momentum, volume, earnings, etc.)
-    const scored = scoreByPreset(quotes, preset)
-      .sort((a, b) => b.score - a.score)
-      .slice(0, Number(limit));
-
-    console.log(`Returning ${scored.length} scored stocks for preset: ${preset}`);
+    console.log(`Advanced scanner returned ${result.stocks.length} stocks from ${result.totalProcessed} processed (universe: ${result.universeSize})`);
 
     return res.status(200).json({ 
       success: true, 
       data: { 
         refreshInterval: 30000,
-        stocks: scored, 
-        count: scored.length,
+        stocks: result.stocks, 
+        count: result.stocks.length,
+        totalProcessed: result.totalProcessed,
+        universeSize: result.universeSize,
         preset: preset,
-        lastUpdate: new Date().toISOString()
+        lastUpdate: result.lastUpdate
       },
-      errors: providerErrors.length > 0 ? providerErrors : []
+      errors: result.errors || []
     });
   } catch (err) {
     console.error('Scanner error:', err);
