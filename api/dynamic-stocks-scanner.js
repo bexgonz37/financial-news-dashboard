@@ -321,6 +321,61 @@ function scoreByPreset(quotes, preset) {
         if (changePercent > 10) score += 40; // New listing momentum
         break;
         
+      case 'highrvol':
+        // High relative volume movers
+        score = rvolScore * 2 + momentumScore + liquidityScore;
+        if (relativeVolume > 3) score += 60; // High RVOL
+        if (relativeVolume > 5) score += 40; // Extreme RVOL
+        break;
+        
+      case 'gaps':
+        // Gap up/down movers
+        score = momentumScore * 1.5 + rvolScore + liquidityScore;
+        if (changePercent > 15) score += 70; // Big gaps
+        if (changePercent > 25) score += 50; // Huge gaps
+        break;
+        
+      case 'earnings_pre':
+        // Pre-earnings movers
+        score = momentumScore + rvolScore + liquidityScore;
+        if (changePercent > 5 && changePercent < 15) score += 30; // Pre-earnings range
+        if (relativeVolume > 1.5) score += 25; // Pre-earnings volume
+        break;
+        
+      case 'earnings_post':
+        // Post-earnings movers
+        score = momentumScore * 1.2 + rvolScore + liquidityScore;
+        if (changePercent > 10) score += 50; // Post-earnings reaction
+        if (relativeVolume > 2) score += 30; // Post-earnings volume
+        break;
+        
+      case 'insider':
+        // Insider activity (placeholder - would need insider data)
+        score = momentumScore + rvolScore + liquidityScore;
+        if (changePercent > 3) score += 25; // Insider activity
+        if (relativeVolume > 1.2) score += 20; // Insider volume
+        break;
+        
+      case 'shortsqueeze':
+        // Short squeeze potential
+        score = momentumScore * 1.3 + rvolScore * 1.5 + liquidityScore;
+        if (changePercent > 20) score += 80; // Squeeze potential
+        if (relativeVolume > 5) score += 60; // Squeeze volume
+        break;
+        
+      case 'ai':
+        // AI-related stocks (placeholder - would need sector filtering)
+        score = momentumScore + rvolScore + liquidityScore;
+        if (changePercent > 5) score += 30; // AI momentum
+        break;
+        
+      case 'afterhours':
+        // After hours movers
+        score = momentumScore * 1.2 + rvolScore + liquidityScore;
+        if (changePercent > 8) score += 50; // AH movers
+        if (relativeVolume > 1.5) score += 30; // AH volume
+        break;
+        
       default:
         // General scoring
         score = momentumScore + rvolScore + liquidityScore + volatilityScore;
@@ -353,16 +408,35 @@ function generateBadges(quote, preset) {
   const changePercent = Math.abs(quote.changePercent || 0);
   const relativeVolume = quote.relativeVolume || 1;
   const volume = quote.volume || 0;
+  const price = quote.price || 0;
   
+  // Universal badges
   if (changePercent > 20) badges.push('BIG_MOVER');
   if (relativeVolume > 5) badges.push('HIGH_VOLUME');
   if (volume > 10000000) badges.push('MASSIVE_VOLUME');
   if (changePercent > 10 && relativeVolume > 2) badges.push('BREAKOUT');
-  if (preset === 'earnings') badges.push('EARNINGS');
+  if (changePercent > 15) badges.push('GAP_MOVER');
+  if (relativeVolume > 3) badges.push('UNUSUAL_VOLUME');
+  
+  // Preset-specific badges
+  if (preset === 'earnings' || preset === 'earnings_pre' || preset === 'earnings_post') badges.push('EARNINGS');
   if (preset === 'ai') badges.push('AI');
   if (preset === 'insider') badges.push('INSIDER');
   if (preset === 'shortsqueeze') badges.push('SHORT_SQUEEZE');
   if (preset === 'newlistings') badges.push('NEW_LISTING');
+  if (preset === 'afterhours') badges.push('AFTER_HOURS');
+  if (preset === 'gaps') badges.push('GAP');
+  if (preset === 'highrvol') badges.push('HIGH_RVOL');
+  if (preset === 'breakout') badges.push('BREAKOUT');
+  if (preset === 'oversold') badges.push('OVERSOLD');
+  
+  // Market cap badges
+  if (price > 100) badges.push('HIGH_PRICE');
+  if (price < 5) badges.push('PENNY_STOCK');
+  
+  // Volume badges
+  if (volume > 50000000) badges.push('MEGA_VOLUME');
+  if (volume < 100000) badges.push('LOW_VOLUME');
   
   return badges;
 }

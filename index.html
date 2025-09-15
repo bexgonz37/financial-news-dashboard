@@ -29,8 +29,8 @@
     .btn:hover{ background:#9a5ce0; transform:translateY(-1px) }
     .select{ padding:10px 14px; border:1px solid var(--border); border-radius:8px; background:var(--card); color:var(--text); font-size:.9rem; min-width:150px }
     .grid{ display:grid; grid-template-columns:repeat(auto-fill,minmax(300px,1fr)); gap:16px }
-    .card{ background:var(--card); border:1px solid var(--border); border-radius:12px; padding:16px; transition:all 0.2s }
-    .card:hover{ border-color:var(--accent); transform:translateY(-2px) }
+    .card{ background:var(--card); border:1px solid var(--border); border-radius:12px; padding:20px; transition:all 0.3s ease; box-shadow:0 2px 8px rgba(0,0,0,0.1) }
+    .card:hover{ border-color:var(--accent); transform:translateY(-3px); box-shadow:0 4px 16px rgba(0,0,0,0.2) }
     .kpi{ display:flex; justify-content:space-between; align-items:center; margin-bottom:12px }
     .change{ font-weight:700; font-size:1.1rem }
     .change.up{ color:var(--up) }
@@ -66,7 +66,8 @@
     }
 
     .news-list{ display:grid; gap:12px }
-    .news-item{ border:1px solid var(--border); border-radius:12px; padding:12px; background:linear-gradient(180deg, rgba(32,39,58,.6), rgba(18,24,38,.9)) }
+    .news-item{ border:1px solid var(--border); border-radius:12px; padding:20px; background:linear-gradient(180deg, rgba(32,39,58,.6), rgba(18,24,38,.9)); transition:all 0.3s ease; box-shadow:0 2px 8px rgba(0,0,0,0.1) }
+    .news-item:hover{ border-color:var(--accent); transform:translateY(-2px); box-shadow:0 4px 16px rgba(0,0,0,0.2) }
     .item-top{ display:flex; align-items:center; gap:12px; margin-bottom:8px; flex-wrap:wrap }
     .ticker{ color:var(--accent); font-weight:700; text-decoration:none; font-size:1.1rem }
     .ticker:hover{ text-decoration:underline }
@@ -887,10 +888,25 @@
         const sentiment = n.sentiment || 'neutral';
         const sentimentColor = sentiment === 'bullish' ? 'var(--up)' : sentiment === 'bearish' ? 'var(--down)' : 'var(--meta)';
         const badges = n.badges || [];
+        const getNewsBadgeColor = (badge) => {
+          const colors = {
+            'EARNINGS': 'var(--up)',
+            'FDA': 'var(--accent)',
+            'AI': '#00d4ff',
+            'M&A': '#ff9800',
+            'IPO': '#2196f3',
+            'BANKRUPTCY': '#f44336',
+            'LEGAL': '#ff5722',
+            'PARTNERSHIP': '#4caf50',
+            'RATING': '#9c27b0'
+          };
+          return colors[badge] || 'var(--meta)';
+        };
+        
         const badgeHtml = badges.length > 0 ? `
           <div style="margin: 8px 0; display: flex; flex-wrap: wrap; gap: 4px;">
             ${badges.map(badge => `
-              <span style="background: ${badge === 'EARNINGS' ? 'var(--up)' : badge === 'FDA' ? 'var(--accent)' : badge === 'AI' ? '#00d4ff' : 'var(--meta)'}; color: white; padding: 2px 6px; border-radius: 4px; font-size: 0.75rem; font-weight: 600;">
+              <span style="background: ${getNewsBadgeColor(badge)}; color: white; padding: 3px 8px; border-radius: 6px; font-size: 0.7rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; box-shadow: 0 1px 3px rgba(0,0,0,0.3);">
                 ${badge}
               </span>
             `).join('')}
@@ -1044,32 +1060,56 @@
             const isNewListing = stock.isNewListing || false;
             const tickerChanged = stock.tickerChanged || false;
             
-            // Generate badges HTML
+            // Generate badges HTML with better styling
             const badges = stock.badges || [];
+            const getBadgeColor = (badge) => {
+              const colors = {
+                'BIG_MOVER': 'var(--up)',
+                'HIGH_VOLUME': 'var(--accent)',
+                'BREAKOUT': '#ff6b6b',
+                'GAP_MOVER': '#ff9500',
+                'UNUSUAL_VOLUME': '#9c27b0',
+                'EARNINGS': '#4caf50',
+                'AI': '#00d4ff',
+                'INSIDER': '#ff9800',
+                'SHORT_SQUEEZE': '#f44336',
+                'NEW_LISTING': '#2196f3',
+                'AFTER_HOURS': '#673ab7',
+                'GAP': '#ff9500',
+                'HIGH_RVOL': '#9c27b0',
+                'OVERSOLD': '#ff5722',
+                'HIGH_PRICE': '#795548',
+                'PENNY_STOCK': '#607d8b',
+                'MEGA_VOLUME': '#e91e63',
+                'LOW_VOLUME': '#9e9e9e'
+              };
+              return colors[badge] || 'var(--meta)';
+            };
+            
             const badgeHtml = badges.length > 0 ? `
               <div style="margin: 8px 0; display: flex; flex-wrap: wrap; gap: 4px;">
                 ${badges.map(badge => `
-                  <span style="background: ${badge === 'BIG_MOVER' ? 'var(--up)' : badge === 'HIGH_VOLUME' ? 'var(--accent)' : badge === 'BREAKOUT' ? '#ff6b6b' : 'var(--meta)'}; color: white; padding: 2px 6px; border-radius: 4px; font-size: 0.75rem; font-weight: 600;">
+                  <span style="background: ${getBadgeColor(badge)}; color: white; padding: 3px 8px; border-radius: 6px; font-size: 0.7rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; box-shadow: 0 1px 3px rgba(0,0,0,0.3);">
                     ${badge.replace('_', ' ')}
                   </span>
                 `).join('')}
               </div>
             ` : '';
-
-            return `
+        
+        return `
               <div class="card" style="cursor:pointer" onclick="openChart('${stock.symbol}')" data-symbol="${stock.symbol}">
-                <div class="kpi">
-                  <div>
+            <div class="kpi">
+              <div>
                     <strong>${stock.symbol}</strong>
                     <span class="change ${pct>=0?'up':'down'}">${pct>=0?'+':''}${pct.toFixed(2)}%</span>
                     ${isStale ? '<span style="color: #ffc107; font-size: 0.7rem; margin-left: 4px;">STALE</span>' : ''}
                     ${tickerChanged ? '<span style="color: #ff6b6b; font-size: 0.7rem; margin-left: 4px;">CHANGED</span>' : ''}
-                  </div>
+              </div>
                   <div style="text-align:right">
                     <div class="meta">Score: ${score.toFixed(0)}</div>
                     <div class="meta">$${price.toFixed(2)} · RVOL: ${rvol.toFixed(2)}x</div>
-                  </div>
-                </div>
+            </div>
+            </div>
                 ${badgeHtml}
                 <div style="margin-top:8px; display:flex; justify-content:space-between; align-items:center">
                   <span class="meta">${sector} · RSI: ${rsi.toFixed(1)} · <span class="${session === 'AH' ? 'after-hours' : 'live'}">${marketStatus}</span></span>
@@ -1079,8 +1119,8 @@
                   ${analystRating} · MACD: ${macd.toFixed(3)} · ${dataAge} · ${lastUpdated}${isNewListing ? ' · NEW' : ''}${tickerChanged ? ' · CHANGED' : ''}
                 </div>
                 <div class="mini-chart" data-ticker="${stock.symbol}" style="width:100%;height:60px;margin-top:8px;"></div>
-              </div>
-            `;
+          </div>
+        `;
           }).join('');
           
           // Draw mini-charts for all rendered cards
