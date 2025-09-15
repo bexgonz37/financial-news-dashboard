@@ -769,7 +769,9 @@ export default async function handler(req, res) {
     const processedNews = [];
     for (const item of result.news) {
       // Extract tickers using robust extraction
+      console.log(`Extracting tickers for: "${item.title?.substring(0, 50)}..."`);
       const tickerData = await extractTickers(item);
+      console.log(`Ticker extraction result:`, tickerData);
       
       // Use existing tickers if available, otherwise use extracted ones
       const finalTickers = item.tickers && item.tickers.length > 0 ? item.tickers : tickerData.tickers;
