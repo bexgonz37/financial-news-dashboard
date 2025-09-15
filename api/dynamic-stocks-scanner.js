@@ -44,8 +44,28 @@ async function loadUniverse() {
       }
     }
 
+    // Try alternative source - IEX Cloud
+    if (IEX_CLOUD_KEY) {
+      console.log('FMP failed, trying IEX Cloud for universe...');
+      const response = await fetch(`https://cloud.iexapis.com/stable/ref-data/symbols?token=${IEX_CLOUD_KEY}`, { cache: 'no-store' });
+      if (response.ok) {
+        const data = await response.json();
+        if (Array.isArray(data) && data.length > 0) {
+          const symbols = data
+            .filter(stock => stock.symbol && stock.type === 'cs' && stock.isEnabled)
+            .map(stock => stock.symbol)
+            .slice(0, 1000); // Limit to 1000 for performance
+          
+          universeCache = symbols;
+          universeCacheTime = now;
+          console.log(`Loaded universe: ${symbols.length} symbols from IEX Cloud`);
+          return symbols;
+        }
+      }
+    }
+    
     // No fallback - must have live data
-    throw new Error('Failed to load universe from FMP API');
+    throw new Error('Failed to load universe from any provider');
   } catch (error) {
     console.error('Failed to load universe:', error);
     throw new Error(`Universe loading failed: ${error.message}`);
