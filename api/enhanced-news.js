@@ -763,11 +763,15 @@ export default async function handler(req, res) {
       dateRange: dateRange
     });
     
-    console.log(`ProviderManager returned ${result.news.length} items, ${result.errors.length} provider errors`);
+    // Handle different return structures
+    const newsItems = result.news || result || [];
+    const errors = result.errors || [];
+    
+    console.log(`ProviderManager returned ${newsItems.length} items, ${errors.length} provider errors`);
     
     // Add ticker extraction and sentiment analysis
     const processedNews = [];
-    for (const item of result.news) {
+    for (const item of newsItems) {
       // Extract tickers using robust detector
       const tickerData = await robustTickerDetector.detectTickers(item);
       

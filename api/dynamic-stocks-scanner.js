@@ -392,13 +392,93 @@ export default async function handler(req, res) {
 
     // Advanced scanner handles universe loading internally
 
-    // Use advanced scanner
-    const filters = {};
-    if (req.query.minPrice) filters.minPrice = parseFloat(req.query.minPrice);
-    if (req.query.exchange) filters.exchange = req.query.exchange;
-    if (req.query.sector) filters.sector = req.query.sector;
+    // Get all active symbols
+    const allSymbols = comprehensiveSymbolMaster.getAllActiveSymbols();
+    const symbols = allSymbols.map(s => s.symbol);
     
-    const result = await scanStocks(preset, parseInt(limit), filters);
+    console.log(`📊 Scanner universe size: ${symbols.length} symbols`);
+    
+    // Get quotes in batches
+    const batchSize = 100;
+    const allQuotes = [];
+    
+    for (let i = 0; i < symbols.length; i += batchSize) {
+      const batch = symbols.slice(i, i + batchSize);
+      
+      try {
+        const quotes = await unifiedProviderManager.getQuotes(batch);
+        allQuotes.push(...quotes);
+        
+        // Rate limiting protection
+        await new Promise(resolve => setTimeout(resolve, 100));
+        
+      } catch (error) {
+        console.warn(`Batch ${i}-${i + batchSize} failed:`, error.message);
+      }
+    }
+    
+    console.log(`✅ Retrieved ${allQuotes.length} quotes`);
+    
+    // Process quotes and calculate metrics
+    const processedStocks = [];
+    
+    for (const quote of allQuotes) {
+      try {
+        const symbol = comprehensiveSymbolMaster.getSymbol(quote.symbol);
+        if (!symbol) continue;
+        
+        // Calculate basic metrics
+        const changePercent = quote.changePercent || 0;
+        const volume = quote.volume || 0;
+        const avgVolume = quote.averageDailyVolume3Month || volume;
+        const relativeVolume = avgVolume > 0 ? volume / avgVolume : 1;
+        
+        processedStocks.push({
+          symbol: quote.symbol,
+          name: quote.name || symbol.companyName,
+          price: quote.price,
+          change: quote.change,
+          changePercent,
+          volume,
+          avgVolume,
+          relativeVolume,
+          exchange: symbol.exchange,
+          sector: symbol.sector,
+          industry: symbol.industry,
+          marketCap: symbol.marketCap,
+          lastUpdate: new Date().toISOString()
+        });
+        
+      } catch (error) {
+        console.warn(`Error processing ${quote.symbol}:`, error.message);
+      }
+    }
+    
+    // Apply filters
+    let filtered = processedStocks;
+    if (req.query.minPrice) {
+      const minPrice = parseFloat(req.query.minPrice);
+      filtered = filtered.filter(s => s.price >= minPrice);
+    }
+    if (req.query.exchange) {
+      filtered = filtered.filter(s => s.exchange === req.query.exchange);
+    }
+    if (req.query.sector) {
+      filtered = filtered.filter(s => s.sector === req.query.sector);
+    }
+    
+    // Sort by change percent (descending)
+    filtered.sort((a, b) => b.changePercent - a.changePercent);
+    
+    // Limit results
+    const limited = filtered.slice(0, parseInt(limit));
+    
+    const result = {
+      stocks: limited,
+      totalProcessed: processedStocks.length,
+      universeSize: symbols.length,
+      errors: []
+    };
     
             console.log(`Advanced scanner returned ${result.stocks.length} stocks from ${result.totalProcessed} processed (universe: ${result.universeSize})`);
             
