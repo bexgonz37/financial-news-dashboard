@@ -367,6 +367,49 @@ function generateBadges(quote, preset) {
   return badges;
 }
 
+// Fallback function to fetch individual quotes using live-data API
+async function fetchFallbackQuotes(symbols) {
+  const quotes = [];
+  
+  for (const symbol of symbols) {
+    try {
+      const response = await fetch(`https://financial-news-dashboard-one.vercel.app/api/live-data?ticker=${symbol}&type=quote`, {
+        cache: 'no-store',
+        timeout: 5000
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success && data.data) {
+          const q = data.data;
+          quotes.push({
+            symbol: symbol,
+            name: symbol,
+            price: q.price || 0,
+            change: q.change || 0,
+            changePercent: q.changePercent || 0,
+            volume: q.volume || 0,
+            averageDailyVolume3Month: 0,
+            relativeVolume: 1,
+            marketState: 'REGULAR',
+            marketCap: null,
+            pe: null,
+            high52Week: null,
+            low52Week: null,
+            lastUpdate: new Date().toISOString(),
+            provider: 'fallback'
+          });
+        }
+      }
+    } catch (error) {
+      console.warn(`Fallback quote for ${symbol} failed:`, error.message);
+    }
+  }
+  
+  console.log(`Fallback returned ${quotes.length} quotes`);
+  return quotes;
+}
+
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
@@ -430,6 +473,12 @@ export default async function handler(req, res) {
         console.warn('Provider failed:', error.message);
         errors.push(error.message);
       }
+    }
+
+    // If all providers failed, try fallback with individual quotes
+    if (!quotes || quotes.length === 0) {
+      console.log('All providers failed, trying fallback with individual quotes...');
+      quotes = await fetchFallbackQuotes(universe.slice(0, 50)); // Limit to 50 for fallback
     }
 
     if (!quotes || quotes.length === 0) {

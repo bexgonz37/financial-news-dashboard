@@ -447,6 +447,60 @@ async function fetchNewsAPINews(companyMappings, limit = 100, sourceFilter = nul
   return [];
 }
 
+// Fetch news from Yahoo Finance
+async function fetchYahooNews(companyMappings, limit = 100, sourceFilter = null) {
+  if (sourceFilter && sourceFilter !== 'Yahoo Finance' && sourceFilter !== 'Yahoo' && sourceFilter !== 'all') return [];
+
+  try {
+    // Yahoo Finance RSS feed for financial news
+    const response = await fetch(`https://feeds.finance.yahoo.com/rss/2.0/headline?s=^GSPC&region=US&lang=en-US`, {
+      cache: 'no-store'
+    });
+
+    if (!response.ok) {
+      throw new Error(`Yahoo Finance API error: ${response.status}`);
+    }
+
+    const xmlText = await response.text();
+    console.log('Yahoo Finance response length:', xmlText.length);
+
+    // Simple XML parsing for RSS
+    const items = [];
+    const itemMatches = xmlText.match(/<item>[\s\S]*?<\/item>/g);
+    
+    if (itemMatches) {
+      for (const itemXml of itemMatches.slice(0, Math.min(limit, itemMatches.length))) {
+        const titleMatch = itemXml.match(/<title><!\[CDATA\[(.*?)\]\]><\/title>/);
+        const linkMatch = itemXml.match(/<link>(.*?)<\/link>/);
+        const pubDateMatch = itemXml.match(/<pubDate>(.*?)<\/pubDate>/);
+        const descriptionMatch = itemXml.match(/<description><!\[CDATA\[(.*?)\]\]><\/description>/);
+
+        if (titleMatch && linkMatch) {
+          const content = (titleMatch[1] || '') + ' ' + (descriptionMatch ? descriptionMatch[1] : '');
+          const extractedTicker = extractCompanyTicker(content, companyMappings);
+          
+          items.push({
+            id: `yahoo_${Date.now()}_${Math.random()}`,
+            title: titleMatch[1] || '',
+            summary: descriptionMatch ? descriptionMatch[1] : '',
+            source: 'Yahoo Finance',
+            publishedAt: pubDateMatch ? new Date(pubDateMatch[1]).toISOString() : new Date().toISOString(),
+            ticker: extractedTicker,
+            url: linkMatch[1] || ''
+          });
+        }
+      }
+    }
+
+    console.log(`Yahoo Finance returned ${items.length} news items`);
+    return items;
+  } catch (error) {
+    console.error('Yahoo Finance news error:', error.message);
+  }
+
+  return [];
+}
+
 // Normalize and validate news item
 async function normalizeNewsItem(item) {
   // Validate URL
@@ -559,13 +613,23 @@ async function fetchRealNewsFromAPIs(limit = 200, sourceFilter = null, dateRange
     }
   }
   
-  // Fetch from all available sources
-  const [alphaVantageNews, fmpNews, finnhubNews, newsAPINews] = await Promise.allSettled([
+  // Fetch from all available sources with better error handling
+  console.log('Fetching news from all providers...');
+  const [alphaVantageNews, fmpNews, finnhubNews, newsAPINews, yahooNews] = await Promise.allSettled([
     fetchAlphaVantageNews(companyMappings, limit, sourceFilter),
     fetchFMPNews(companyMappings, limit, sourceFilter),
     fetchFinnhubNews(companyMappings, limit, sourceFilter),
-    fetchNewsAPINews(companyMappings, limit, sourceFilter)
+    fetchNewsAPINews(companyMappings, limit, sourceFilter),
+    fetchYahooNews(companyMappings, limit, sourceFilter)
   ]);
+
+  // Log provider results
+  console.log('Provider results:');
+  console.log('Alpha Vantage:', alphaVantageNews.status, alphaVantageNews.status === 'fulfilled' ? alphaVantageNews.value.length : alphaVantageNews.reason?.message);
+  console.log('FMP:', fmpNews.status, fmpNews.status === 'fulfilled' ? fmpNews.value.length : fmpNews.reason?.message);
+  console.log('Finnhub:', finnhubNews.status, finnhubNews.status === 'fulfilled' ? finnhubNews.value.length : finnhubNews.reason?.message);
+  console.log('NewsAPI:', newsAPINews.status, newsAPINews.status === 'fulfilled' ? newsAPINews.value.length : newsAPINews.reason?.message);
+  console.log('Yahoo:', yahooNews.status, yahooNews.status === 'fulfilled' ? yahooNews.value.length : yahooNews.reason?.message);
 
   // Combine all news
   const allNews = [];
@@ -581,6 +645,9 @@ async function fetchRealNewsFromAPIs(limit = 200, sourceFilter = null, dateRange
   }
   if (newsAPINews.status === 'fulfilled') {
     allNews.push(...newsAPINews.value);
+  }
+  if (yahooNews.status === 'fulfilled') {
+    allNews.push(...yahooNews.value);
   }
 
   console.log(`Raw news items: ${allNews.length}`);
