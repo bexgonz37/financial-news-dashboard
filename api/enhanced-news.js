@@ -8,6 +8,7 @@ export const revalidate = 0;
 const FMP_KEY = process.env.FMP_KEY;
 const FINNHUB_KEY = process.env.FINNHUB_KEY;
 const NEWSAPI_KEY = process.env.NEWSAPI_KEY;
+const ALPHAVANTAGE_KEY = process.env.ALPHAVANTAGE_KEY;
 
 // URL validation and normalization
 function isHttp(url) {
@@ -284,11 +285,11 @@ async function extractCompanyTicker(content, mappings) {
 
 // Fetch news from Alpha Vantage
 async function fetchAlphaVantageNews(companyMappings, limit = 100, sourceFilter = null) {
-  if (!FMP_KEY) return [];
+  if (!ALPHAVANTAGE_KEY) return [];
   if (sourceFilter && sourceFilter !== 'Alpha Vantage' && sourceFilter !== 'all') return [];
 
   try {
-    const response = await fetch(`https://www.alphavantage.co/query?function=NEWS_SENTIMENT&apikey=${FMP_KEY}&limit=${Math.min(limit, 100)}`, {
+    const response = await fetch(`https://www.alphavantage.co/query?function=NEWS_SENTIMENT&apikey=${ALPHAVANTAGE_KEY}&limit=${Math.min(limit, 100)}`, {
       cache: 'no-store'
     });
 
