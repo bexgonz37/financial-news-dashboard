@@ -19,6 +19,13 @@
     .header{ display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:30px }
     .header-left{ flex:1; text-align:left }
     .header-right{ display:flex; flex-direction:column; align-items:flex-end; gap:8px }
+    .health-panel{ display:flex; gap:16px; padding:8px 12px; background:var(--card); border:1px solid var(--border); border-radius:8px; font-size:0.8rem }
+    .health-item{ display:flex; align-items:center; gap:4px }
+    .health-label{ color:var(--meta) }
+    .health-status{ font-weight:600; padding:2px 6px; border-radius:4px; font-size:0.75rem }
+    .health-status.live{ background:rgba(36,227,156,0.2); color:var(--up) }
+    .health-status.degraded{ background:rgba(255,193,7,0.2); color:#ffc107 }
+    .health-status.offline{ background:rgba(255,91,110,0.2); color:var(--down) }
     .header h1{ font-size:2.5rem; font-weight:900; margin-bottom:10px; background:linear-gradient(135deg,var(--accent),var(--up)); -webkit-background-clip:text; -webkit-text-fill-color:transparent }
     .header p{ color:var(--meta); font-size:1.1rem }
     .status-bar{ display:flex; align-items:center; gap:8px; padding:4px 8px; border-radius:4px; background:rgba(0,255,0,0.1); border:1px solid rgba(0,255,0,0.3); font-size:0.8rem }
@@ -216,6 +223,20 @@
         <div id="provider-status" style="margin-top: 8px; font-size: 0.9em;"></div>
       </div>
       <div class="header-right">
+        <div class="health-panel">
+          <div class="health-item">
+            <span class="health-label">News:</span>
+            <span id="news-status" class="health-status live">LIVE</span>
+          </div>
+          <div class="health-item">
+            <span class="health-label">Scanner:</span>
+            <span id="scanner-status" class="health-status live">LIVE</span>
+          </div>
+          <div class="health-item">
+            <span class="health-label">Symbols:</span>
+            <span id="symbols-status" class="health-status live">LIVE</span>
+          </div>
+        </div>
         <div class="status-bar" id="statusBar">
           <span class="status-indicator" id="statusIndicator">●</span>
           <span class="status-text" id="statusText">Live • Providers healthy</span>
@@ -826,7 +847,7 @@
         const feed = document.getElementById('news-feed');
         feed.innerHTML = '<div class="loading">Fetching live financial news…</div>';
         
-        const url = `/api/enhanced-news?${params.toString()}`;
+        const url = `/api/enhanced-news-v2?${params.toString()}`;
         const r = await fetch(url, { cache: 'no-store' });
         if (!r.ok) {
           const txt = await r.text();
@@ -1041,9 +1062,9 @@
       
       try {
         console.log('Building scanners with preset:', preset);
-        console.log('Fetching from:', `/api/dynamic-stocks-scanner?preset=${preset}&limit=${limit}`);
+        console.log('Fetching from:', `/api/enhanced-scanner-v2?preset=${preset}&limit=${limit}`);
         
-        const scannerUrl = `/api/advanced-scanner?preset=${preset}&limit=${limit}&_t=${Date.now()}&_v=2.0`;
+        const scannerUrl = `/api/enhanced-scanner-v2?preset=${preset}&limit=${limit}&_t=${Date.now()}&_v=2.0`;
         const response = await fetch(scannerUrl, { cache: 'no-store' });
         if (!response.ok) {
           const txt = await response.text();
@@ -1627,6 +1648,30 @@
         const newsStatus = getStatusBadge(providerStatus.news.status, 'News');
         const scannerStatus = getStatusBadge(providerStatus.scanner.status, 'Scanner');
         providerStatusEl.innerHTML = `${newsStatus} | ${scannerStatus}`;
+      }
+      
+      // Update health panel
+      updateHealthPanel();
+    }
+    
+    function updateHealthPanel() {
+      const newsStatus = document.getElementById('news-status');
+      const scannerStatus = document.getElementById('scanner-status');
+      const symbolsStatus = document.getElementById('symbols-status');
+      
+      if (newsStatus) {
+        newsStatus.className = `health-status ${providerStatus.news.status || 'live'}`;
+        newsStatus.textContent = (providerStatus.news.status || 'live').toUpperCase();
+      }
+      
+      if (scannerStatus) {
+        scannerStatus.className = `health-status ${providerStatus.scanner.status || 'live'}`;
+        scannerStatus.textContent = (providerStatus.scanner.status || 'live').toUpperCase();
+      }
+      
+      if (symbolsStatus) {
+        symbolsStatus.className = `health-status ${providerStatus.symbols?.status || 'live'}`;
+        symbolsStatus.textContent = (providerStatus.symbols?.status || 'live').toUpperCase();
       }
     }
     
