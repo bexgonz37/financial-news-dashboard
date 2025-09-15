@@ -16,9 +16,17 @@
     *{ box-sizing:border-box; margin:0; padding:0 }
     body{ background:var(--bg); color:var(--text); font-family:system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif; line-height:1.6 }
     .container{ max-width:1400px; margin:0 auto; padding:20px }
-    .header{ text-align:center; margin-bottom:30px }
+    .header{ display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:30px }
+    .header-left{ flex:1; text-align:left }
+    .header-right{ display:flex; flex-direction:column; align-items:flex-end; gap:8px }
     .header h1{ font-size:2.5rem; font-weight:900; margin-bottom:10px; background:linear-gradient(135deg,var(--accent),var(--up)); -webkit-background-clip:text; -webkit-text-fill-color:transparent }
     .header p{ color:var(--meta); font-size:1.1rem }
+    .status-bar{ display:flex; align-items:center; gap:8px; padding:4px 8px; border-radius:4px; background:rgba(0,255,0,0.1); border:1px solid rgba(0,255,0,0.3); font-size:0.8rem }
+    .status-indicator{ color:#00ff00; font-size:0.6rem }
+    .status-bar.degraded{ background:rgba(255,193,7,0.1); border-color:rgba(255,193,7,0.3) }
+    .status-bar.degraded .status-indicator{ color:#ffc107 }
+    .status-bar.error{ background:rgba(255,0,0,0.1); border-color:rgba(255,0,0,0.3) }
+    .status-bar.error .status-indicator{ color:#ff0000 }
     .tabs{ display:flex; gap:2px; background:var(--card); padding:4px; border-radius:12px; margin-bottom:20px; border:1px solid var(--border) }
     .tab{ flex:1; padding:12px 20px; background:transparent; border:none; color:var(--text); cursor:pointer; border-radius:8px; transition:all 0.2s; font-weight:500 }
     .tab:hover{ background:rgba(177,103,255,.1) }
@@ -202,8 +210,18 @@
 <body>
   <div class="container">
     <div class="header">
-      <h1>🚀 PRO Day Trader Dashboard</h1>
-      <p>Advanced multi-source news aggregation, professional-grade screeners, and real-time market intelligence</p>
+      <div class="header-left">
+        <h1>🚀 PRO Day Trader Dashboard</h1>
+        <p>Advanced multi-source news aggregation, professional-grade screeners, and real-time market intelligence</p>
+      </div>
+      <div class="header-right">
+        <div class="status-bar" id="statusBar">
+          <span class="status-indicator" id="statusIndicator">●</span>
+          <span class="status-text" id="statusText">Live • Providers healthy</span>
+        </div>
+        <div class="time" id="time"></div>
+      </div>
+    </div>
       <div style="background: rgba(255, 193, 7, 0.1); border: 1px solid rgba(255, 193, 7, 0.3); border-radius: 8px; padding: 12px; margin: 20px 0; color: #ffc107; font-size: 0.9rem;">
         <strong>⚠️ LEGAL DISCLAIMER:</strong> This dashboard is for educational and entertainment purposes only. 
         It is NOT financial advice. All data is provided "as is" without warranty. 
@@ -1560,6 +1578,30 @@
     console.log('Loading scanner immediately...');
     buildScanners();
     
+    // Status tracking
+    let providerStatus = { healthy: 0, degraded: 0, error: 0 };
+    
+    function updateStatusBar() {
+      const statusBar = document.getElementById('statusBar');
+      const statusIndicator = document.getElementById('statusIndicator');
+      const statusText = document.getElementById('statusText');
+      
+      if (!statusBar) return;
+      
+      const total = providerStatus.healthy + providerStatus.degraded + providerStatus.error;
+      
+      if (providerStatus.error > 0) {
+        statusBar.className = 'status-bar error';
+        statusText.textContent = `Error • ${providerStatus.error}/${total} providers failed`;
+      } else if (providerStatus.degraded > 0) {
+        statusBar.className = 'status-bar degraded';
+        statusText.textContent = `Degraded • ${providerStatus.degraded}/${total} providers rate-limited`;
+      } else {
+        statusBar.className = 'status-bar';
+        statusText.textContent = `Live • ${providerStatus.healthy}/${total} providers healthy`;
+      }
+    }
+    
     // Session-aware refresh rates
     function getRefreshRates() {
       const now = new Date();
@@ -1573,11 +1615,11 @@
       const isWeekend = day === 0 || day === 6;
       
       if (isRTH) {
-        return { news: 30000, scanner: 30000, watchlist: 30000 }; // 30s during market hours
+        return { news: 30000, scanner: 45000, watchlist: 60000 }; // Slower during market hours
       } else if (isPreMarket || isAfterHours) {
-        return { news: 60000, scanner: 60000, watchlist: 60000 }; // 60s during extended hours
+        return { news: 60000, scanner: 90000, watchlist: 120000 }; // Even slower during extended hours
       } else {
-        return { news: 120000, scanner: 120000, watchlist: 120000 }; // 2min during closed hours
+        return { news: 120000, scanner: 180000, watchlist: 300000 }; // Very slow during closed hours
       }
     }
     

@@ -4,11 +4,7 @@ import fetch from 'node-fetch';
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
-// API Keys from environment variables
-const FMP_KEY = process.env.FMP_KEY;
-const FINNHUB_KEY = process.env.FINNHUB_KEY;
-const NEWSAPI_KEY = process.env.NEWSAPI_KEY;
-const ALPHAVANTAGE_KEY = process.env.ALPHAVANTAGE_KEY;
+import { newsBus } from '../lib/news-bus.js';
 
 // URL validation and normalization
 function isHttp(url) {
@@ -714,6 +710,12 @@ async function fetchRealNewsFromAPIs(limit = 200, sourceFilter = null, dateRange
 }
 
 export default async function handler(req, res) {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+
+  if (req.method === 'OPTIONS') return res.status(200).end();
+
   try {
     console.log('=== ENHANCED NEWS API ===');
     
@@ -727,26 +729,48 @@ export default async function handler(req, res) {
     
     console.log('Query parameters:', { limit, source, dateRange, search });
     
-    const allNews = await fetchRealNewsFromAPIs(
-      parseInt(limit), 
-      source, 
-      dateRange, 
-      search
-    );
-    
-    // Debug: Show all news items with their timestamps
-    console.log('=== ALL NEWS ITEMS DEBUG ===');
-    allNews.forEach((item, index) => {
-      console.log(`News ${index + 1}: "${item.title}" - ${item.publishedAt} (${item.source})`);
+    // Use News Bus for fetching
+    const result = await newsBus.getNews({
+      limit: parseInt(limit),
+      ticker: search,
+      search: search,
+      dateRange: dateRange
     });
-    console.log('=== END NEWS DEBUG ===');
+    
+    console.log(`News Bus returned ${result.news.length} items, ${result.providerErrors.length} provider errors`);
+    
+    // Add ticker extraction and sentiment analysis
+    const processedNews = [];
+    for (const item of result.news) {
+      // Extract ticker if not present
+      let ticker = item.ticker;
+      if (!ticker) {
+        const content = `${item.title || ''} ${item.summary || ''}`;
+        const companyMappings = await fetchLiveCompanyMappings();
+        ticker = await extractCompanyTicker(content, companyMappings);
+      }
+      
+      // Generate sentiment
+      const sentiment = generateSentiment(item.title || '', item.summary || '');
+      
+      // Generate badges
+      const badges = generateNewsBadges(item.title || '', item.summary || '');
+      
+      processedNews.push({
+        ...item,
+        ticker,
+        sentiment,
+        badges
+      });
+    }
 
     return res.status(200).json({
       success: true,
       data: {
-        news: allNews,
-        count: allNews.length,
+        news: processedNews,
+        count: processedNews.length,
         lastUpdate: new Date().toISOString(),
+        providerErrors: result.providerErrors,
         filters: {
           limit: parseInt(limit),
           source: source,
@@ -761,7 +785,8 @@ export default async function handler(req, res) {
     return res.status(500).json({
       success: false,
       error: 'Internal server error',
-      message: error.message
+      message: error.message,
+      data: { news: [] }
     });
   }
 }

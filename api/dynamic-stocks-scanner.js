@@ -4,10 +4,7 @@ import fetch from 'node-fetch';
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
-// API Keys from environment variables
-const FMP_KEY = process.env.FMP_KEY;
-const FINNHUB_KEY = process.env.FINNHUB_KEY;
-const IEX_CLOUD_KEY = process.env.IEX_CLOUD_KEY;
+import { quoteBus } from '../lib/quote-bus.js';
 
 // Cache for universe data (1 day)
 let universeCache = null;
@@ -550,62 +547,26 @@ export default async function handler(req, res) {
       });
     }
 
-    // Pick a provider fallback chain for quotes
-    const providers = [];
+    // Use Quote Bus for fetching quotes
+    console.log(`Fetching quotes for ${universe.length} symbols using Quote Bus`);
     
-    if (IEX_CLOUD_KEY) {
-      console.log('Adding IEX provider');
-      providers.push(() => quotesFromIEX(universe));
-    }
-    if (FINNHUB_KEY) {
-      console.log('Adding Finnhub provider');
-      providers.push(() => quotesFromFinnhub(universe));
-    }
-    if (FMP_KEY) {
-      console.log('Adding FMP provider');
-      providers.push(() => quotesFromFMP(universe));
-    }
-    
-    console.log(`Total providers available: ${providers.length}`);
-
-    if (providers.length === 0) {
-      return res.status(500).json({ 
-        success: false, 
-        error: 'No API keys available', 
-        message: 'No provider API keys configured',
-        data: { stocks: [] } 
-      });
-    }
-
-    // Try providers in parallel, use first that returns data
     let quotes = [];
-    const errors = [];
+    let providerErrors = [];
     
-    for (const provider of providers) {
-      try {
-        quotes = await provider();
-        if (quotes && quotes.length > 0) {
-          console.log(`Provider succeeded with ${quotes.length} quotes`);
-          break;
-        }
-      } catch (error) {
-        console.warn('Provider failed:', error.message);
-        errors.push(error.message);
-      }
-    }
-
-    // If all providers failed, try to get individual quotes using live-data API
-    if (!quotes || quotes.length === 0) {
-      console.log('All providers failed, trying individual quotes via live-data API...');
-      quotes = await fetchIndividualQuotes(universe.slice(0, 20)); // Limit to 20 for performance
+    try {
+      quotes = await quoteBus.getQuotes(universe);
+      console.log(`Quote Bus returned ${quotes.length} quotes`);
+    } catch (error) {
+      console.error('Quote Bus error:', error);
+      providerErrors.push(`Quote Bus: ${error.message}`);
     }
 
     if (!quotes || quotes.length === 0) {
       return res.status(500).json({ 
         success: false, 
         error: 'No live data available', 
-        message: `All providers failed: ${errors.join(', ')}`,
-        providerErrors: errors,
+        message: `Quote Bus failed: ${providerErrors.join(', ')}`,
+        providerErrors: providerErrors,
         data: { stocks: [] } 
       });
     }
