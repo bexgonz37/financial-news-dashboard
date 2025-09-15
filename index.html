@@ -269,8 +269,10 @@
           <option value="Financial Modeling Prep">FMP</option>
           <option value="Finnhub">Finnhub</option>
         </select>
-        <button class="btn" onclick="fetchData()">🔄 Load News</button>
-        <button class="btn" onclick="fetchData(); console.log('Manual news refresh triggered');" style="margin-left: 10px;">⚡ Force Refresh</button>
+        <div class="auto-refresh-indicator">
+          <span class="status-indicator live">🔄 Auto-refresh enabled</span>
+          <span id="lastUpdate" style="font-size: 0.8rem; color: var(--meta); margin-left: 10px;">Last updated: Loading...</span>
+        </div>
         <!-- Removed category filters to show ALL news -->
       </div>
       
@@ -288,7 +290,10 @@
 
     <!-- SCANNERS -->
     <div id="view-scanners" class="panel">
-      <div id="scannerLastUpdate" style="font-size: 0.8rem; color: #666; margin: 5px 0; text-align: center;">Last updated: Loading...</div>
+      <div class="auto-refresh-indicator" style="margin-bottom: 16px; text-align: center;">
+        <span class="status-indicator live">🔄 Auto-refresh enabled</span>
+        <span id="scannerLastUpdate" style="font-size: 0.8rem; color: var(--meta); margin-left: 10px;">Last updated: Loading...</span>
+      </div>
       <div class="toolbar">
         <select class="select" id="scannerPreset">
           <option value="momentum">🚀 High Momentum</option>
@@ -328,9 +333,7 @@
           <option value="market_cap">💰 Market Cap</option>
         </select>
         
-        <button class="btn" id="rescore">🔄 Recalculate</button>
-        <button class="btn" id="forceRefresh" style="background: #ff6b6b; color: white;">🔄 Force Fresh Data</button>
-        <button class="btn" onclick="refreshAllData()" style="background: var(--accent); color: white;">📡 Refresh Live Data</button>
+        <!-- Auto-refresh enabled - no manual buttons needed -->
         <!-- Optional metrics toggles -->
         <label class="meta" style="display:flex;align-items:center;gap:6px">
           <input type="checkbox" id="scanShowRVOL" /> Show RVOL
@@ -1578,16 +1581,7 @@
       if(e.key === 'Enter') document.getElementById('wlAddBtn').click();
     });
     
-    document.getElementById('rescore').addEventListener('click', buildScanners);
-    document.getElementById('forceRefresh').addEventListener('click', () => {
-      console.log('=== FORCE REFRESH CLICKED ===');
-      // Clear any cached data
-      localStorage.clear();
-      sessionStorage.clear();
-      // Force fresh data
-      fetchData();
-      buildScanners();
-    });
+    // Auto-refresh enabled - no manual refresh needed
     
     // Removed category filter clear functionality
     
@@ -1780,20 +1774,41 @@
     }
     window.openArticle = openArticle;
     
-    // Auto-refresh functionality
-    setInterval(() => {
-      if (currentTab === 'news') {
-        fetchNews();
-      } else if (currentTab === 'scanner') {
-        fetchScanner();
-      }
-      updateHealthStatus();
-    }, 15000);
+    // Auto-refresh functionality - unified system
+    let refreshIntervals = {
+      news: null,
+      scanner: null,
+      health: null
+    };
     
-    // Update health status every 5 seconds
-    setInterval(() => {
-      updateHealthStatus();
-    }, 5000);
+    function startAutoRefresh() {
+      // Clear existing intervals
+      if (refreshIntervals.news) clearInterval(refreshIntervals.news);
+      if (refreshIntervals.scanner) clearInterval(refreshIntervals.scanner);
+      if (refreshIntervals.health) clearInterval(refreshIntervals.health);
+      
+      // Start news auto-refresh (every 30 seconds)
+      refreshIntervals.news = setInterval(() => {
+        console.log('Auto-refreshing news...');
+        fetchData();
+      }, 30000);
+      
+      // Start scanner auto-refresh (every 45 seconds)
+      refreshIntervals.scanner = setInterval(() => {
+        console.log('Auto-refreshing scanner...');
+        buildScanners();
+      }, 45000);
+      
+      // Start health status updates (every 10 seconds)
+      refreshIntervals.health = setInterval(() => {
+        updateHealthStatus();
+      }, 10000);
+      
+      console.log('Auto-refresh started');
+    }
+    
+    // Start auto-refresh
+    startAutoRefresh();
     
     // Health status function
     async function updateHealthStatus() {
