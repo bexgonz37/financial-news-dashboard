@@ -477,7 +477,7 @@ async function fetchIndividualQuotes(symbols) {
   
   for (const symbol of symbols) {
     try {
-      const response = await fetch(`https://financial-news-dashboard-one.vercel.app/api/live-data?ticker=${symbol}&type=quote`, {
+      const response = await fetch(`https://financial-news-dashboard-one.vercel.app/api/data?ticker=${symbol}&type=quote`, {
         cache: 'no-store',
         timeout: 5000
       });

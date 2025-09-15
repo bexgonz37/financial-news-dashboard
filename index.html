@@ -529,7 +529,7 @@
       container.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--loading);font-size:0.8rem;">Loading...</div>';
       
       try {
-        const r = await fetch(`/api/ohlc?ticker=${encodeURIComponent(ticker)}&interval=5min&limit=20&last=1&_t=${Date.now()}`, { cache: 'no-store' });
+        const r = await fetch(`/api/data?ticker=${encodeURIComponent(ticker)}&type=ohlc&interval=5min&limit=20&_t=${Date.now()}`, { cache: 'no-store' });
         const payload = r.ok ? await r.json() : {data: {candles: []}};
         const raw = payload.data?.candles || [];
         const candles = raw.map(c => ({
@@ -741,7 +741,7 @@
       if(cached && Date.now() - cached.timestamp < 30000) return cached.data;
       
       try {
-        const r = await fetch(`/api/live-data?ticker=${encodeURIComponent(ticker)}&type=quote`);
+        const r = await fetch(`/api/data?ticker=${encodeURIComponent(ticker)}&type=quote`);
         if(!r.ok) throw new Error(`HTTP ${r.status}`);
         
         const response = await r.json();
@@ -764,7 +764,7 @@
       if(cached && Date.now() - cached.timestamp < 30000) return cached.data;
       
       try {
-        const r = await fetch(`/api/live-data?ticker=${encodeURIComponent(ticker)}&type=quote`);
+        const r = await fetch(`/api/data?ticker=${encodeURIComponent(ticker)}&type=quote`);
         if(!r.ok) throw new Error(`HTTP ${r.status}`);
         
         const response = await r.json();
@@ -1265,8 +1265,8 @@
       try {
         // Fetch multiple timeframes for comprehensive view
         const [hourlyResponse, dailyResponse] = await Promise.all([
-          fetch(`/api/ohlc?ticker=${encodeURIComponent(ticker)}&interval=1hour&limit=100&_t=${Date.now()}`, { cache: 'no-store' }),
-          fetch(`/api/ohlc?ticker=${encodeURIComponent(ticker)}&interval=1day&limit=30&_t=${Date.now()}`, { cache: 'no-store' })
+          fetch(`/api/data?ticker=${encodeURIComponent(ticker)}&type=ohlc&interval=1hour&limit=100&_t=${Date.now()}`, { cache: 'no-store' }),
+          fetch(`/api/data?ticker=${encodeURIComponent(ticker)}&type=ohlc&interval=1day&limit=30&_t=${Date.now()}`, { cache: 'no-store' })
         ]);
         
         const hourlyData = hourlyResponse.ok ? await hourlyResponse.json() : {data: {candles: []}};
@@ -1409,7 +1409,7 @@
         
         try {
           // Fetch latest data
-          const response = await fetch(`/api/ohlc?ticker=${encodeURIComponent(ticker)}&interval=5min&limit=20&_t=${Date.now()}`, { cache: 'no-store' });
+          const response = await fetch(`/api/data?ticker=${encodeURIComponent(ticker)}&type=ohlc&interval=5min&limit=20&_t=${Date.now()}`, { cache: 'no-store' });
           if (!response.ok) return;
           
           const data = await response.json();
