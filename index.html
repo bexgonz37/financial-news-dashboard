@@ -401,9 +401,9 @@
           console.log('=== SCANNER TAB CLICKED ===');
           console.log('View:', view);
           console.log('Panel element:', document.getElementById(`view-${view}`));
-          console.log('Showing fallback data immediately...');
-          // Always show fallback data immediately when scanner tab is clicked
-          showFallbackScannerData();
+          console.log('Loading scanner data...');
+          // Load real scanner data when tab is clicked
+          buildScanners();
           // Then try to load real data
           setTimeout(() => {
             console.log('Loading real scanner data...');
@@ -818,8 +818,8 @@
         console.error('Fetch error:', e);
         console.log('Showing fallback news data due to API error');
         
-        // Show fallback data if API fails
-        showFallbackNewsData();
+        // Show error message if API fails - no fallback data
+        feed.innerHTML = '<div class="loading">No live data available. Please try again later.</div>';
       }
     }
 
@@ -865,7 +865,7 @@
             <div class="title">${n.title||''}</div>
             <div class="summary">${n.summary||''} ${
               n.url && /^https?:\/\//i.test(n.url)
-                ? `<a href="${n.url}" data-url="${n.url}" target="_blank" rel="noopener noreferrer" class="read-btn">Read</a>`
+                ? `<a href="${n.url}" target="_blank" rel="noopener noreferrer" class="read-btn">Read</a>`
                 : '<span style="color:red;font-size:0.8rem;">No URL</span>'
             }</div>
             ${tickers.length > 0 ? `
@@ -1034,18 +1034,19 @@
           }
         } else {
           console.error('Scanner API returned no data:', data);
-          // Show fallback data if API fails
-          showFallbackScannerData();
+          // Show error message if API fails - no fallback data
+          grid.innerHTML = '<div class="loading">No live scanner data available. Please try again later.</div>';
         }
       } catch (error) {
         console.error('Screener error:', error);
-        console.log('Showing fallback scanner data due to error');
-        // Show fallback data if API fails
-        showFallbackScannerData();
+        console.log('Scanner error - no fallback data');
+        // Show error message if API fails - no fallback data
+        grid.innerHTML = '<div class="loading">No live scanner data available. Please try again later.</div>';
       }
     }
 
-    // ---------- FALLBACK NEWS DATA ----------
+    // ---------- REMOVED FALLBACK NEWS DATA ----------
+    /*
     function showFallbackNewsData() {
       console.log('=== SHOWING FALLBACK NEWS DATA ===');
       const feed = document.getElementById('news-feed');
@@ -1189,8 +1190,10 @@
       
       console.log('Fallback news data loaded:', fallbackNews.length, 'items');
     }
+    */
 
-    // ---------- FALLBACK SCANNER DATA ----------
+    // ---------- REMOVED FALLBACK SCANNER DATA ----------
+    /*
     function showFallbackScannerData() {
       console.log('=== SHOWING FALLBACK SCANNER DATA ===');
       const grid = document.getElementById('scanner-grid');
@@ -1330,7 +1333,7 @@
         });
       }, 100);
     }
-
+    */
 
     // ---------- WATCHLIST ----------
     function toggleWatchlist(t){
@@ -1660,31 +1663,7 @@
         return;
       }
 
-      // --- FIX: Read button uses href OR data-url
-      if (e.target.matches('.read-btn')) {
-        e.preventDefault();
-        const raw = e.target.getAttribute('href') || e.target.getAttribute('data-url');
-        if (!raw) { alert('Invalid article URL'); return; }
-        let u = raw.trim();
-
-        // If the UI normalized it away, try our URL normalizer
-        if (!/^https?:\/\//i.test(u)) {
-          alert('Invalid article URL'); 
-          return;
-        }
-
-        // Resolve redirects (Bloomberg/Google/Reddit often wrap)
-        try {
-          const finalUrl = await resolveArticleUrl(u);
-          if (finalUrl && /^https?:\/\//i.test(finalUrl)) {
-            window.open(finalUrl, '_blank', 'noopener,noreferrer');
-          } else {
-            window.open(u, '_blank', 'noopener,noreferrer');
-          }
-        } catch {
-          window.open(u, '_blank', 'noopener,noreferrer');
-        }
-      }
+      // --- REMOVED: Read button custom handler - let normal link behavior work
     });
     
     document.getElementById('wlAddBtn').addEventListener('click', ()=>{
@@ -1737,13 +1716,13 @@
       const scannerGrid = document.getElementById('scanner-grid');
       
       if (newsContainer && newsContainer.children.length <= 1) {
-        console.log('News failed to load, showing fallback...');
-        showFallbackNewsData();
+        console.log('News failed to load - no fallback data');
+        newsContainer.innerHTML = '<div class="loading">No live news data available. Please try again later.</div>';
       }
       
       if (scannerGrid && scannerGrid.children.length <= 1) {
-        console.log('Scanner failed to load, showing fallback...');
-        showFallbackScannerData();
+        console.log('Scanner failed to load - no fallback data');
+        scannerGrid.innerHTML = '<div class="loading">No live scanner data available. Please try again later.</div>';
       }
     }, 3000);
     

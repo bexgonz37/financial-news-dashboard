@@ -61,20 +61,9 @@ async function fetchFullUniverse() {
         }
       }
     } else {
-      // Fallback: Use a comprehensive list of major stocks
-      const majorStocks = [
-        'AAPL', 'MSFT', 'GOOGL', 'AMZN', 'TSLA', 'META', 'NVDA', 'BRK-B', 'UNH', 'JNJ',
-        'V', 'PG', 'JPM', 'MA', 'HD', 'DIS', 'PYPL', 'ADBE', 'NFLX', 'CRM',
-        'INTC', 'CMCSA', 'PFE', 'TMO', 'ABT', 'COST', 'PEP', 'CSCO', 'AVGO', 'ACN',
-        'WMT', 'DHR', 'VZ', 'NKE', 'ADBE', 'TXN', 'QCOM', 'NEE', 'HON', 'UNP',
-        'IBM', 'LMT', 'AMGN', 'T', 'SPGI', 'RTX', 'ORCL', 'CAT', 'GS', 'AXP',
-        'BA', 'MMM', 'CVX', 'XOM', 'JNJ', 'KO', 'MCD', 'WBA', 'CL', 'KMB',
-        'GE', 'F', 'GM', 'BAC', 'C', 'WFC', 'JPM', 'USB', 'PNC', 'TFC',
-        'SPY', 'QQQ', 'IWM', 'DIA', 'VTI', 'VEA', 'VWO', 'BND', 'TLT', 'GLD'
-      ];
-      
-      majorStocks.forEach(symbol => allSymbols.add(symbol));
-      console.log(`Fallback: Using ${majorStocks.length} major stocks`);
+      // No API key - return empty array instead of fallback data
+      console.log('No FMP API key available - returning empty universe');
+      return [];
     }
 
     // Convert to array and sort
@@ -92,13 +81,13 @@ async function fetchFullUniverse() {
   } catch (error) {
     console.error('Universe fetch error:', error.message);
     
-    // Return fallback if all else fails
-    const fallbackSymbols = ['AAPL', 'MSFT', 'GOOGL', 'AMZN', 'TSLA', 'META', 'NVDA'];
+    // No fallback data - return empty array if all fails
+    console.log('All universe fetch attempts failed - returning empty array');
     universeCache = {
-      symbols: fallbackSymbols,
+      symbols: [],
       lastUpdate: now
     };
-    return fallbackSymbols;
+    return [];
   }
 }
 
