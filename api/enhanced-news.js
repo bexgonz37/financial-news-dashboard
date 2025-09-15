@@ -743,8 +743,12 @@ export default async function handler(req, res) {
     // Add ticker extraction and sentiment analysis
     const processedNews = [];
     for (const item of result.news) {
-      // Extract tickers using robust extraction
-      const tickerData = await extractTickers(item);
+      // Extract tickers using robust extraction - combine title and summary
+      const combinedText = `${item.title || ''} ${item.summary || ''}`;
+      const tickerData = extractTickers(combinedText);
+      
+      // Use existing tickers if available, otherwise use extracted ones
+      const finalTickers = item.tickers && item.tickers.length > 0 ? item.tickers : tickerData.tickers;
       
       // Generate sentiment
       const sentiment = generateSentiment(item.title || '', item.summary || '');
@@ -754,7 +758,7 @@ export default async function handler(req, res) {
       
       processedNews.push({
         ...item,
-        tickers: tickerData.tickers,
+        tickers: finalTickers,
         inferredTickersConfidence: tickerData.inferredTickersConfidence,
         sentiment,
         badges
