@@ -81,7 +81,21 @@ async function loadUniverse() {
     return curatedSymbols;
   } catch (error) {
     console.error('Failed to load universe:', error);
-    throw new Error(`Universe loading failed: ${error.message}`);
+    // Use curated symbols as final fallback
+    console.log('Using curated universe as final fallback');
+    const curatedSymbols = [
+      'AAPL', 'MSFT', 'GOOGL', 'AMZN', 'TSLA', 'META', 'NVDA', 'NFLX', 'AMD', 'INTC',
+      'JPM', 'JNJ', 'V', 'PG', 'UNH', 'HD', 'MA', 'DIS', 'PYPL', 'ADBE',
+      'CRM', 'NKE', 'ABT', 'TMO', 'ACN', 'COST', 'DHR', 'VZ', 'NEE', 'WMT',
+      'BAC', 'XOM', 'T', 'PFE', 'KO', 'PEP', 'ABBV', 'CVX', 'MRK', 'LLY',
+      'AVGO', 'TXN', 'QCOM', 'CHTR', 'CMCSA', 'COF', 'GILD', 'AMGN', 'HON', 'UNP',
+      'PLTR', 'SOFI', 'HOOD', 'RBLX', 'COIN', 'SNOW', 'ZM', 'DOCU', 'BB', 'NOK'
+    ];
+    
+    universeCache = curatedSymbols;
+    universeCacheTime = now;
+    console.log(`Using curated universe: ${curatedSymbols.length} symbols`);
+    return curatedSymbols;
   }
 }
 
