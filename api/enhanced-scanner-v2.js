@@ -153,8 +153,8 @@ function applyScannerFilters(stocks, preset, filters) {
     case 'momentum':
       filtered = filtered.filter(stock => 
         Math.abs(stock.changePercent) >= (filters.minChange || 2) &&
-        stock.technical.rvol >= (filters.minRvol || 1.5) &&
-        stock.technical.vwapDev > 0
+        stock.technicals.rvol >= (filters.minRvol || 1.5) &&
+        stock.technicals.vwapDev > 0
       );
       break;
       
@@ -167,23 +167,23 @@ function applyScannerFilters(stocks, preset, filters) {
       
     case 'gap_and_go':
       filtered = filtered.filter(stock => 
-        Math.abs(stock.technical.gap) >= (filters.minGap || 3) &&
-        stock.technical.rvol >= (filters.minRvol || 2) &&
-        stock.technical.vwapDev > 0
+        Math.abs(stock.technicals.gap) >= (filters.minGap || 3) &&
+        stock.technicals.rvol >= (filters.minRvol || 2) &&
+        stock.technicals.vwapDev > 0
       );
       break;
       
     case 'reversal_watch':
       filtered = filtered.filter(stock => 
-        stock.technical.rsi >= (filters.minRsi || 70) &&
+        stock.technicals.rsi >= (filters.minRsi || 70) &&
         stock.changePercent < -2 &&
-        stock.technical.rvol >= (filters.minRvol || 1.2)
+        stock.technicals.rvol >= (filters.minRvol || 1.2)
       );
       break;
       
     case 'high_volume':
       filtered = filtered.filter(stock => 
-        stock.technical.rvol >= (filters.minRvol || 3) &&
+        stock.technicals.rvol >= (filters.minRvol || 3) &&
         stock.volume >= (filters.minVolume || 1000000)
       );
       break;
@@ -215,15 +215,15 @@ function sortStocks(stocks, sortBy) {
     case 'change':
       return stocks.sort((a, b) => b.changePercent - a.changePercent);
     case 'rvol':
-      return stocks.sort((a, b) => b.technical.rvol - a.technical.rvol);
+      return stocks.sort((a, b) => b.technicals.rvol - a.technicals.rvol);
     case 'volume':
       return stocks.sort((a, b) => b.volume - a.volume);
     case 'news_heat':
       return stocks.sort((a, b) => b.newsHeat.heatScore - a.newsHeat.heatScore);
     case 'rsi':
-      return stocks.sort((a, b) => b.technical.rsi - a.technical.rsi);
+      return stocks.sort((a, b) => b.technicals.rsi - a.technicals.rsi);
     case 'vwap_dev':
-      return stocks.sort((a, b) => b.technical.vwapDev - a.technical.vwapDev);
+      return stocks.sort((a, b) => b.technicals.vwapDev - a.technicals.vwapDev);
     default:
       return stocks.sort((a, b) => b.changePercent - a.changePercent);
   }
@@ -296,13 +296,13 @@ async function scanStocks(preset = 'momentum', limit = 50, filters = {}) {
       if (!symbol) continue;
       
       // Calculate technical indicators
-      const technical = calculateTechnicalIndicators(quote);
+      const technicals = calculateTechnicalIndicators(quote);
       
       // Calculate news heat (placeholder - would need news data)
       const newsHeat = calculateNewsHeat(quote.symbol, []);
       
       // Calculate AI score based on multiple factors
-      const aiScore = calculateAIScore(quote, technical, newsHeat);
+      const aiScore = calculateAIScore(quote, technicals, newsHeat);
       
       processedStocks.push({
         symbol: quote.symbol,
@@ -316,7 +316,7 @@ async function scanStocks(preset = 'momentum', limit = 50, filters = {}) {
         exchange: symbol.exchange,
         sector: symbol.sector,
         industry: symbol.industry,
-        technical,
+        technicals,
         newsHeat,
         aiScore,
         lastUpdate: new Date().toISOString()
@@ -384,12 +384,12 @@ function generateStockBadges(stock, rank) {
   
   if (rank < 5) badges.push('TOP PICK');
   if (stock.changePercent > 5) badges.push('HIGH MOMENTUM');
-  if (stock.technical.rvol > 3) badges.push('HIGH VOLUME');
-  if (Math.abs(stock.technical.gap) > 5) badges.push('GAP');
-  if (stock.technical.volatility > 10) badges.push('VOLATILE');
+  if (stock.technicals.rvol > 3) badges.push('HIGH VOLUME');
+  if (Math.abs(stock.technicals.gap) > 5) badges.push('GAP');
+  if (stock.technicals.volatility > 10) badges.push('VOLATILE');
   if (stock.aiScore > 80) badges.push('STRONG SIGNAL');
   else if (stock.aiScore > 60) badges.push('GOOD SIGNAL');
-  if (stock.technical.vwapDev > 2) badges.push('VWAP DEVIATION');
+  if (stock.technicals.vwapDev > 2) badges.push('VWAP DEVIATION');
   
   return badges;
 }
