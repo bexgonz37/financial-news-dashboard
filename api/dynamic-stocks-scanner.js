@@ -4,7 +4,7 @@ import fetch from 'node-fetch';
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
-import { quoteBus } from '../lib/quote-bus.js';
+import { providerManager } from '../lib/provider-manager.js';
 
 // Cache for universe data (1 day)
 let universeCache = null;
@@ -41,21 +41,21 @@ async function loadUniverse() {
       }
     }
 
-    // Try alternative source - IEX Cloud
-    if (IEX_CLOUD_KEY) {
-      console.log('FMP failed, trying IEX Cloud for universe...');
-      const response = await fetch(`https://cloud.iexapis.com/stable/ref-data/symbols?token=${IEX_CLOUD_KEY}`, { cache: 'no-store' });
+    // Try alternative source - Finnhub
+    if (process.env.FINNHUB_KEY) {
+      console.log('FMP failed, trying Finnhub for universe...');
+      const response = await fetch(`https://finnhub.io/api/v1/stock/symbol?exchange=US&token=${process.env.FINNHUB_KEY}`, { cache: 'no-store' });
       if (response.ok) {
         const data = await response.json();
         if (Array.isArray(data) && data.length > 0) {
           const symbols = data
-            .filter(stock => stock.symbol && stock.type === 'cs' && stock.isEnabled)
+            .filter(stock => stock.symbol && stock.type === 'Common Stock' && stock.mic && ['XNAS', 'XNYS', 'XASE'].includes(stock.mic))
             .map(stock => stock.symbol)
             .slice(0, 1000); // Limit to 1000 for performance
           
           universeCache = symbols;
           universeCacheTime = now;
-          console.log(`Loaded universe: ${symbols.length} symbols from IEX Cloud`);
+          console.log(`Loaded universe: ${symbols.length} symbols from Finnhub`);
           return symbols;
         }
       }
@@ -97,62 +97,7 @@ async function loadUniverse() {
 }
 
 // Provider functions
-async function quotesFromIEX(symbols) {
-  if (!IEX_CLOUD_KEY) {
-    console.warn('IEX Cloud key not available');
-    return [];
-  }
-  
-  const quotes = [];
-  const batchSize = 100;
-  
-  for (let i = 0; i < Math.min(symbols.length, 500); i += batchSize) { // Limit to 500 symbols
-    const batch = symbols.slice(i, i + batchSize);
-    const symbolsStr = batch.join(',');
-    
-    try {
-      const response = await fetch(`https://cloud.iexapis.com/stable/stock/market/batch?symbols=${symbolsStr}&types=quote&token=${IEX_CLOUD_KEY}`, { 
-        cache: 'no-store',
-        timeout: 10000
-      });
-      
-      if (response.ok) {
-        const data = await response.json();
-        for (const [symbol, stockData] of Object.entries(data)) {
-          if (stockData.quote) {
-            const q = stockData.quote;
-            if (q.latestPrice && q.latestPrice > 0) {
-              quotes.push({
-                symbol: symbol,
-                name: q.companyName || symbol,
-                price: q.latestPrice,
-                change: q.change || 0,
-                changePercent: q.changePercent || 0,
-                volume: q.volume || 0,
-                averageDailyVolume3Month: q.avgTotalVolume || 0,
-                relativeVolume: q.avgTotalVolume > 0 ? (q.volume || 0) / q.avgTotalVolume : 1,
-                marketState: q.isUSMarketOpen ? 'REGULAR' : 'CLOSED',
-                marketCap: q.marketCap || null,
-                pe: q.peRatio || null,
-                high52Week: q.week52High || null,
-                low52Week: q.week52Low || null,
-                lastUpdate: new Date().toISOString(),
-                provider: 'iex'
-              });
-            }
-          }
-        }
-      } else {
-        console.warn(`IEX batch ${i}-${i + batchSize} failed with status: ${response.status}`);
-      }
-    } catch (error) {
-      console.warn(`IEX batch ${i}-${i + batchSize} failed:`, error.message);
-    }
-  }
-  
-  console.log(`IEX returned ${quotes.length} quotes`);
-  return quotes;
-}
+// IEX provider removed - using ProviderManager instead
 
 async function quotesFromFinnhub(symbols) {
   if (!FINNHUB_KEY) {
@@ -528,9 +473,9 @@ export default async function handler(req, res) {
     
     // Debug API keys
     console.log('API Keys available:');
-    console.log('IEX_CLOUD_KEY:', IEX_CLOUD_KEY ? 'YES' : 'NO');
-    console.log('FINNHUB_KEY:', FINNHUB_KEY ? 'YES' : 'NO');
-    console.log('FMP_KEY:', FMP_KEY ? 'YES' : 'NO');
+    console.log('FINNHUB_KEY:', process.env.FINNHUB_KEY ? 'YES' : 'NO');
+    console.log('FMP_API_KEY:', process.env.FMP_API_KEY ? 'YES' : 'NO');
+    console.log('ALPHA_VANTAGE_KEY:', process.env.ALPHA_VANTAGE_KEY ? 'YES' : 'NO');
 
     // Build universe (all tradable tickers) – cache for 1 day
     let universe;
@@ -547,18 +492,20 @@ export default async function handler(req, res) {
       });
     }
 
-    // Use Quote Bus for fetching quotes
-    console.log(`Fetching quotes for ${universe.length} symbols using Quote Bus`);
+    // Use ProviderManager for fetching quotes
+    console.log(`Fetching quotes for ${universe.length} symbols using ProviderManager`);
     
     let quotes = [];
     let providerErrors = [];
     
     try {
-      quotes = await quoteBus.getQuotes(universe);
-      console.log(`Quote Bus returned ${quotes.length} quotes`);
+      const result = await providerManager.getQuotes(universe);
+      quotes = result.quotes;
+      providerErrors = result.errors;
+      console.log(`ProviderManager returned ${quotes.length} quotes, ${providerErrors.length} errors`);
     } catch (error) {
-      console.error('Quote Bus error:', error);
-      providerErrors.push(`Quote Bus: ${error.message}`);
+      console.error('ProviderManager error:', error);
+      providerErrors.push(`ProviderManager: ${error.message}`);
     }
 
     // Always return success, even with partial data

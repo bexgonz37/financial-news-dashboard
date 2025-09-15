@@ -3,9 +3,7 @@ import fetch from 'node-fetch';
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
-import { FMPProvider } from '../lib/providers/fmp.js';
-import { FinnhubProvider } from '../lib/providers/finnhub.js';
-import { AlphaVantageProvider } from '../lib/providers/alphavantage.js';
+import { providerManager } from '../lib/provider-manager.js';
 
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -27,123 +25,47 @@ export default async function handler(req, res) {
 
     console.log(`Data API request: ${ticker}, ${type}, ${interval}, ${limit}`);
 
-    // Initialize providers
-    const providers = [];
-    if (process.env.FMP_KEY) {
-      providers.push(new FMPProvider(process.env.FMP_KEY));
-    }
-    if (process.env.FINNHUB_KEY) {
-      providers.push(new FinnhubProvider(process.env.FINNHUB_KEY));
-    }
-    if (process.env.ALPHAVANTAGE_KEY) {
-      providers.push(new AlphaVantageProvider(process.env.ALPHAVANTAGE_KEY));
-    }
-
-    if (providers.length === 0) {
-      return res.status(500).json({ 
-        success: false, 
-        error: 'No API keys available',
-        data: type === 'quote' ? {} : { candles: [] }
-      });
-    }
-
-    let quoteResult = null;
-    let ohlcResult = null;
-    const providerErrors = [];
-    
     if (type === 'quote') {
-      // Get quote data
-      const providerPromises = providers.map(async (provider) => {
-        try {
-          const quotes = await provider.getQuotes([ticker]);
-          return { provider: provider.name, data: quotes[0] || null, error: null };
-        } catch (error) {
-          console.warn(`${provider.name} quote failed:`, error.message);
-          return { provider: provider.name, data: null, error: error.message };
-        }
-      });
-
-      const results = await Promise.allSettled(providerPromises);
+      // Get quote data using ProviderManager
+      const result = await providerManager.getQuotes([ticker]);
       
-      for (const result of results) {
-        if (result.status === 'fulfilled') {
-          const { provider, data, error } = result.value;
-          if (error) {
-            providerErrors.push(`${provider}: ${error}`);
-          } else if (data) {
-            quoteResult = data;
-            break; // Use first successful provider
-          }
-        } else {
-          providerErrors.push(`Provider error: ${result.reason.message}`);
-        }
-      }
-
-      if (!quoteResult) {
-        return res.status(500).json({ 
-          success: false, 
-          error: 'No quote data available',
-          message: `All providers failed: ${providerErrors.join(', ')}`,
-          providerErrors: providerErrors,
-          data: {}
+      if (result.quotes.length === 0) {
+        return res.status(200).json({ 
+          success: true, 
+          data: {},
+          errors: result.errors
         });
       }
 
       return res.status(200).json({
         success: true,
-        data: quoteResult,
+        data: result.quotes[0],
         lastUpdate: new Date().toISOString(),
-        providerErrors: providerErrors
+        errors: result.errors
       });
 
     } else if (type === 'ohlc') {
-      // Get OHLC data
-      const providerPromises = providers.map(async (provider) => {
-        try {
-          const candles = await provider.getOHLC(ticker, interval, limit);
-          return { provider: provider.name, data: candles, error: null };
-        } catch (error) {
-          console.warn(`${provider.name} OHLC failed:`, error.message);
-          return { provider: provider.name, data: [], error: error.message };
-        }
-      });
-
-      const results = await Promise.allSettled(providerPromises);
+      // Get OHLC data using ProviderManager
+      const result = await providerManager.getOHLC(ticker, interval, limit);
       
-      for (const result of results) {
-        if (result.status === 'fulfilled') {
-          const { provider, data, error } = result.value;
-          if (error) {
-            providerErrors.push(`${provider}: ${error}`);
-          } else if (data.length > 0) {
-            ohlcResult = data;
-            break; // Use first successful provider
-          }
-        } else {
-          providerErrors.push(`Provider error: ${result.reason.message}`);
-        }
-      }
-
-      if (!ohlcResult || ohlcResult.length === 0) {
-        return res.status(500).json({ 
-          success: false, 
-          error: 'No OHLC data available',
-          message: `All providers failed: ${providerErrors.join(', ')}`,
-          providerErrors: providerErrors,
-          data: { candles: [] }
+      if (result.candles.length === 0) {
+        return res.status(200).json({ 
+          success: true, 
+          data: { candles: [] },
+          errors: result.errors
         });
       }
 
       return res.status(200).json({
         success: true,
         data: {
-          candles: ohlcResult,
-          count: ohlcResult.length,
+          candles: result.candles,
+          count: result.candles.length,
           ticker: ticker,
           interval: interval,
           lastUpdate: new Date().toISOString()
         },
-        providerErrors: providerErrors
+        errors: result.errors
       });
 
     } else {

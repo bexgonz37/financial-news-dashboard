@@ -4,7 +4,7 @@ import fetch from 'node-fetch';
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
-import { newsBus } from '../lib/news-bus.js';
+import { providerManager } from '../lib/provider-manager.js';
 import { extractTickers } from '../lib/ticker-extractor.js';
 
 // URL validation and normalization
@@ -730,15 +730,15 @@ export default async function handler(req, res) {
     
     console.log('Query parameters:', { limit, source, dateRange, search });
     
-    // Use News Bus for fetching
-    const result = await newsBus.getNews({
+    // Use ProviderManager for fetching news
+    const result = await providerManager.getNews({
       limit: parseInt(limit),
       ticker: search,
       search: search,
       dateRange: dateRange
     });
     
-    console.log(`News Bus returned ${result.news.length} items, ${result.providerErrors.length} provider errors`);
+    console.log(`ProviderManager returned ${result.news.length} items, ${result.errors.length} provider errors`);
     
     // Add ticker extraction and sentiment analysis
     const processedNews = [];
@@ -767,14 +767,14 @@ export default async function handler(req, res) {
         news: processedNews,
         count: processedNews.length,
         lastUpdate: new Date().toISOString(),
-        providerErrors: result.providerErrors,
         filters: {
           limit: parseInt(limit),
           source: source,
           dateRange: dateRange,
           search: search
         }
-      }
+      },
+      errors: result.errors
     });
 
   } catch (error) {
