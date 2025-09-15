@@ -3,6 +3,9 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
   <title>🚀 PRO Day Trader Dashboard - Advanced News & Screener</title>
   <!-- LEGAL DISCLAIMER: This is for educational/entertainment purposes only. Not financial advice. -->
   <style>
@@ -796,6 +799,7 @@
       if (source) params.set('source', source);
       params.set('limit', '200'); // Fetch more news for comprehensive coverage
       params.set('_t', Date.now()); // Cache busting for fresh data
+      params.set('_v', '2.0'); // Version parameter for cache busting
 
       try{
         const feed = document.getElementById('news-feed');
@@ -1009,7 +1013,7 @@
         console.log('Building scanners with preset:', preset);
         console.log('Fetching from:', `/api/dynamic-stocks-scanner?preset=${preset}&limit=${limit}`);
         
-        const scannerUrl = `/api/dynamic-stocks-scanner?preset=${preset}&limit=${limit}&_t=${Date.now()}`;
+        const scannerUrl = `/api/dynamic-stocks-scanner?preset=${preset}&limit=${limit}&_t=${Date.now()}&_v=2.0`;
         const response = await fetch(scannerUrl, { cache: 'no-store' });
         if (!response.ok) {
           const txt = await response.text();
