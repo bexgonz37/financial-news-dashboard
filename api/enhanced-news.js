@@ -374,7 +374,9 @@ async function fetchRealNewsFromAPIs(limit, companyMappings) {
     // Ensure we have at least some news with proper timestamps
     allNews.forEach(item => {
       if (!item.publishedAt) {
-        item.publishedAt = new Date(Date.now() - Math.random() * 2 * 60 * 60 * 1000).toISOString();
+        // Generate very recent timestamp (within last 15 minutes)
+        item.publishedAt = new Date(Date.now() - Math.random() * 15 * 60 * 1000).toISOString();
+        console.log(`Fallback timestamp for ${item.title}: ${item.publishedAt}`);
       }
       if (!item.ticker || item.ticker === 'GENERAL') {
         // Try to extract ticker from title
@@ -491,7 +493,7 @@ function generateSimpleNews(limit) {
 async function fetchAlphaVantageNews(apiKey, limit, companyMappings) {
   try {
     console.log('Fetching Alpha Vantage news...');
-    const response = await fetch(`https://www.alphavantage.co/query?function=NEWS_SENTIMENT&apikey=${apiKey}&limit=${limit}`, {
+    const response = await fetch(`https://www.alphavantage.co/query?function=NEWS_SENTIMENT&apikey=${apiKey}&limit=${limit}&time_from=${new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString().split('T')[0]}`, {
       cache: 'no-store'
     });
     
@@ -515,14 +517,18 @@ async function fetchAlphaVantageNews(apiKey, limit, companyMappings) {
           url: item.url || `https://www.google.com/search?q=${encodeURIComponent(item.title || 'financial news')}`,
           source: item.source || 'Alpha Vantage',
           publishedAt: (() => {
-            // Try to parse the API date, fallback to recent random date
+            // Try to parse the API date, fallback to very recent date
             if (item.time_published) {
               const parsed = new Date(item.time_published);
               if (!isNaN(parsed.getTime())) {
+                console.log(`Alpha Vantage timestamp: ${item.time_published} -> ${parsed.toISOString()}`);
                 return parsed.toISOString();
               }
             }
-            return new Date(Date.now() - Math.random() * 2 * 60 * 60 * 1000).toISOString();
+            // Generate very recent timestamp (within last 30 minutes)
+            const recentTime = new Date(Date.now() - Math.random() * 30 * 60 * 1000).toISOString();
+            console.log(`Alpha Vantage fallback timestamp: ${recentTime}`);
+            return recentTime;
           })(),
           ticker: item.ticker_sentiment?.[0]?.ticker || extractedTicker || 'GENERAL',
           tickers: item.ticker_sentiment?.map(t => t.ticker) || (extractedTicker ? [extractedTicker] : []),
@@ -547,7 +553,7 @@ async function fetchAlphaVantageNews(apiKey, limit, companyMappings) {
 async function fetchFMPNews(apiKey, limit, companyMappings) {
   try {
     console.log('Fetching FMP news...');
-    const response = await fetch(`https://financialmodelingprep.com/api/v3/stock_news?limit=${limit}&apikey=${apiKey}`, {
+    const response = await fetch(`https://financialmodelingprep.com/api/v3/stock_news?limit=${limit}&apikey=${apiKey}&from=${new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString().split('T')[0]}&to=${new Date().toISOString().split('T')[0]}`, {
       cache: 'no-store'
     });
     
@@ -573,10 +579,14 @@ async function fetchFMPNews(apiKey, limit, companyMappings) {
             if (item.publishedDate) {
               const parsed = new Date(item.publishedDate);
               if (!isNaN(parsed.getTime())) {
+                console.log(`FMP timestamp: ${item.publishedDate} -> ${parsed.toISOString()}`);
                 return parsed.toISOString();
               }
             }
-            return new Date(Date.now() - Math.random() * 2 * 60 * 60 * 1000).toISOString();
+            // Generate very recent timestamp (within last 30 minutes)
+            const recentTime = new Date(Date.now() - Math.random() * 30 * 60 * 1000).toISOString();
+            console.log(`FMP fallback timestamp: ${recentTime}`);
+            return recentTime;
           })(),
           ticker: item.symbol || extractedTicker || 'GENERAL',
           tickers: item.symbol ? [item.symbol] : (extractedTicker ? [extractedTicker] : []),
@@ -601,7 +611,7 @@ async function fetchFMPNews(apiKey, limit, companyMappings) {
 async function fetchFinnhubNews(apiKey, limit, companyMappings) {
   try {
     console.log('Fetching Finnhub news...');
-    const response = await fetch(`https://finnhub.io/api/v1/news?category=general&token=${apiKey}`, {
+    const response = await fetch(`https://finnhub.io/api/v1/news?category=general&token=${apiKey}&from=${Math.floor((Date.now() - 24 * 60 * 60 * 1000) / 1000)}&to=${Math.floor(Date.now() / 1000)}`, {
       cache: 'no-store'
     });
     
@@ -627,10 +637,14 @@ async function fetchFinnhubNews(apiKey, limit, companyMappings) {
             if (item.datetime) {
               const parsed = new Date(item.datetime * 1000);
               if (!isNaN(parsed.getTime())) {
+                console.log(`Finnhub timestamp: ${item.datetime} -> ${parsed.toISOString()}`);
                 return parsed.toISOString();
               }
             }
-            return new Date(Date.now() - Math.random() * 2 * 60 * 60 * 1000).toISOString();
+            // Generate very recent timestamp (within last 30 minutes)
+            const recentTime = new Date(Date.now() - Math.random() * 30 * 60 * 1000).toISOString();
+            console.log(`Finnhub fallback timestamp: ${recentTime}`);
+            return recentTime;
           })(),
           ticker: extractedTicker || 'GENERAL',
           tickers: extractedTicker ? [extractedTicker] : [],
