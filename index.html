@@ -760,6 +760,15 @@
       }
     }
 
+    // ---------- ERROR HANDLING ----------
+    function showError(msg) {
+      const el = document.createElement('div');
+      el.style.cssText = 'margin:10px 0;padding:10px;border:1px solid #ff5b6e;color:#fff;background:#7a1e2b;border-radius:8px';
+      el.textContent = 'API Error: ' + msg;
+      document.querySelector('.header').after(el);
+      setTimeout(()=>el.remove(), 10000);
+    }
+
     // ---------- REMOVED CATEGORY FILTERS ----------
     // All category filtering removed to show ALL news from ALL stocks
         // ---------- FETCH + APPLY ----------
@@ -781,15 +790,17 @@
         const feed = document.getElementById('news-feed');
         feed.innerHTML = '<div class="loading">Fetching live financial news…</div>';
         
-        console.log('Fetching news from:', `/api/enhanced-news?${params.toString()}`);
-        const r = await fetch(`/api/enhanced-news?${params.toString()}`);
-        console.log('News API response status:', r.status, r.ok);
-        if(!r.ok) {
-          console.error('News API error:', r.status, r.statusText);
-          throw new Error(`API error: ${r.status} ${r.statusText}`);
+        const url = `/api/enhanced-news?${params.toString()}`;
+        const r = await fetch(url, { cache: 'no-store' });
+        if (!r.ok) {
+          const txt = await r.text();
+          showError(`/api/enhanced-news ${r.status}: ${txt.slice(0,200)}`);
+          throw new Error(`enhanced-news failed ${r.status}`);
         }
-        
         const data = await r.json();
+        if (!data?.data?.news) {
+          showError('enhanced-news returned no "data.news"');
+        }
         const incoming = data?.data?.news || [];
         
         if (incoming.length === 0) {
@@ -865,7 +876,7 @@
             <div class="title">${n.title||''}</div>
             <div class="summary">${n.summary||''} ${
               n.url && /^https?:\/\//i.test(n.url)
-                ? `<a href="${n.url}" target="_blank" rel="noopener noreferrer" class="read-btn">Read</a>`
+                ? `<a href="${n.url}" data-url="${n.url}" target="_blank" rel="noopener noreferrer" class="read-btn">Read</a>`
                 : '<span style="color:red;font-size:0.8rem;">No URL</span>'
             }</div>
             ${tickers.length > 0 ? `
@@ -948,13 +959,15 @@
         console.log('Building scanners with preset:', preset);
         console.log('Fetching from:', `/api/dynamic-stocks-scanner?preset=${preset}&limit=${limit}`);
         
-        // Call the dynamic stocks scanner API for real-time data including ticker changes
         const scannerUrl = `/api/dynamic-stocks-scanner?preset=${preset}&limit=${limit}&_t=${Date.now()}`;
-        console.log('Fetching scanner from:', scannerUrl);
-        const response = await fetch(scannerUrl);
-        console.log('Scanner API response status:', response.status, response.ok);
-        
+        const response = await fetch(scannerUrl, { cache: 'no-store' });
+        if (!response.ok) {
+          const txt = await response.text();
+          showError(`/api/dynamic-stocks-scanner ${response.status}: ${txt.slice(0,200)}`);
+          throw new Error('scanner fetch failed');
+        }
         const data = await response.json();
+        if (!data?.success) showError('scanner success=false');
         console.log('Scanner API response:', data);
         console.log('Data success:', data.success);
         console.log('Data stocks length:', data.data?.stocks?.length);
@@ -1663,7 +1676,17 @@
         return;
       }
 
-      // --- REMOVED: Read button custom handler - let normal link behavior work
+      if (e.target.matches('.read-btn')) {
+        const href = e.target.getAttribute('data-url') || e.target.getAttribute('href');
+        const finalUrl = await resolveArticleUrl(href);
+        if (finalUrl) {
+          // let the normal link open; also open explicitly to be safe in some browsers
+          window.open(finalUrl, '_blank', 'noopener,noreferrer');
+        } else {
+          alert('Invalid article URL');
+        }
+        return;
+      }
     });
     
     document.getElementById('wlAddBtn').addEventListener('click', ()=>{
@@ -1709,22 +1732,22 @@
     console.log('Loading live scanner data...');
     buildScanners();
     
-    // Show fallback data only if real data fails
-    setTimeout(() => {
-      console.log('Checking if real data loaded...');
-      const newsContainer = document.getElementById('news-feed');
-      const scannerGrid = document.getElementById('scanner-grid');
-      
-      if (newsContainer && newsContainer.children.length <= 1) {
-        console.log('News failed to load - no fallback data');
-        newsContainer.innerHTML = '<div class="loading">No live news data available. Please try again later.</div>';
-      }
-      
-      if (scannerGrid && scannerGrid.children.length <= 1) {
-        console.log('Scanner failed to load - no fallback data');
-        scannerGrid.innerHTML = '<div class="loading">No live scanner data available. Please try again later.</div>';
-      }
-    }, 3000);
+    // remove the automatic fallback timeout during debugging
+    // setTimeout(() => {
+    //   console.log('Checking if real data loaded...');
+    //   const newsContainer = document.getElementById('news-feed');
+    //   const scannerGrid = document.getElementById('scanner-grid');
+    //   
+    //   if (newsContainer && newsContainer.children.length <= 1) {
+    //     console.log('News failed to load - no fallback data');
+    //     newsContainer.innerHTML = '<div class="loading">No live news data available. Please try again later.</div>';
+    //   }
+    //   
+    //   if (scannerGrid && scannerGrid.children.length <= 1) {
+    //     console.log('Scanner failed to load - no fallback data');
+    //     scannerGrid.innerHTML = '<div class="loading">No live scanner data available. Please try again later.</div>';
+    //   }
+    // }, 3000);
     
     // Also try to load scanner immediately
     console.log('Loading scanner immediately...');
