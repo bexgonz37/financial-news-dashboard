@@ -55,10 +55,13 @@ async function fetchLiveCompanyMappings() {
   try {
     console.log('Fetching live company mappings from APIs...');
     
-    // Fetch from multiple sources
-    const [fmpResponse, yahooResponse] = await Promise.allSettled([
+    // Fetch from multiple sources - get ALL publicly traded companies
+    const [fmpResponse, yahooResponse, nasdaqResponse, sp500Response, dowResponse] = await Promise.allSettled([
       fetch('https://financialmodelingprep.com/api/v3/stock/list?apikey=demo', { cache: 'no-store' }),
-      fetch('https://query1.finance.yahoo.com/v1/finance/screener?formatted=true&lang=en-US&region=US&scrIds=most_actives&count=100', { cache: 'no-store' })
+      fetch('https://query1.finance.yahoo.com/v1/finance/screener?formatted=true&lang=en-US&region=US&scrIds=most_actives&count=1000', { cache: 'no-store' }),
+      fetch('https://financialmodelingprep.com/api/v3/nasdaq_constituent?apikey=demo', { cache: 'no-store' }),
+      fetch('https://financialmodelingprep.com/api/v3/sp500_constituent?apikey=demo', { cache: 'no-store' }),
+      fetch('https://financialmodelingprep.com/api/v3/dowjones_constituent?apikey=demo', { cache: 'no-store' })
     ]);
     
     const mappings = new Map();
@@ -107,6 +110,72 @@ async function fetchLiveCompanyMappings() {
       }
     }
     
+    // Process NASDAQ data
+    if (nasdaqResponse.status === 'fulfilled' && nasdaqResponse.value.ok) {
+      const nasdaqData = await nasdaqResponse.value.json();
+      if (Array.isArray(nasdaqData)) {
+        nasdaqData.forEach(stock => {
+          if (stock.symbol && stock.name) {
+            const name = stock.name.toLowerCase();
+            mappings.set(name, stock.symbol);
+            
+            // Add shortened versions
+            const words = name.split(' ');
+            if (words.length > 1) {
+              mappings.set(words[0], stock.symbol);
+              if (words.length > 2) {
+                mappings.set(words.slice(0, 2).join(' '), stock.symbol);
+              }
+            }
+          }
+        });
+      }
+    }
+    
+    // Process S&P 500 data
+    if (sp500Response.status === 'fulfilled' && sp500Response.value.ok) {
+      const sp500Data = await sp500Response.value.json();
+      if (Array.isArray(sp500Data)) {
+        sp500Data.forEach(stock => {
+          if (stock.symbol && stock.name) {
+            const name = stock.name.toLowerCase();
+            mappings.set(name, stock.symbol);
+            
+            // Add shortened versions
+            const words = name.split(' ');
+            if (words.length > 1) {
+              mappings.set(words[0], stock.symbol);
+              if (words.length > 2) {
+                mappings.set(words.slice(0, 2).join(' '), stock.symbol);
+              }
+            }
+          }
+        });
+      }
+    }
+    
+    // Process Dow Jones data
+    if (dowResponse.status === 'fulfilled' && dowResponse.value.ok) {
+      const dowData = await dowResponse.value.json();
+      if (Array.isArray(dowData)) {
+        dowData.forEach(stock => {
+          if (stock.symbol && stock.name) {
+            const name = stock.name.toLowerCase();
+            mappings.set(name, stock.symbol);
+            
+            // Add shortened versions
+            const words = name.split(' ');
+            if (words.length > 1) {
+              mappings.set(words[0], stock.symbol);
+              if (words.length > 2) {
+                mappings.set(words.slice(0, 2).join(' '), stock.symbol);
+              }
+            }
+          }
+        });
+      }
+    }
+    
     // Update cache
     companyTickerCache = mappings;
     cacheExpiry = now + CACHE_DURATION;
@@ -127,11 +196,35 @@ async function extractCompanyTicker(content, companyMappings) {
   const text = content.toLowerCase();
   
   // Look for company names in the content using live mappings
-  for (const [companyName, ticker] of companyMappings.entries()) {
+  // Sort by length (longest first) to match more specific names first
+  const sortedMappings = Array.from(companyMappings.entries()).sort((a, b) => b[0].length - a[0].length);
+  
+  for (const [companyName, ticker] of sortedMappings) {
     // Check for exact company name matches
     if (text.includes(companyName)) {
       console.log(`Found live company match: "${companyName}" -> ${ticker}`);
       return ticker;
+    }
+  }
+  
+  // Also try to extract ticker symbols directly from content (e.g., $AAPL, (AAPL), etc.)
+  const tickerPatterns = [
+    /\$([A-Z]{1,5})\b/g,  // $AAPL, $TSLA, etc.
+    /\(([A-Z]{1,5})\)/g,  // (AAPL), (TSLA), etc.
+    /\b([A-Z]{1,5})\b/g   // AAPL, TSLA, etc. (standalone)
+  ];
+  
+  for (const pattern of tickerPatterns) {
+    const matches = text.match(pattern);
+    if (matches) {
+      for (const match of matches) {
+        const potentialTicker = match.replace(/[$()]/g, '').toUpperCase();
+        // Check if this ticker exists in our mappings
+        if (Array.from(companyMappings.values()).includes(potentialTicker)) {
+          console.log(`Found direct ticker match: "${potentialTicker}"`);
+          return potentialTicker;
+        }
+      }
     }
   }
   
