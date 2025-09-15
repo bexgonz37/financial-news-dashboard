@@ -837,13 +837,8 @@
         
       }catch(e){
         console.error('Fetch error:', e);
-        if (USE_DEMO) {
-          // Only use fallback in demo mode
-          showFallbackNewsData();
-        } else {
-          // Show error message if API fails - no fallback data
-          feed.innerHTML = '<div class="loading" style="color:#ff6b6b">Live news temporarily unavailable</div>';
-        }
+        // Show error message if API fails - no fallback data
+        feed.innerHTML = '<div class="loading" style="color:#ff6b6b">Live news temporarily unavailable</div>';
       }
     }
 
@@ -877,8 +872,22 @@
         const aiScore = n.aiScore || 0;
         const tradingSignal = n.tradingSignal || 'hold';
         
+        // Generate sentiment color and badges
+        const sentiment = n.sentiment || 'neutral';
+        const sentimentColor = sentiment === 'bullish' ? 'var(--up)' : sentiment === 'bearish' ? 'var(--down)' : 'var(--meta)';
+        const badges = n.badges || [];
+        const badgeHtml = badges.length > 0 ? `
+          <div style="margin: 8px 0; display: flex; flex-wrap: wrap; gap: 4px;">
+            ${badges.map(badge => `
+              <span style="background: ${badge === 'EARNINGS' ? 'var(--up)' : badge === 'FDA' ? 'var(--accent)' : badge === 'AI' ? '#00d4ff' : 'var(--meta)'}; color: white; padding: 2px 6px; border-radius: 4px; font-size: 0.75rem; font-weight: 600;">
+                ${badge}
+              </span>
+            `).join('')}
+          </div>
+        ` : '';
+
         return `
-          <div class="news-item" style="border-left: 4px solid ${tradingSignal === 'buy' ? 'var(--up)' : tradingSignal === 'sell' ? 'var(--down)' : 'var(--meta)'};">
+          <div class="news-item" style="border-left: 4px solid ${sentimentColor};">
             <div class="item-top">
               <a class="ticker" href="#" data-open-chart="${t}">${t || 'GENERAL'}</a>
               ${pctNode}
@@ -892,6 +901,7 @@
                 ? `<a href="${n.url}" data-url="${n.url}" target="_blank" rel="noopener noreferrer" class="read-btn">Read</a>`
                 : '<span style="color:red;font-size:0.8rem;">No URL</span>'
             }</div>
+            ${badgeHtml}
             ${tickers.length > 0 ? `
               <div style="margin: 8px 0; display: flex; flex-wrap: wrap; gap: 4px;">
                 ${tickers.map(ticker => `
@@ -903,7 +913,7 @@
               </div>
             ` : ''}
             <div class="mini-row">
-              <div class="meta">${n.category ? n.category : ''} · AI Score: ${aiScore} · Signal: ${tradingSignal.toUpperCase()}</div>
+              <div class="meta">${n.category ? n.category : ''} · Sentiment: ${sentiment.toUpperCase()} · AI Score: ${aiScore} · Signal: ${tradingSignal.toUpperCase()}</div>
               <div class="mini-chart" data-ticker="${t}"></div>
             </div>
           </div>
@@ -1018,6 +1028,18 @@
             const isNewListing = stock.isNewListing || false;
             const tickerChanged = stock.tickerChanged || false;
             
+            // Generate badges HTML
+            const badges = stock.badges || [];
+            const badgeHtml = badges.length > 0 ? `
+              <div style="margin: 8px 0; display: flex; flex-wrap: wrap; gap: 4px;">
+                ${badges.map(badge => `
+                  <span style="background: ${badge === 'BIG_MOVER' ? 'var(--up)' : badge === 'HIGH_VOLUME' ? 'var(--accent)' : badge === 'BREAKOUT' ? '#ff6b6b' : 'var(--meta)'}; color: white; padding: 2px 6px; border-radius: 4px; font-size: 0.75rem; font-weight: 600;">
+                    ${badge.replace('_', ' ')}
+                  </span>
+                `).join('')}
+              </div>
+            ` : '';
+
             return `
               <div class="card" style="cursor:pointer" onclick="openChart('${stock.symbol}')" data-symbol="${stock.symbol}">
                 <div class="kpi">
@@ -1028,10 +1050,11 @@
                     ${tickerChanged ? '<span style="color: #ff6b6b; font-size: 0.7rem; margin-left: 4px;">CHANGED</span>' : ''}
                   </div>
                   <div style="text-align:right">
-                    <div class="meta">AI Score: ${score.toFixed(0)}</div>
+                    <div class="meta">Score: ${score.toFixed(0)}</div>
                     <div class="meta">$${price.toFixed(2)} · RVOL: ${rvol.toFixed(2)}x</div>
                   </div>
                 </div>
+                ${badgeHtml}
                 <div style="margin-top:8px; display:flex; justify-content:space-between; align-items:center">
                   <span class="meta">${sector} · RSI: ${rsi.toFixed(1)} · <span class="${session === 'AH' ? 'after-hours' : 'live'}">${marketStatus}</span></span>
                   <button class="star ${watchlist.has(stock.symbol)?'active':''}" data-star="${stock.symbol}" style="margin-left:8px">${watchlist.has(stock.symbol)?'★':'☆'}</button>
@@ -1065,13 +1088,8 @@
         }
       } catch (error) {
         console.error('Screener error:', error);
-        if (USE_DEMO) {
-          // Only use fallback in demo mode
-          showFallbackScannerData();
-        } else {
-          // Show error message if API fails - no fallback data
-          grid.innerHTML = '<div class="loading" style="color:#ff6b6b">Live scanner data temporarily unavailable</div>';
-        }
+        // Show error message if API fails - no fallback data
+        grid.innerHTML = '<div class="loading" style="color:#ff6b6b">Live scanner data temporarily unavailable</div>';
       }
     }
 
