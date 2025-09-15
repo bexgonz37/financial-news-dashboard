@@ -2,9 +2,7 @@
 // Live news with accurate ticker extraction and price context
 
 import { extractTickers } from '../lib/enhanced-ticker-extractor.js';
-import { ProviderManager } from '../lib/provider-manager.js';
-
-const providerManager = new ProviderManager();
+import { providerManager } from '../lib/provider-manager.js';
 
 // Generate sentiment analysis
 function generateSentiment(title, summary) {

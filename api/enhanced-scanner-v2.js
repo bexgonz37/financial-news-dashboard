@@ -1,10 +1,8 @@
 // Enhanced Scanner API v2 - Professional Day Trading Dashboard
 // Advanced scanners stronger than momoscreener.com with full universe coverage
 
-import { initializeSymbolMaster } from '../lib/symbol-master-enhanced.js';
-import { ProviderManager } from '../lib/provider-manager.js';
-
-const providerManager = new ProviderManager();
+import { loadSymbolMaster } from '../lib/symbol-master.js';
+import { providerManager } from '../lib/provider-manager.js';
 
 // Calculate advanced technical indicators
 function calculateTechnicalIndicators(quote, historicalData = []) {
@@ -236,8 +234,7 @@ async function scanStocks(preset = 'momentum', limit = 50, filters = {}) {
   console.log(`🔍 Starting ${preset} scan with filters:`, filters);
   
   // Initialize symbol master
-  await initializeSymbolMaster();
-  const symbolMaster = await initializeSymbolMaster();
+  const symbolMaster = await loadSymbolMaster();
   
   if (!symbolMaster || symbolMaster.length === 0) {
     console.error('❌ Symbol master is empty or failed to load');
