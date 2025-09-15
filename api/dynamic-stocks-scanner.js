@@ -1,444 +1,316 @@
-// Full Universe Scanner - All NYSE/Nasdaq/AMEX Stocks
+// Live Scanner API - Real Financial Data from Multiple Providers
 import fetch from 'node-fetch';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
-// API Keys
+// API Keys from environment variables
 const FMP_KEY = process.env.FMP_KEY;
+const FINNHUB_KEY = process.env.FINNHUB_KEY;
+const IEX_CLOUD_KEY = process.env.IEX_CLOUD_KEY;
 
-// Cache for universe and quotes
-let universeCache = {
-  symbols: [],
-  lastUpdate: 0
-};
-
-let quotesCache = {
-  data: new Map(),
-  lastUpdate: 0
-};
-
+// Cache for universe data (1 day)
+let universeCache = null;
+let universeCacheTime = 0;
 const UNIVERSE_CACHE_DURATION = 24 * 60 * 60 * 1000; // 24 hours
-const QUOTES_CACHE_DURATION = 10 * 1000; // 10 seconds
 
-// Fetch full universe of stocks
-async function fetchFullUniverse() {
+// Load universe of all tradable tickers
+async function loadUniverse() {
   const now = Date.now();
-  
-  // Return cached data if still valid
-  if (universeCache.symbols.length > 0 && (now - universeCache.lastUpdate) < UNIVERSE_CACHE_DURATION) {
-    console.log(`Using cached universe: ${universeCache.symbols.length} symbols`);
-    return universeCache.symbols;
+  if (universeCache && (now - universeCacheTime) < UNIVERSE_CACHE_DURATION) {
+    return universeCache;
   }
 
-  console.log('Fetching full universe of stocks...');
-  const allSymbols = new Set();
-
+  console.log('Loading universe of tradable tickers...');
+  
   try {
+    // Try FMP first for comprehensive list
     if (FMP_KEY) {
-      // Fetch from FMP - all exchanges
-      const exchanges = ['nasdaq', 'nyse', 'amex'];
-      
-      for (const exchange of exchanges) {
-        try {
-          const response = await fetch(`https://financialmodelingprep.com/api/v3/${exchange}_constituent?apikey=${FMP_KEY}`, {
-            cache: 'no-store'
-          });
+      const response = await fetch(`https://financialmodelingprep.com/api/v3/stock/list?apikey=${FMP_KEY}`, { cache: 'no-store' });
+      if (response.ok) {
+        const data = await response.json();
+        if (Array.isArray(data) && data.length > 0) {
+          const symbols = data
+            .filter(stock => stock.symbol && stock.exchange && 
+                   ['NASDAQ', 'NYSE', 'AMEX'].includes(stock.exchange))
+            .map(stock => stock.symbol)
+            .slice(0, 2000); // Limit to 2000 for performance
           
-          if (response.ok) {
-            const data = await response.json();
-            if (Array.isArray(data)) {
-              data.forEach(stock => {
-                if (stock.symbol && stock.name && stock.type === 'stock') {
-                  allSymbols.add(stock.symbol);
-                }
+          universeCache = symbols;
+          universeCacheTime = now;
+          console.log(`Loaded universe: ${symbols.length} symbols from FMP`);
+          return symbols;
+        }
+      }
+    }
+
+    // Fallback to hardcoded list of major tickers
+    const fallbackSymbols = [
+      'AAPL', 'MSFT', 'GOOGL', 'AMZN', 'TSLA', 'META', 'NVDA', 'NFLX', 'AMD', 'INTC',
+      'JPM', 'JNJ', 'V', 'PG', 'UNH', 'HD', 'MA', 'DIS', 'PYPL', 'ADBE',
+      'CRM', 'NKE', 'ABT', 'TMO', 'ACN', 'COST', 'DHR', 'VZ', 'NEE', 'WMT',
+      'BAC', 'XOM', 'T', 'PFE', 'KO', 'PEP', 'ABBV', 'CVX', 'MRK', 'LLY',
+      'AVGO', 'TXN', 'QCOM', 'CHTR', 'CMCSA', 'COF', 'GILD', 'AMGN', 'HON', 'UNP'
+    ];
+    
+    universeCache = fallbackSymbols;
+    universeCacheTime = now;
+    console.log(`Using fallback universe: ${fallbackSymbols.length} symbols`);
+    return fallbackSymbols;
+  } catch (error) {
+    console.error('Failed to load universe:', error);
+    const fallbackSymbols = ['AAPL', 'MSFT', 'GOOGL', 'AMZN', 'TSLA', 'META', 'NVDA'];
+    universeCache = fallbackSymbols;
+    universeCacheTime = now;
+    return fallbackSymbols;
+  }
+}
+
+// Provider functions
+async function quotesFromIEX(symbols) {
+  if (!IEX_CLOUD_KEY) throw new Error('IEX Cloud key not available');
+  
+  const quotes = [];
+  const batchSize = 100;
+  
+  for (let i = 0; i < symbols.length; i += batchSize) {
+    const batch = symbols.slice(i, i + batchSize);
+    const symbolsStr = batch.join(',');
+    
+    try {
+      const response = await fetch(`https://cloud.iexapis.com/stable/stock/market/batch?symbols=${symbolsStr}&types=quote&token=${IEX_CLOUD_KEY}`, { cache: 'no-store' });
+      if (response.ok) {
+        const data = await response.json();
+        for (const [symbol, stockData] of Object.entries(data)) {
+          if (stockData.quote) {
+            const q = stockData.quote;
+            quotes.push({
+              symbol: symbol,
+              name: q.companyName || symbol,
+              price: q.latestPrice || 0,
+              change: q.change || 0,
+              changePercent: q.changePercent || 0,
+              volume: q.volume || 0,
+              averageDailyVolume3Month: q.avgTotalVolume || 0,
+              relativeVolume: q.avgTotalVolume > 0 ? (q.volume || 0) / q.avgTotalVolume : 1,
+              marketState: q.isUSMarketOpen ? 'REGULAR' : 'CLOSED',
+              marketCap: q.marketCap || null,
+              pe: q.peRatio || null,
+              high52Week: q.week52High || null,
+              low52Week: q.week52Low || null,
+              lastUpdate: new Date().toISOString(),
+              provider: 'iex'
+            });
+          }
+        }
+      }
+    } catch (error) {
+      console.warn(`IEX batch ${i}-${i + batchSize} failed:`, error.message);
+    }
+  }
+  
+  console.log(`IEX returned ${quotes.length} quotes`);
+  return quotes;
+}
+
+async function quotesFromFinnhub(symbols) {
+  if (!FINNHUB_KEY) throw new Error('Finnhub key not available');
+  
+  const quotes = [];
+  
+  for (const symbol of symbols.slice(0, 50)) { // Limit to 50 for rate limits
+    try {
+      const response = await fetch(`https://finnhub.io/api/v1/quote?symbol=${encodeURIComponent(symbol)}&token=${FINNHUB_KEY}`, { cache: 'no-store' });
+      if (response.ok) {
+        const data = await response.json();
+        if (data.c && data.c > 0) {
+          quotes.push({
+            symbol: symbol,
+            name: symbol,
+            price: data.c,
+            change: data.d || 0,
+            changePercent: data.dp || 0,
+            volume: data.v || 0,
+            averageDailyVolume3Month: 0,
+            relativeVolume: 1,
+            marketState: 'REGULAR',
+            marketCap: null,
+            pe: null,
+            high52Week: data.h || null,
+            low52Week: data.l || null,
+            lastUpdate: new Date().toISOString(),
+            provider: 'finnhub'
+          });
+        }
+      }
+    } catch (error) {
+      console.warn(`Finnhub quote for ${symbol} failed:`, error.message);
+    }
+  }
+  
+  console.log(`Finnhub returned ${quotes.length} quotes`);
+  return quotes;
+}
+
+async function quotesFromFMP(symbols) {
+  if (!FMP_KEY) throw new Error('FMP key not available');
+  
+  const quotes = [];
+  const batchSize = 100;
+  
+  for (let i = 0; i < symbols.length; i += batchSize) {
+    const batch = symbols.slice(i, i + batchSize);
+    const symbolsStr = batch.join(',');
+    
+    try {
+      const response = await fetch(`https://financialmodelingprep.com/api/v3/quote/${symbolsStr}?apikey=${FMP_KEY}`, { cache: 'no-store' });
+      if (response.ok) {
+        const data = await response.json();
+        if (Array.isArray(data)) {
+          for (const q of data) {
+            if (q.price && q.price > 0) {
+              quotes.push({
+                symbol: q.symbol,
+                name: q.name || q.symbol,
+                price: q.price,
+                change: q.change || 0,
+                changePercent: q.changesPercentage || 0,
+                volume: q.volume || 0,
+                averageDailyVolume3Month: q.avgVolume || 0,
+                relativeVolume: q.avgVolume > 0 ? (q.volume || 0) / q.avgVolume : 1,
+                marketState: 'REGULAR',
+                marketCap: q.marketCap || null,
+                pe: q.pe || null,
+                high52Week: q.yearHigh || null,
+                low52Week: q.yearLow || null,
+                lastUpdate: new Date().toISOString(),
+                provider: 'fmp'
               });
-              console.log(`${exchange.toUpperCase()}: ${data.length} stocks`);
             }
           }
-        } catch (error) {
-          console.warn(`Failed to fetch ${exchange} stocks:`, error.message);
         }
       }
-    } else {
-      // No API key - return empty array instead of fallback data
-      console.log('No FMP API key available - returning empty universe');
-      return [];
+    } catch (error) {
+      console.warn(`FMP batch ${i}-${i + batchSize} failed:`, error.message);
     }
-
-    // Convert to array and sort
-    const symbols = Array.from(allSymbols).sort();
-    
-    // Update cache
-    universeCache = {
-      symbols: symbols,
-      lastUpdate: now
-    };
-
-    console.log(`Full universe loaded: ${symbols.length} symbols`);
-    return symbols;
-
-  } catch (error) {
-    console.error('Universe fetch error:', error.message);
-    
-    // No fallback data - return empty array if all fails
-    console.log('All universe fetch attempts failed - returning empty array');
-    universeCache = {
-      symbols: [],
-      lastUpdate: now
-    };
-    return [];
   }
-}
-
-// Fetch quotes from FMP as fallback
-async function fetchFMPQuotes(symbols) {
-  if (!FMP_KEY) {
-    console.log('FMP_KEY not available for fallback');
-    return [];
-  }
-
-  try {
-    console.log(`Fetching FMP quotes for ${symbols.length} symbols...`);
-    const symbolsStr = symbols.join(',');
-    const url = `https://financialmodelingprep.com/api/v3/quote/${symbolsStr}?apikey=${FMP_KEY}`;
-    
-    const response = await fetch(url, { cache: 'no-store' });
-    
-    if (response.ok) {
-      const data = await response.json();
-      
-      if (Array.isArray(data)) {
-        return data.map(quote => ({
-          symbol: quote.symbol,
-          name: quote.name || quote.symbol,
-          price: Number(quote.price || 0),
-          change: Number(quote.change || 0),
-          changePercent: Number(quote.changesPercentage || 0),
-          volume: Math.floor(quote.volume || 0),
-          averageDailyVolume3Month: Math.floor(quote.avgVolume || 0),
-          relativeVolume: quote.avgVolume > 0 ? (quote.volume || 0) / quote.avgVolume : 0,
-          marketState: 'REGULAR',
-          marketCap: quote.marketCap || null,
-          pe: quote.pe || null,
-          high52Week: quote.yearHigh || null,
-          low52Week: quote.yearLow || null,
-          lastUpdate: new Date().toISOString()
-        }));
-      }
-    }
-    
-    console.log('FMP fallback failed');
-    return [];
-  } catch (error) {
-    console.error('FMP fallback error:', error.message);
-    return [];
-  }
-}
-
-// Fetch quotes for multiple symbols in batches
-async function fetchQuotesBatch(symbols) {
-  const now = Date.now();
   
-  // Check cache first
-  if (quotesCache.data.size > 0 && (now - quotesCache.lastUpdate) < QUOTES_CACHE_DURATION) {
-    const cachedQuotes = [];
-    symbols.forEach(symbol => {
-      if (quotesCache.data.has(symbol)) {
-        cachedQuotes.push(quotesCache.data.get(symbol));
-      }
-    });
-    if (cachedQuotes.length > 0) {
-      console.log(`Using cached quotes: ${cachedQuotes.length}/${symbols.length}`);
-      return cachedQuotes;
-    }
-  }
-
-  console.log(`Fetching quotes for ${symbols.length} symbols...`);
-  
-  try {
-    // Yahoo Finance allows up to 200 symbols per request
-    const batchSize = 200;
-    const batches = [];
-    
-    for (let i = 0; i < symbols.length; i += batchSize) {
-      batches.push(symbols.slice(i, i + batchSize));
-    }
-
-    const allQuotes = [];
-    
-    for (const batch of batches) {
-      try {
-        const symbolsStr = batch.join(',');
-        const url = `https://query1.finance.yahoo.com/v7/finance/quote?symbols=${encodeURIComponent(symbolsStr)}`;
-        
-        const response = await fetch(url, {
-          headers: {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-            'Accept': 'application/json'
-          },
-          cache: 'no-store'
-        });
-
-        if (response.ok) {
-          const data = await response.json();
-          console.log(`Yahoo response for batch:`, data.quoteResponse ? data.quoteResponse.result.length : 'no result');
-          
-          if (data.quoteResponse && data.quoteResponse.result) {
-            const quotes = data.quoteResponse.result.map(quote => {
-              const price = quote.regularMarketPrice || quote.preMarketPrice || quote.postMarketPrice || 0;
-              const previousClose = quote.regularMarketPreviousClose || price;
-              const change = price - previousClose;
-              const changePercent = previousClose !== 0 ? (change / previousClose) * 100 : 0;
-              const volume = quote.regularMarketVolume || 0;
-              const avgVolume = quote.averageDailyVolume3Month || 0;
-              const relativeVolume = avgVolume > 0 ? volume / avgVolume : 0;
-              
-              // Determine market state
-              let marketState = 'REGULAR';
-              if (quote.marketState === 'PRE' || quote.preMarketPrice) {
-                marketState = 'PRE';
-              } else if (quote.marketState === 'POST' || quote.postMarketPrice) {
-                marketState = 'POST';
-              } else if (quote.marketState === 'CLOSED') {
-                marketState = 'CLOSED';
-              }
-
-              const quoteData = {
-                symbol: quote.symbol,
-                name: quote.longName || quote.shortName || quote.symbol,
-                price: Number(price.toFixed(2)),
-                change: Number(change.toFixed(2)),
-                changePercent: Number(changePercent.toFixed(2)),
-                volume: Math.floor(volume),
-                averageDailyVolume3Month: Math.floor(avgVolume),
-                relativeVolume: Number(relativeVolume.toFixed(2)),
-                marketState: marketState,
-                marketCap: quote.marketCap || null,
-                pe: quote.trailingPE || null,
-                high52Week: quote.fiftyTwoWeekHigh || null,
-                low52Week: quote.fiftyTwoWeekLow || null,
-                lastUpdate: new Date().toISOString()
-              };
-
-              // Cache the quote
-              quotesCache.data.set(quote.symbol, quoteData);
-              
-              return quoteData;
-            });
-
-            allQuotes.push(...quotes);
-            console.log(`Batch processed: ${quotes.length} quotes`);
-          }
-        }
-      } catch (error) {
-        console.warn(`Batch fetch error:`, error.message);
-      }
-    }
-
-    // Update cache timestamp
-    quotesCache.lastUpdate = now;
-
-    console.log(`Total quotes fetched: ${allQuotes.length}`);
-    return allQuotes;
-
-  } catch (error) {
-    console.error('Quotes fetch error:', error.message);
-    return [];
-  }
+  console.log(`FMP returned ${quotes.length} quotes`);
+  return quotes;
 }
 
-// Calculate advanced metrics and score stocks
-function calculateAdvancedMetrics(quotes) {
+// Score stocks by preset
+function scoreByPreset(quotes, preset) {
   return quotes.map(quote => {
-    const score = Math.abs(quote.changePercent) + (quote.relativeVolume * 0.1);
+    let score = 0;
+    const changePercent = Math.abs(quote.changePercent || 0);
+    const volume = quote.volume || 0;
+    const relativeVolume = quote.relativeVolume || 1;
     
-    return {
-      ...quote,
-      score: Number(score.toFixed(2)),
-      // Additional metrics
-      isGainer: quote.changePercent > 0,
-      isLoser: quote.changePercent < 0,
-      isHighVolume: quote.relativeVolume > 2,
-      isOversold: quote.changePercent < -5,
-      isOverbought: quote.changePercent > 5,
-      isBreakout: quote.changePercent > 3,
-      isShortSqueeze: quote.relativeVolume > 2 && quote.changePercent > 5
-    };
+    switch (preset) {
+      case 'momentum':
+        score = changePercent * 10 + (relativeVolume > 2 ? 50 : 0) + (volume > 1000000 ? 20 : 0);
+        break;
+      case 'volume':
+        score = volume / 1000000 + (relativeVolume > 3 ? 100 : 0) + changePercent * 5;
+        break;
+      case 'earnings':
+        score = changePercent * 15 + (relativeVolume > 1.5 ? 30 : 0) + (volume > 500000 ? 25 : 0);
+        break;
+      case 'gaps':
+        score = changePercent * 20 + (relativeVolume > 2 ? 40 : 0) + (volume > 2000000 ? 30 : 0);
+        break;
+      case 'meme':
+        score = changePercent * 25 + (relativeVolume > 5 ? 100 : 0) + (volume > 5000000 ? 50 : 0);
+        break;
+      default:
+        score = changePercent * 10 + (relativeVolume > 1 ? 20 : 0) + (volume > 100000 ? 10 : 0);
+    }
+    
+    return { ...quote, score };
   });
 }
 
-// Apply scanner presets
-function applyPreset(quotes, preset, limit) {
-  let filtered = [...quotes];
-
-  switch (preset) {
-    case 'momentum':
-      filtered = filtered
-        .filter(q => Math.abs(q.changePercent) > 0.5) // At least 0.5% change
-        .sort((a, b) => b.score - a.score);
-      break;
-      
-    case 'volume':
-      filtered = filtered
-        .filter(q => q.volume > 100000) // At least 100k volume
-        .sort((a, b) => b.volume - a.volume);
-      break;
-      
-    case 'gainers':
-      filtered = filtered
-        .filter(q => q.changePercent > 0.5)
-        .sort((a, b) => b.changePercent - a.changePercent);
-      break;
-      
-    case 'losers':
-      filtered = filtered
-        .filter(q => q.changePercent < -0.5)
-        .sort((a, b) => a.changePercent - b.changePercent);
-      break;
-      
-    case 'oversold':
-      filtered = filtered
-        .filter(q => q.changePercent < -2 && q.relativeVolume > 1)
-        .sort((a, b) => a.changePercent - b.changePercent);
-      break;
-      
-    case 'breakout':
-      filtered = filtered
-        .filter(q => q.changePercent > 3 && q.relativeVolume > 1.5)
-        .sort((a, b) => b.changePercent - a.changePercent);
-      break;
-      
-    case 'after_hours':
-      filtered = filtered
-        .filter(q => q.marketState === 'POST' || q.marketState === 'PRE')
-        .sort((a, b) => Math.abs(b.changePercent) - Math.abs(a.changePercent));
-      break;
-      
-    case 'short_squeeze':
-      filtered = filtered
-        .filter(q => q.relativeVolume > 2 && q.changePercent > 5)
-        .sort((a, b) => b.score - a.score);
-      break;
-      
-    default:
-      // Default to momentum
-      filtered = filtered
-        .filter(q => Math.abs(q.changePercent) > 0.5)
-        .sort((a, b) => b.score - a.score);
-  }
-
-  return filtered.slice(0, limit);
-}
-
-// Main scanner function
-async function fetchLiveScannerData(preset, limit) {
-  try {
-    console.log(`=== FULL UNIVERSE SCANNER: ${preset} ===`);
-    
-    // Get full universe
-    const universe = await fetchFullUniverse();
-    console.log(`Universe size: ${universe.length} symbols`);
-    
-    // For testing, use a smaller set of known symbols if universe is empty
-    let symbolsToScan = universe;
-    if (symbolsToScan.length === 0) {
-      console.log('Universe is empty, using fallback symbols for testing');
-      symbolsToScan = ['AAPL', 'MSFT', 'GOOGL', 'AMZN', 'TSLA', 'NVDA', 'META', 'NFLX', 'AMD', 'INTC'];
-    }
-    console.log(`Scanning ${symbolsToScan.length} symbols`);
-    
-    // Fetch quotes
-    const quotes = await fetchQuotesBatch(symbolsToScan);
-    console.log(`Quotes fetched: ${quotes.length}`);
-    
-    if (quotes.length === 0) {
-      console.log('No quotes from Yahoo Finance, trying live-data API fallback...');
-      // Try live-data API as fallback for individual quotes
-      const liveQuotes = [];
-      for (const symbol of symbolsToScan.slice(0, 20)) { // Limit to 20 for performance
-        try {
-          const response = await fetch(`/api/live-data?ticker=${symbol}`, { cache: 'no-store' });
-          if (response.ok) {
-            const data = await response.json();
-            if (data.success && data.data) {
-              liveQuotes.push({
-                symbol: symbol,
-                name: symbol,
-                price: data.data.price,
-                change: data.data.change,
-                changePercent: data.data.changePercent,
-                volume: data.data.volume || 0,
-                averageDailyVolume3Month: 0,
-                relativeVolume: 1,
-                marketState: 'REGULAR',
-                marketCap: null,
-                pe: null,
-                high52Week: null,
-                low52Week: null,
-                lastUpdate: data.data.timestamp || new Date().toISOString()
-              });
-            }
-          }
-        } catch (e) {
-          console.warn(`Failed to get live data for ${symbol}:`, e.message);
-        }
-      }
-      
-      if (liveQuotes.length > 0) {
-        console.log(`Live-data API fallback successful: ${liveQuotes.length} quotes`);
-        const enhancedQuotes = calculateAdvancedMetrics(liveQuotes);
-        const filteredQuotes = applyPreset(enhancedQuotes, preset, limit);
-        return filteredQuotes;
-      }
-      throw new Error('No quotes available from any provider');
-    }
-    
-    // Calculate advanced metrics
-    const enhancedQuotes = calculateAdvancedMetrics(quotes);
-    
-    // Apply preset filtering
-    const filteredQuotes = applyPreset(enhancedQuotes, preset, limit);
-    
-    console.log(`Filtered results: ${filteredQuotes.length} stocks`);
-    return filteredQuotes;
-    
-  } catch (error) {
-    console.error('Scanner error:', error.message);
-    throw error;
-  }
-}
-
 export default async function handler(req, res) {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+
+  if (req.method === 'OPTIONS') return res.status(200).end();
+  if (req.method !== 'GET') return res.status(405).json({ success: false, error: 'Method not allowed' });
+
   try {
     const { preset = 'momentum', limit = 50 } = req.query;
-    
-    console.log('=== FULL UNIVERSE SCANNER API ===');
-    console.log('Request params:', { preset, limit });
+    console.log(`Scanner request: preset=${preset}, limit=${limit}`);
 
-    // Fetch live scanner data
-    const stocks = await fetchLiveScannerData(preset, parseInt(limit));
-    
-    console.log(`Generated ${stocks.length} stocks`);
-    console.log('Sample stocks:', stocks.slice(0, 3));
+    // Build universe (all tradable tickers) – cache for 1 day
+    const universe = await loadUniverse();
+    console.log(`Universe loaded: ${universe.length} symbols`);
 
-    return res.status(200).json({
-      success: true,
-      data: {
-        stocks: stocks,
-        preset: preset,
-        count: stocks.length,
-        lastUpdate: new Date().toISOString(),
-        refreshInterval: 15000 // 15 seconds
+    // Pick a provider fallback chain for quotes
+    const providers = [];
+    
+    if (IEX_CLOUD_KEY) providers.push(() => quotesFromIEX(universe));
+    if (FINNHUB_KEY) providers.push(() => quotesFromFinnhub(universe));
+    if (FMP_KEY) providers.push(() => quotesFromFMP(universe));
+
+    if (providers.length === 0) {
+      return res.status(200).json({ 
+        success: false, 
+        error: 'No API keys available', 
+        data: { stocks: [] } 
+      });
+    }
+
+    // Try providers in parallel, use first that returns data
+    let quotes = [];
+    const errors = [];
+    
+    for (const provider of providers) {
+      try {
+        quotes = await provider();
+        if (quotes && quotes.length > 0) {
+          console.log(`Provider succeeded with ${quotes.length} quotes`);
+          break;
+        }
+      } catch (error) {
+        console.warn('Provider failed:', error.message);
+        errors.push(error.message);
       }
-    });
+    }
 
-  } catch (error) {
-    console.error('Scanner API error:', error);
-    return res.status(500).json({
-      success: false,
-      error: 'Internal server error',
-      message: error.message
+    if (!quotes || quotes.length === 0) {
+      return res.status(200).json({ 
+        success: false, 
+        error: 'No provider data', 
+        message: `All providers failed: ${errors.join(', ')}`,
+        data: { stocks: [] } 
+      });
+    }
+
+    // Score/sort by preset (momentum, volume, earnings, etc.)
+    const scored = scoreByPreset(quotes, preset)
+      .sort((a, b) => b.score - a.score)
+      .slice(0, Number(limit));
+
+    console.log(`Returning ${scored.length} scored stocks for preset: ${preset}`);
+
+    return res.status(200).json({ 
+      success: true, 
+      data: { 
+        stocks: scored, 
+        refreshInterval: 10000,
+        preset: preset,
+        totalScanned: quotes.length
+      } 
+    });
+  } catch (err) {
+    console.error('Scanner error:', err);
+    return res.status(200).json({ 
+      success: false, 
+      error: 'Internal server error', 
+      message: String(err?.message || err), 
+      data: { stocks: [] } 
     });
   }
 }

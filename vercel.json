@@ -1,9 +1,8 @@
 {
   "version": 2,
-  "buildCommand": "echo \"No build required\"",
-  "outputDirectory": ".",
+  "builds": [{ "src": "api/**.js", "use": "@vercel/node" }],
   "routes": [
-    { "src": "/$", "dest": "/index.html" },
-    { "src": "/index.html", "dest": "/index.html" }
+    { "src": "/api/(.*)", "dest": "/api/$1" },
+    { "src": "/(.*)", "dest": "/index.html" }
   ]
 }

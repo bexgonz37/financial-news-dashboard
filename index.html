@@ -761,6 +761,8 @@
     }
 
     // ---------- ERROR HANDLING ----------
+    const USE_DEMO = new URLSearchParams(location.search).has('demo');
+    
     function showError(msg) {
       const el = document.createElement('div');
       el.style.cssText = 'margin:10px 0;padding:10px;border:1px solid #ff5b6e;color:#fff;background:#7a1e2b;border-radius:8px';
@@ -835,10 +837,13 @@
         
       }catch(e){
         console.error('Fetch error:', e);
-        console.log('Showing fallback news data due to API error');
-        
-        // Show error message if API fails - no fallback data
-        feed.innerHTML = '<div class="loading">No live data available. Please try again later.</div>';
+        if (USE_DEMO) {
+          // Only use fallback in demo mode
+          showFallbackNewsData();
+        } else {
+          // Show error message if API fails - no fallback data
+          feed.innerHTML = '<div class="loading" style="color:#ff6b6b">Live news temporarily unavailable</div>';
+        }
       }
     }
 
@@ -1060,9 +1065,13 @@
         }
       } catch (error) {
         console.error('Screener error:', error);
-        console.log('Scanner error - no fallback data');
-        // Show error message if API fails - no fallback data
-        grid.innerHTML = '<div class="loading">No live scanner data available. Please try again later.</div>';
+        if (USE_DEMO) {
+          // Only use fallback in demo mode
+          showFallbackScannerData();
+        } else {
+          // Show error message if API fails - no fallback data
+          grid.innerHTML = '<div class="loading" style="color:#ff6b6b">Live scanner data temporarily unavailable</div>';
+        }
       }
     }
 
@@ -1397,14 +1406,11 @@
       }
 
       if (e.target.matches('.read-btn')) {
-        const href = e.target.getAttribute('data-url') || e.target.getAttribute('href');
+        e.preventDefault();
+        const href = e.target.href; // use the real href
         const finalUrl = await resolveArticleUrl(href);
-        if (finalUrl) {
-          // let the normal link open; also open explicitly to be safe in some browsers
-          window.open(finalUrl, '_blank', 'noopener,noreferrer');
-        } else {
-          alert('Invalid article URL');
-        }
+        if (finalUrl) window.open(finalUrl, '_blank', 'noopener,noreferrer');
+        else alert('Invalid article URL');
         return;
       }
     });
