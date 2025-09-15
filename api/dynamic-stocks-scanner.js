@@ -1,6 +1,90 @@
-// Simple Working Scanner API
+// Live Scanner API - Fetches Real Market Data
+const fetch = require('node-fetch');
+
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
+
+// Fetch live scanner data from real APIs
+async function fetchLiveScannerData(limit) {
+  try {
+    console.log('Fetching live scanner data from APIs...');
+    
+    // Fetch from multiple live sources
+    const [gainersResponse, losersResponse, volumeResponse] = await Promise.allSettled([
+      fetch('https://financialmodelingprep.com/api/v3/gainers?apikey=demo', { cache: 'no-store' }),
+      fetch('https://financialmodelingprep.com/api/v3/losers?apikey=demo', { cache: 'no-store' }),
+      fetch('https://financialmodelingprep.com/api/v3/stock_market/actives?apikey=demo', { cache: 'no-store' })
+    ]);
+
+    const liveStocks = new Map();
+
+    // Process gainers
+    if (gainersResponse.status === 'fulfilled' && gainersResponse.value.ok) {
+      const gainers = await gainersResponse.value.json();
+      gainers.forEach(stock => {
+        liveStocks.set(stock.symbol, {
+          symbol: stock.symbol,
+          name: stock.name,
+          price: stock.price,
+          change: stock.change,
+          changePercent: stock.changesPercentage,
+          volume: stock.volume,
+          marketCap: stock.marketCap,
+          sector: stock.sector || 'Unknown',
+          avgVolume: stock.avgVolume || stock.volume,
+          source: 'gainers'
+        });
+      });
+    }
+
+    // Process losers
+    if (losersResponse.status === 'fulfilled' && losersResponse.value.ok) {
+      const losers = await losersResponse.value.json();
+      losers.forEach(stock => {
+        if (!liveStocks.has(stock.symbol)) {
+          liveStocks.set(stock.symbol, {
+            symbol: stock.symbol,
+            name: stock.name,
+            price: stock.price,
+            change: stock.change,
+            changePercent: stock.changesPercentage,
+            volume: stock.volume,
+            marketCap: stock.marketCap,
+            sector: stock.sector || 'Unknown',
+            avgVolume: stock.avgVolume || stock.volume,
+            source: 'losers'
+          });
+        }
+      });
+    }
+
+    // Process volume leaders
+    if (volumeResponse.status === 'fulfilled' && volumeResponse.value.ok) {
+      const volumeLeaders = await volumeResponse.value.json();
+      volumeLeaders.forEach(stock => {
+        if (!liveStocks.has(stock.symbol)) {
+          liveStocks.set(stock.symbol, {
+            symbol: stock.symbol,
+            name: stock.name,
+            price: stock.price,
+            change: stock.change,
+            changePercent: stock.changesPercentage,
+            volume: stock.volume,
+            marketCap: stock.marketCap,
+            sector: stock.sector || 'Unknown',
+            avgVolume: stock.avgVolume || stock.volume,
+            source: 'volume'
+          });
+        }
+      });
+    }
+
+    return Array.from(liveStocks.values()).slice(0, limit);
+  } catch (error) {
+    console.error('Error fetching live scanner data:', error);
+    return [];
+  }
+}
 
 module.exports = async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -15,8 +99,8 @@ module.exports = async function handler(req, res) {
     console.log('=== SIMPLE WORKING SCANNER API ===');
     console.log('Request params:', { preset, limit });
 
-    // Generate simple, working scanner data
-    const stocks = generateSimpleStocks(parseInt(limit));
+    // Fetch live scanner data from real APIs
+    const stocks = await fetchLiveScannerData(parseInt(limit));
     
     console.log(`Generated ${stocks.length} stocks`);
 
