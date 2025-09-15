@@ -12,8 +12,8 @@ export default async function handler(req, res) {
     ok: true,
     providers: {
       FINNHUB: env('FINNHUB_KEY'),
-      FMP: env('FMP_API_KEY'),
-      ALPHAVANTAGE: env('ALPHA_VANTAGE_KEY')
+      FMP: env('FMP_KEY'),
+      ALPHAVANTAGE: env('ALPHAVANTAGE_KEY')
     },
     providerStatus: providerStatus,
     routes: {

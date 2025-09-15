@@ -22,8 +22,8 @@ async function loadUniverse() {
   
   try {
     // Try FMP first for comprehensive list
-    if (FMP_KEY) {
-      const response = await fetch(`https://financialmodelingprep.com/api/v3/stock/list?apikey=${FMP_KEY}`, { cache: 'no-store' });
+    if (process.env.FMP_KEY) {
+      const response = await fetch(`https://financialmodelingprep.com/api/v3/stock/list?apikey=${process.env.FMP_KEY}`, { cache: 'no-store' });
       if (response.ok) {
         const data = await response.json();
         if (Array.isArray(data) && data.length > 0) {
@@ -474,8 +474,8 @@ export default async function handler(req, res) {
     // Debug API keys
     console.log('API Keys available:');
     console.log('FINNHUB_KEY:', process.env.FINNHUB_KEY ? 'YES' : 'NO');
-    console.log('FMP_API_KEY:', process.env.FMP_API_KEY ? 'YES' : 'NO');
-    console.log('ALPHA_VANTAGE_KEY:', process.env.ALPHA_VANTAGE_KEY ? 'YES' : 'NO');
+    console.log('FMP_KEY:', process.env.FMP_KEY ? 'YES' : 'NO');
+    console.log('ALPHAVANTAGE_KEY:', process.env.ALPHAVANTAGE_KEY ? 'YES' : 'NO');
 
     // Build universe (all tradable tickers) – cache for 1 day
     let universe;
