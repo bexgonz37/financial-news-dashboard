@@ -98,56 +98,12 @@ async function loadUniverse() {
       }
     }
     
-    // Final fallback - curated list of major tickers
-    console.log('All API providers failed, using curated universe');
-    const curatedSymbols = [
-      // Mega caps
-      { symbol: 'AAPL', name: 'Apple Inc.', exchange: 'NASDAQ', sector: 'Technology', industry: 'Consumer Electronics', isActivelyTrading: true },
-      { symbol: 'MSFT', name: 'Microsoft Corporation', exchange: 'NASDAQ', sector: 'Technology', industry: 'Software', isActivelyTrading: true },
-      { symbol: 'GOOGL', name: 'Alphabet Inc.', exchange: 'NASDAQ', sector: 'Technology', industry: 'Internet', isActivelyTrading: true },
-      { symbol: 'AMZN', name: 'Amazon.com Inc.', exchange: 'NASDAQ', sector: 'Consumer Discretionary', industry: 'E-commerce', isActivelyTrading: true },
-      { symbol: 'TSLA', name: 'Tesla Inc.', exchange: 'NASDAQ', sector: 'Consumer Discretionary', industry: 'Electric Vehicles', isActivelyTrading: true },
-      { symbol: 'META', name: 'Meta Platforms Inc.', exchange: 'NASDAQ', sector: 'Technology', industry: 'Social Media', isActivelyTrading: true },
-      { symbol: 'NVDA', name: 'NVIDIA Corporation', exchange: 'NASDAQ', sector: 'Technology', industry: 'Semiconductors', isActivelyTrading: true },
-      
-      // Large caps
-      { symbol: 'JPM', name: 'JPMorgan Chase & Co.', exchange: 'NYSE', sector: 'Financials', industry: 'Banking', isActivelyTrading: true },
-      { symbol: 'JNJ', name: 'Johnson & Johnson', exchange: 'NYSE', sector: 'Healthcare', industry: 'Pharmaceuticals', isActivelyTrading: true },
-      { symbol: 'V', name: 'Visa Inc.', exchange: 'NYSE', sector: 'Financials', industry: 'Payment Processing', isActivelyTrading: true },
-      { symbol: 'PG', name: 'Procter & Gamble Co.', exchange: 'NYSE', sector: 'Consumer Staples', industry: 'Household Products', isActivelyTrading: true },
-      { symbol: 'UNH', name: 'UnitedHealth Group Inc.', exchange: 'NYSE', sector: 'Healthcare', industry: 'Health Insurance', isActivelyTrading: true },
-      { symbol: 'HD', name: 'Home Depot Inc.', exchange: 'NYSE', sector: 'Consumer Discretionary', industry: 'Retail', isActivelyTrading: true },
-      { symbol: 'MA', name: 'Mastercard Inc.', exchange: 'NYSE', sector: 'Financials', industry: 'Payment Processing', isActivelyTrading: true },
-      { symbol: 'DIS', name: 'Walt Disney Co.', exchange: 'NYSE', sector: 'Consumer Discretionary', industry: 'Entertainment', isActivelyTrading: true },
-      
-      // Mid caps
-      { symbol: 'AMD', name: 'Advanced Micro Devices Inc.', exchange: 'NASDAQ', sector: 'Technology', industry: 'Semiconductors', isActivelyTrading: true },
-      { symbol: 'INTC', name: 'Intel Corporation', exchange: 'NASDAQ', sector: 'Technology', industry: 'Semiconductors', isActivelyTrading: true },
-      { symbol: 'NFLX', name: 'Netflix Inc.', exchange: 'NASDAQ', sector: 'Consumer Discretionary', industry: 'Streaming', isActivelyTrading: true },
-      { symbol: 'CRM', name: 'Salesforce Inc.', exchange: 'NYSE', sector: 'Technology', industry: 'Software', isActivelyTrading: true },
-      { symbol: 'NKE', name: 'Nike Inc.', exchange: 'NYSE', sector: 'Consumer Discretionary', industry: 'Apparel', isActivelyTrading: true },
-      { symbol: 'ABT', name: 'Abbott Laboratories', exchange: 'NYSE', sector: 'Healthcare', industry: 'Medical Devices', isActivelyTrading: true },
-      { symbol: 'TMO', name: 'Thermo Fisher Scientific Inc.', exchange: 'NYSE', sector: 'Healthcare', industry: 'Life Sciences', isActivelyTrading: true },
-      { symbol: 'ACN', name: 'Accenture plc', exchange: 'NYSE', sector: 'Technology', industry: 'Consulting', isActivelyTrading: true },
-      
-      // Small caps
-      { symbol: 'PLTR', name: 'Palantir Technologies Inc.', exchange: 'NYSE', sector: 'Technology', industry: 'Software', isActivelyTrading: true },
-      { symbol: 'SOFI', name: 'SoFi Technologies Inc.', exchange: 'NASDAQ', sector: 'Financials', industry: 'Fintech', isActivelyTrading: true },
-      { symbol: 'HOOD', name: 'Robinhood Markets Inc.', exchange: 'NASDAQ', sector: 'Financials', industry: 'Trading', isActivelyTrading: true },
-      { symbol: 'RBLX', name: 'Roblox Corporation', exchange: 'NYSE', sector: 'Technology', industry: 'Gaming', isActivelyTrading: true },
-      { symbol: 'COIN', name: 'Coinbase Global Inc.', exchange: 'NASDAQ', sector: 'Financials', industry: 'Cryptocurrency', isActivelyTrading: true },
-      { symbol: 'SNOW', name: 'Snowflake Inc.', exchange: 'NYSE', sector: 'Technology', industry: 'Software', isActivelyTrading: true },
-      { symbol: 'ZM', name: 'Zoom Video Communications Inc.', exchange: 'NASDAQ', sector: 'Technology', industry: 'Software', isActivelyTrading: true },
-      { symbol: 'DOCU', name: 'DocuSign Inc.', exchange: 'NASDAQ', sector: 'Technology', industry: 'Software', isActivelyTrading: true }
-    ];
-    
-    universeCache = curatedSymbols;
-    universeCacheTime = now;
-    console.log(`Using curated universe: ${curatedSymbols.length} symbols`);
-    return curatedSymbols;
+    // NO FALLBACK DATA - All providers failed
+    console.error('All API providers failed, no symbols available');
+    throw new Error('No live symbol data available from any provider');
   } catch (error) {
     console.error('Failed to load universe:', error);
-    throw new Error(`Universe loading failed: ${error.message}`);
+    throw error; // Re-throw the original error
   }
 }
 
