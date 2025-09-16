@@ -1,7 +1,7 @@
 // Enhanced scanner engine consuming live tick buffers
 import { appState } from '../../state/store.js';
 import { marketHours } from '../time/marketHours.js';
-import { conservativeScanner } from './conservative-scanner.js';
+import { advancedScanner } from './advanced-scanner.js';
 
 class ScannerEngine {
   constructor() {
@@ -14,7 +14,11 @@ class ScannerEngine {
       'news-momentum': this.scanNewsMomentum.bind(this),
       'premarket-movers': this.scanPremarketMovers.bind(this),
       'after-hours-movers': this.scanAfterHoursMovers.bind(this),
-      'halt-resume': this.scanHaltResume.bind(this)
+      'halt-resume': this.scanHaltResume.bind(this),
+      'momentum-breakouts': this.scanMomentumBreakouts.bind(this),
+      'gap-and-go': this.scanGapAndGo.bind(this),
+      'volume-surge': this.scanVolumeSurge.bind(this),
+      'technical-patterns': this.scanTechnicalPatterns.bind(this)
     };
   }
 
@@ -45,57 +49,9 @@ class ScannerEngine {
 
   // Get all symbols with tick data
   getAllSymbolsWithTicks() {
-    const symbolsWithTicks = appState.getAllSymbolsWithTicks();
-    
-    // If no tick data, return some mock data for testing
-    if (symbolsWithTicks.length === 0) {
-      console.log('No tick data available, using mock data for testing');
-      return this.getMockSymbols();
-    }
-    
-    return symbolsWithTicks;
+    return appState.getAllSymbolsWithTicks();
   }
 
-  // Mock symbols for testing when no tick data is available
-  getMockSymbols() {
-    const mockSymbols = [
-      { symbol: 'AAPL', price: 150.25, volume: 1000000, timestamp: Date.now(), change: 2.5, changePercent: 1.69, ticks: [] },
-      { symbol: 'MSFT', price: 300.15, volume: 800000, timestamp: Date.now(), change: -1.2, changePercent: -0.4, ticks: [] },
-      { symbol: 'GOOGL', price: 2800.50, volume: 500000, timestamp: Date.now(), change: 15.75, changePercent: 0.57, ticks: [] },
-      { symbol: 'TSLA', price: 250.80, volume: 2000000, timestamp: Date.now(), change: 8.30, changePercent: 3.42, ticks: [] },
-      { symbol: 'NVDA', price: 450.25, volume: 1500000, timestamp: Date.now(), change: 12.50, changePercent: 2.85, ticks: [] }
-    ];
-    
-    // Generate mock tick data for each symbol
-    return mockSymbols.map(symbol => ({
-      ...symbol,
-      ticks: this.generateMockTicks(symbol.symbol, symbol.price, 50)
-    }));
-  }
-
-  // Generate mock tick data
-  generateMockTicks(symbol, basePrice, count) {
-    const ticks = [];
-    const now = Date.now();
-    let price = basePrice;
-    
-    for (let i = 0; i < count; i++) {
-      // Random price movement
-      const change = (Math.random() - 0.5) * 0.02; // ±1% max change
-      price = price * (1 + change);
-      
-      ticks.push({
-        symbol,
-        price: parseFloat(price.toFixed(2)),
-        volume: Math.floor(Math.random() * 10000) + 1000,
-        timestamp: now - (count - i) * 1000, // 1 second intervals
-        change: i > 0 ? price - basePrice : 0,
-        changePercent: i > 0 ? ((price - basePrice) / basePrice) * 100 : 0
-      });
-    }
-    
-    return ticks;
-  }
 
   // Calculate percentage change from first tick in buffer
   calculateChangePercent(symbol, ticks) {
@@ -155,36 +111,34 @@ class ScannerEngine {
   // High momentum scanner
   async scanHighMomentum() {
     try {
-      // Use conservative scanner for stable results
-      const results = await conservativeScanner.getHighMomentumStocks(50);
+      // Use advanced scanner for sophisticated analysis
+      const results = await advancedScanner.scanMomentumBreakouts(1000);
       
       return results.map(stock => ({
         ...stock,
         scanner: 'high-momentum',
-        score: stock.momentumScore
+        score: stock.score
       }));
     } catch (error) {
       console.error('High momentum scanner error:', error);
-      // Fallback to mock data
-      return this.getMockSymbols().slice(0, 10);
+      return [];
     }
   }
 
   // Gap up scanner
   async scanGapUp() {
     try {
-      // Use conservative scanner for stable results
-      const results = await conservativeScanner.getGapUpStocks(50);
+      // Use advanced scanner for sophisticated analysis
+      const results = await advancedScanner.scanGapAndGo(1000);
       
       return results.map(stock => ({
         ...stock,
         scanner: 'gap-up',
-        score: stock.momentumScore
+        score: stock.score
       }));
     } catch (error) {
       console.error('Gap up scanner error:', error);
-      // Fallback to mock data
-      return this.getMockSymbols().slice(0, 10);
+      return [];
     }
   }
 
@@ -215,18 +169,17 @@ class ScannerEngine {
   // Unusual volume scanner
   async scanUnusualVolume() {
     try {
-      // Use conservative scanner for stable results
-      const results = await conservativeScanner.getUnusualVolumeStocks(50);
+      // Use advanced scanner for sophisticated analysis
+      const results = await advancedScanner.scanVolumeSurge(1000);
       
       return results.map(stock => ({
         ...stock,
         scanner: 'unusual-volume',
-        score: stock.momentumScore
+        score: stock.score
       }));
     } catch (error) {
       console.error('Unusual volume scanner error:', error);
-      // Fallback to mock data
-      return this.getMockSymbols().slice(0, 10);
+      return [];
     }
   }
 
@@ -472,6 +425,63 @@ class ScannerEngine {
       results[scannerName] = this.getScannerResults(scannerName);
     }
     return results;
+  }
+
+  // Advanced scanner methods
+  async scanMomentumBreakouts() {
+    try {
+      const results = await advancedScanner.scanMomentumBreakouts(1000);
+      return results.map(stock => ({
+        ...stock,
+        scanner: 'momentum-breakouts',
+        score: stock.score
+      }));
+    } catch (error) {
+      console.error('Momentum breakouts scanner error:', error);
+      return [];
+    }
+  }
+
+  async scanGapAndGo() {
+    try {
+      const results = await advancedScanner.scanGapAndGo(1000);
+      return results.map(stock => ({
+        ...stock,
+        scanner: 'gap-and-go',
+        score: stock.score
+      }));
+    } catch (error) {
+      console.error('Gap and go scanner error:', error);
+      return [];
+    }
+  }
+
+  async scanVolumeSurge() {
+    try {
+      const results = await advancedScanner.scanVolumeSurge(1000);
+      return results.map(stock => ({
+        ...stock,
+        scanner: 'volume-surge',
+        score: stock.score
+      }));
+    } catch (error) {
+      console.error('Volume surge scanner error:', error);
+      return [];
+    }
+  }
+
+  async scanTechnicalPatterns() {
+    try {
+      const results = await advancedScanner.scanTechnicalPatterns(1000);
+      return results.map(stock => ({
+        ...stock,
+        scanner: 'technical-patterns',
+        score: stock.score
+      }));
+    } catch (error) {
+      console.error('Technical patterns scanner error:', error);
+      return [];
+    }
   }
 }
 

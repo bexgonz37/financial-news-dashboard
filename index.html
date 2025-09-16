@@ -1862,11 +1862,8 @@
         // Load initial data
         await loadInitialData();
         
-        // Subscribe to some popular symbols for testing
-        const testSymbols = ['AAPL', 'MSFT', 'GOOGL', 'TSLA', 'NVDA', 'AMZN', 'META', 'NFLX'];
-        testSymbols.forEach(symbol => {
-          wsQuotes.subscribe(symbol);
-        });
+        // Subscribe to symbols as they are resolved from news
+        // No hardcoded symbols - all subscriptions come from news ticker resolution
         
         console.log('Dashboard initialized successfully');
         

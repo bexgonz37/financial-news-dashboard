@@ -403,31 +403,21 @@ export default async function handler(req, res) {
     if (exchange) filters.exchange = exchange;
     if (sector) filters.sector = sector;
     
-    // Use the new tick-based scanner engine
+    // Use the advanced scanner engine
     let result;
     let stocks = [];
     
     try {
       result = await scannerEngine.runAllScanners();
       stocks = result[preset] || [];
-      console.log(`Tick-based scanner returned ${stocks.length} stocks for preset ${preset}`);
+      console.log(`Advanced scanner returned ${stocks.length} stocks for preset ${preset}`);
     } catch (error) {
       console.error('Scanner engine error:', error);
-      // Fallback to mock data
-      const mockSymbols = scannerEngine.getMockSymbols();
-      stocks = mockSymbols.slice(0, 10); // Return first 10 mock symbols
-      console.log(`Using fallback mock data: ${stocks.length} stocks`);
+      stocks = [];
     }
     
     // Comprehensive logging for observability
-    console.log(`scanner_results=${stocks.length} preset=${preset} tick_based=true`);
-
-    // If no stocks, use mock data as fallback
-    if (stocks.length === 0) {
-      console.log('No stocks found, using mock data fallback');
-      const mockSymbols = scannerEngine.getMockSymbols();
-      stocks = mockSymbols.slice(0, 10); // Return first 10 mock symbols
-    }
+    console.log(`scanner_results=${stocks.length} preset=${preset} advanced_scanner=true`);
 
     return res.status(200).json({ 
       success: true, 
