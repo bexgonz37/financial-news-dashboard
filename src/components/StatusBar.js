@@ -53,6 +53,10 @@ class StatusBar {
           </span>
         </div>
         <div class="status-right">
+          <span class="env-status">
+            API: ${status.envStatus.finnhub ? '✅' : '❌'}FH ${status.envStatus.fmp ? '✅' : '❌'}FMP ${status.envStatus.alphavantage ? '✅' : '❌'}AV
+          </span>
+          <span class="separator">|</span>
           <span class="ws-status ${status.wsStatus.toLowerCase()}">
             ${this.getWsStatusIcon(status.wsStatus)} ${status.wsStatus}
             ${status.isStale ? ' (Stale)' : ''}
@@ -71,6 +75,13 @@ class StatusBar {
     const marketStatus = marketHours.getMarketStatus();
     const liveStatus = appState.getLiveStatus();
     
+    // Check environment variable availability
+    const envStatus = {
+      finnhub: !!(process.env.NEXT_PUBLIC_FINNHUB_KEY || process.env.VITE_FINNHUB_KEY),
+      fmp: !!(process.env.NEXT_PUBLIC_FMP_KEY || process.env.VITE_FMP_KEY),
+      alphavantage: !!(process.env.NEXT_PUBLIC_ALPHAVANTAGE_KEY || process.env.VITE_ALPHAVANTAGE_KEY)
+    };
+    
     return {
       marketStatus,
       marketStatusText: this.getMarketStatusText(marketStatus),
@@ -83,7 +94,8 @@ class StatusBar {
       nextUpdate: this.getNextUpdateTime(),
       isStale: liveStatus.isStale,
       lastHeartbeat: liveStatus.lastHeartbeat,
-      timeSinceHeartbeat: liveStatus.timeSinceHeartbeat
+      timeSinceHeartbeat: liveStatus.timeSinceHeartbeat,
+      envStatus
     };
   }
 

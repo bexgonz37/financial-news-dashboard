@@ -2,6 +2,14 @@
   "version": 2,
   "buildCommand": "echo \"No build required\"",
   "outputDirectory": ".",
+  "env": {
+    "NEXT_PUBLIC_FINNHUB_KEY": "@finnhub_key",
+    "NEXT_PUBLIC_FMP_KEY": "@fmp_key", 
+    "NEXT_PUBLIC_ALPHAVANTAGE_KEY": "@alphavantage_key",
+    "FINNHUB_KEY": "@finnhub_key",
+    "FMP_KEY": "@fmp_key",
+    "ALPHAVANTAGE_KEY": "@alphavantage_key"
+  },
   "routes": [
     { "src": "/$", "dest": "/index.html" },
     { "src": "/index.html", "dest": "/index.html" }

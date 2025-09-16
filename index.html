@@ -1863,6 +1863,16 @@
         
         console.log('Dashboard initialized successfully');
         
+        // Test environment variables
+        console.log('=== Environment Variable Test ===');
+        const envTest = {
+          finnhub: !!(process.env.NEXT_PUBLIC_FINNHUB_KEY || process.env.VITE_FINNHUB_KEY),
+          fmp: !!(process.env.NEXT_PUBLIC_FMP_KEY || process.env.VITE_FMP_KEY),
+          alphavantage: !!(process.env.NEXT_PUBLIC_ALPHAVANTAGE_KEY || process.env.VITE_ALPHAVANTAGE_KEY)
+        };
+        console.log('API Keys Available:', envTest);
+        console.log('===============================');
+        
       } catch (error) {
         console.error('Failed to initialize dashboard:', error);
       }

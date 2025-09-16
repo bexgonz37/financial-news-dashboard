@@ -23,16 +23,15 @@ class WebSocketQuotes {
 
   async connect() {
     try {
-      // First, get the WebSocket token
+      // Use public environment variable for client-side WebSocket
       if (!this.FINNHUB_WS_URL) {
-        const response = await fetch('/api/ws-token');
-        const data = await response.json();
+        const apiKey = process.env.NEXT_PUBLIC_FINNHUB_KEY || process.env.VITE_FINNHUB_KEY;
         
-        if (!data.success) {
-          throw new Error('Failed to get WebSocket token');
+        if (!apiKey) {
+          throw new Error('FINNHUB_KEY not configured for client-side use');
         }
         
-        this.FINNHUB_WS_URL = data.data.wsUrl;
+        this.FINNHUB_WS_URL = `wss://ws.finnhub.io?token=${apiKey}`;
       }
       
       console.log('Connecting to Finnhub WebSocket...');
