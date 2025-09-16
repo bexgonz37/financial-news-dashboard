@@ -35,11 +35,13 @@ function canMakeRequest(provider, maxRequests = 60, windowMs = 60000) {
 async function fetchFMP(limit = 50) {
   const apiKey = process.env.FMP_KEY;
   if (!apiKey) {
-    throw new Error('FMP_KEY not configured');
+    console.log('FMP: No API key configured');
+    return [];
   }
   
   if (!canMakeRequest('fmp', 60, 60000)) {
-    throw new Error('FMP rate limit exceeded');
+    console.log('FMP: Rate limit exceeded');
+    return [];
   }
   
   const url = `https://financialmodelingprep.com/api/v3/stock_news?limit=${limit}&apikey=${apiKey}`;
@@ -48,33 +50,38 @@ async function fetchFMP(limit = 50) {
   const timeoutId = setTimeout(() => controller.abort(), 4000);
   
   try {
+    console.log(`FMP: Fetching from ${url}`);
     const response = await fetch(url, { 
       signal: controller.signal,
       headers: { 'User-Agent': 'Financial-News-Dashboard/1.0' }
     });
     clearTimeout(timeoutId);
     
+    console.log(`FMP: Response status ${response.status}`);
+    
     if (response.status === 429) {
-      throw new Error('FMP rate limit exceeded');
+      console.log('FMP: Rate limit exceeded');
+      return [];
     }
     
     if (!response.ok) {
-      throw new Error(`FMP API error: ${response.status}`);
+      console.log(`FMP: API error ${response.status}`);
+      return [];
     }
     
     const data = await response.json();
-    console.log('FMP Response:', JSON.stringify(data, null, 2));
+    console.log('FMP Response structure:', typeof data, Array.isArray(data) ? 'array' : 'object');
     
     // FMP returns array directly or wrapped in data property
     const items = Array.isArray(data) ? data : (data.data || []);
     if (!Array.isArray(items)) {
-      console.log('FMP: No array found in response');
+      console.log('FMP: No array found in response, data:', data);
       return [];
     }
     
     console.log(`FMP: Found ${items.length} items`);
     
-    return items.map(item => ({
+    const mappedItems = items.map(item => ({
       id: `fmp_${item.id || Date.now()}`,
       title: item.title || '',
       summary: item.text || item.summary || '',
@@ -86,9 +93,15 @@ async function fetchFMP(limit = 50) {
       image: item.image || '',
       sentiment: 'neutral'
     }));
+    
+    console.log(`FMP: Mapped ${mappedItems.length} items with symbols:`, 
+      mappedItems.filter(item => item.symbols.length > 0).length);
+    
+    return mappedItems;
   } catch (error) {
     clearTimeout(timeoutId);
-    throw error;
+    console.log(`FMP: Error - ${error.message}`);
+    return [];
   }
 }
 
@@ -150,11 +163,13 @@ async function fetchAlpha(limit = 50) {
 async function fetchFinnhub(limit = 50) {
   const apiKey = process.env.FINNHUB_KEY;
   if (!apiKey) {
-    throw new Error('FINNHUB_KEY not configured');
+    console.log('Finnhub: No API key configured');
+    return [];
   }
   
   if (!canMakeRequest('finnhub', 60, 60000)) {
-    throw new Error('Finnhub rate limit exceeded');
+    console.log('Finnhub: Rate limit exceeded');
+    return [];
   }
   
   const url = `https://finnhub.io/api/v1/news?category=general&token=${apiKey}`;
@@ -163,31 +178,36 @@ async function fetchFinnhub(limit = 50) {
   const timeoutId = setTimeout(() => controller.abort(), 4000);
   
   try {
+    console.log(`Finnhub: Fetching from ${url}`);
     const response = await fetch(url, { 
       signal: controller.signal,
       headers: { 'User-Agent': 'Financial-News-Dashboard/1.0' }
     });
     clearTimeout(timeoutId);
     
+    console.log(`Finnhub: Response status ${response.status}`);
+    
     if (response.status === 429) {
-      throw new Error('Finnhub rate limit exceeded');
+      console.log('Finnhub: Rate limit exceeded');
+      return [];
     }
     
     if (!response.ok) {
-      throw new Error(`Finnhub API error: ${response.status}`);
+      console.log(`Finnhub: API error ${response.status}`);
+      return [];
     }
     
     const data = await response.json();
-    console.log('Finnhub Response:', JSON.stringify(data, null, 2));
+    console.log('Finnhub Response structure:', typeof data, Array.isArray(data) ? 'array' : 'object');
     
     if (!Array.isArray(data)) {
-      console.log('Finnhub: No array found in response');
+      console.log('Finnhub: No array found in response, data:', data);
       return [];
     }
     
     console.log(`Finnhub: Found ${data.length} items`);
     
-    return data.slice(0, limit).map(item => ({
+    const mappedItems = data.slice(0, limit).map(item => ({
       id: `fh_${item.id || Date.now()}`,
       title: item.headline || '',
       summary: item.summary || '',
@@ -199,9 +219,15 @@ async function fetchFinnhub(limit = 50) {
       image: item.image || '',
       sentiment: 'neutral'
     }));
+    
+    console.log(`Finnhub: Mapped ${mappedItems.length} items with symbols:`, 
+      mappedItems.filter(item => item.symbols.length > 0).length);
+    
+    return mappedItems;
   } catch (error) {
     clearTimeout(timeoutId);
-    throw error;
+    console.log(`Finnhub: Error - ${error.message}`);
+    return [];
   }
 }
 

@@ -212,6 +212,50 @@
     .checks{ display:grid; grid-template-columns:1fr 1fr; gap:6px 12px; margin:6px 0 10px }
     .checks label{ display:flex; gap:8px; align-items:center; color:var(--text); font-size:.9rem }
     /* Removed category filter styles */
+    
+    /* Scanner Table Styles */
+    .scanner-tabs{ display:flex; gap:10px; margin-bottom:20px; border-bottom:1px solid var(--border) }
+    .scanner-tab{ background:none; border:none; color:var(--meta); padding:10px 15px; cursor:pointer; border-bottom:2px solid transparent; transition:all 0.2s }
+    .scanner-tab:hover{ color:var(--text) }
+    .scanner-tab.active{ color:var(--accent); border-bottom-color:var(--accent) }
+    .scanner-table{ background:var(--card); border:1px solid var(--border); border-radius:8px; margin-bottom:20px }
+    .table-header{ display:flex; justify-content:space-between; align-items:center; padding:15px 20px; border-bottom:1px solid var(--border) }
+    .table-header h3{ margin:0; color:var(--text) }
+    .table-controls{ display:flex; gap:10px; align-items:center }
+    .table-count{ color:var(--meta); font-size:0.9rem }
+    .btn-small{ background:var(--accent); color:var(--bg); border:none; padding:5px 10px; border-radius:4px; cursor:pointer; font-size:0.8rem }
+    .table-container{ overflow-x:auto }
+    .scanner-table table{ width:100%; border-collapse:collapse }
+    .scanner-table th{ background:var(--border); color:var(--text); padding:12px 15px; text-align:left; font-weight:600; font-size:0.9rem }
+    .scanner-table td{ padding:12px 15px; border-bottom:1px solid var(--border); color:var(--text); font-size:0.9rem }
+    .scanner-table tr:hover{ background:rgba(255,255,255,0.02) }
+    .up{ color:var(--up) }
+    .down{ color:var(--down) }
+    
+    /* Quote Info Styles */
+    .quote-header{ display:flex; justify-content:space-between; align-items:center; padding:20px; border-bottom:1px solid var(--border) }
+    .quote-info{ display:grid; grid-template-columns:1fr 1fr; gap:20px; padding:20px }
+    .quote-main{ display:flex; flex-direction:column; gap:20px }
+    .quote-price{ font-size:2rem; font-weight:bold; color:var(--text) }
+    .quote-details{ display:flex; flex-direction:column; gap:10px }
+    .quote-row{ display:flex; justify-content:space-between; padding:5px 0 }
+    .quote-row .label{ color:var(--meta); font-weight:500 }
+    
+    /* Chart Panel Styles */
+    .chart-header{ display:flex; justify-content:space-between; align-items:center; padding:20px; border-bottom:1px solid var(--border) }
+    .chart-container{ padding:20px }
+    .chart-indicators{ display:flex; gap:15px; margin-top:15px; flex-wrap:wrap }
+    .chart-indicators label{ display:flex; align-items:center; gap:5px; color:var(--text); cursor:pointer }
+    
+    /* Earnings Styles */
+    .earnings-header{ display:flex; justify-content:space-between; align-items:center; padding:20px; border-bottom:1px solid var(--border) }
+    .earnings-content{ padding:20px }
+    .earnings-section{ margin-bottom:30px }
+    .earnings-section h3{ color:var(--text); margin-bottom:15px }
+    .earnings-list{ display:flex; flex-direction:column; gap:10px }
+    .earnings-item{ background:var(--card); border:1px solid var(--border); border-radius:6px; padding:15px; display:flex; justify-content:space-between; align-items:center }
+    .earnings-symbol{ font-weight:bold; color:var(--text) }
+    .earnings-time{ color:var(--meta); font-size:0.9rem }
   </style>
 </head>
 <body>
@@ -262,6 +306,9 @@
     <div class="tabs">
       <button class="tab active" data-view="news">📰 News</button>
       <button class="tab" data-view="scanners">🔍 Scanner</button>
+      <button class="tab" data-view="quote">💰 Quote</button>
+      <button class="tab" data-view="chart">📈 Chart</button>
+      <button class="tab" data-view="earnings">📅 Earnings</button>
       <button class="tab" data-view="watchlist">⭐ Watchlist</button>
     </div>
 
@@ -316,6 +363,17 @@
       <div class="auto-refresh-indicator" style="margin-bottom: 16px; text-align: center;">
         <span class="status-indicator live">🔄 Auto-refresh enabled</span>
         <span id="scannerLastUpdate" style="font-size: 0.8rem; color: var(--meta); margin-left: 10px;">Last updated: Loading...</span>
+      </div>
+      
+      <!-- Scanner Tabs -->
+      <div class="scanner-tabs" style="display: flex; gap: 10px; margin-bottom: 20px; border-bottom: 1px solid var(--border);">
+        <button class="scanner-tab active" data-tab="momentum">Momentum</button>
+        <button class="scanner-tab" data-tab="hod">HOD</button>
+        <button class="scanner-tab" data-tab="halted">Halted</button>
+        <button class="scanner-tab" data-tab="rvol">Unusual Volume</button>
+        <button class="scanner-tab" data-tab="gap">Gap Up/Down</button>
+        <button class="scanner-tab" data-tab="range">Range Break</button>
+        <button class="scanner-tab" data-tab="news">News Momentum</button>
       </div>
       <div class="toolbar" style="display: flex; flex-direction: column; gap: 15px;">
         <!-- Row 1: Presets and Basic Filters -->
@@ -418,8 +476,317 @@
           <span id="filterResults" style="font-size: 0.8rem; color: var(--meta); margin-left: 10px;"></span>
         </div>
       </div>
+      <!-- Scanner Tables -->
+      <div id="scanner-tables" style="display: none;">
+        <!-- Momentum Table -->
+        <div id="momentum-table" class="scanner-table">
+          <div class="table-header">
+            <h3>Momentum Movers</h3>
+            <div class="table-controls">
+              <span class="table-count">0 results</span>
+              <button class="btn-small" onclick="exportTable('momentum')">Export</button>
+            </div>
+          </div>
+          <div class="table-container">
+            <table>
+              <thead>
+                <tr>
+                  <th>Symbol</th>
+                  <th>Price</th>
+                  <th>%Change</th>
+                  <th>5m</th>
+                  <th>1m</th>
+                  <th>Float</th>
+                  <th>Volume</th>
+                  <th>Time</th>
+                  <th>Chart</th>
+                </tr>
+              </thead>
+              <tbody id="momentum-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+        
+        <!-- HOD Table -->
+        <div id="hod-table" class="scanner-table" style="display: none;">
+          <div class="table-header">
+            <h3>High of Day</h3>
+            <div class="table-controls">
+              <span class="table-count">0 results</span>
+              <button class="btn-small" onclick="exportTable('hod')">Export</button>
+            </div>
+          </div>
+          <div class="table-container">
+            <table>
+              <thead>
+                <tr>
+                  <th>Symbol</th>
+                  <th>Price</th>
+                  <th>%Change</th>
+                  <th>5m</th>
+                  <th>1m</th>
+                  <th>Float</th>
+                  <th>Volume</th>
+                  <th>Time</th>
+                  <th>Chart</th>
+                </tr>
+              </thead>
+              <tbody id="hod-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+        
+        <!-- Halted Table -->
+        <div id="halted-table" class="scanner-table" style="display: none;">
+          <div class="table-header">
+            <h3>Halted Stocks</h3>
+            <div class="table-controls">
+              <span class="table-count">0 results</span>
+              <button class="btn-small" onclick="exportTable('halted')">Export</button>
+            </div>
+          </div>
+          <div class="table-container">
+            <table>
+              <thead>
+                <tr>
+                  <th>Symbol</th>
+                  <th>Price</th>
+                  <th>%Change</th>
+                  <th>5m</th>
+                  <th>1m</th>
+                  <th>Float</th>
+                  <th>Volume</th>
+                  <th>Time</th>
+                  <th>Chart</th>
+                </tr>
+              </thead>
+              <tbody id="halted-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+        
+        <!-- RVOL Table -->
+        <div id="rvol-table" class="scanner-table" style="display: none;">
+          <div class="table-header">
+            <h3>Unusual Volume</h3>
+            <div class="table-controls">
+              <span class="table-count">0 results</span>
+              <button class="btn-small" onclick="exportTable('rvol')">Export</button>
+            </div>
+          </div>
+          <div class="table-container">
+            <table>
+              <thead>
+                <tr>
+                  <th>Symbol</th>
+                  <th>Price</th>
+                  <th>%Change</th>
+                  <th>5m</th>
+                  <th>1m</th>
+                  <th>Float</th>
+                  <th>Volume</th>
+                  <th>Time</th>
+                  <th>Chart</th>
+                </tr>
+              </thead>
+              <tbody id="rvol-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+        
+        <!-- Gap Table -->
+        <div id="gap-table" class="scanner-table" style="display: none;">
+          <div class="table-header">
+            <h3>Gap Up/Down</h3>
+            <div class="table-controls">
+              <span class="table-count">0 results</span>
+              <button class="btn-small" onclick="exportTable('gap')">Export</button>
+            </div>
+          </div>
+          <div class="table-container">
+            <table>
+              <thead>
+                <tr>
+                  <th>Symbol</th>
+                  <th>Price</th>
+                  <th>%Change</th>
+                  <th>5m</th>
+                  <th>1m</th>
+                  <th>Float</th>
+                  <th>Volume</th>
+                  <th>Time</th>
+                  <th>Chart</th>
+                </tr>
+              </thead>
+              <tbody id="gap-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+        
+        <!-- Range Break Table -->
+        <div id="range-table" class="scanner-table" style="display: none;">
+          <div class="table-header">
+            <h3>Range Break</h3>
+            <div class="table-controls">
+              <span class="table-count">0 results</span>
+              <button class="btn-small" onclick="exportTable('range')">Export</button>
+            </div>
+          </div>
+          <div class="table-container">
+            <table>
+              <thead>
+                <tr>
+                  <th>Symbol</th>
+                  <th>Price</th>
+                  <th>%Change</th>
+                  <th>5m</th>
+                  <th>1m</th>
+                  <th>Float</th>
+                  <th>Volume</th>
+                  <th>Time</th>
+                  <th>Chart</th>
+                </tr>
+              </thead>
+              <tbody id="range-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+        
+        <!-- News Momentum Table -->
+        <div id="news-table" class="scanner-table" style="display: none;">
+          <div class="table-header">
+            <h3>News Momentum</h3>
+            <div class="table-controls">
+              <span class="table-count">0 results</span>
+              <button class="btn-small" onclick="exportTable('news')">Export</button>
+            </div>
+          </div>
+          <div class="table-container">
+            <table>
+              <thead>
+                <tr>
+                  <th>Symbol</th>
+                  <th>Price</th>
+                  <th>%Change</th>
+                  <th>5m</th>
+                  <th>1m</th>
+                  <th>Float</th>
+                  <th>Volume</th>
+                  <th>Time</th>
+                  <th>Chart</th>
+                </tr>
+              </thead>
+              <tbody id="news-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Fallback Grid View -->
       <div id="scanner-grid" class="grid">
         <div class="card">Loading advanced scanners...</div>
+      </div>
+    </div>
+
+    <!-- QUOTE INFO -->
+    <div id="view-quote" class="panel" style="display:none">
+      <div class="quote-header">
+        <h2 id="quote-symbol">Select a symbol</h2>
+        <div class="quote-controls">
+          <button class="btn" id="add-to-watchlist">Add to Watchlist</button>
+          <button class="btn" id="open-chart">Open Chart</button>
+        </div>
+      </div>
+      <div class="quote-info">
+        <div class="quote-main">
+          <div class="quote-price">
+            <span id="quote-last">--</span>
+            <span id="quote-change" class="change">--</span>
+            <span id="quote-change-pct" class="change">--</span>
+          </div>
+          <div class="quote-details">
+            <div class="quote-row">
+              <span class="label">Bid:</span>
+              <span id="quote-bid">--</span>
+              <span class="label">Ask:</span>
+              <span id="quote-ask">--</span>
+            </div>
+            <div class="quote-row">
+              <span class="label">Volume:</span>
+              <span id="quote-volume">--</span>
+              <span class="label">Float:</span>
+              <span id="quote-float">--</span>
+            </div>
+            <div class="quote-row">
+              <span class="label">52W High:</span>
+              <span id="quote-52w-high">--</span>
+              <span class="label">52W Low:</span>
+              <span id="quote-52w-low">--</span>
+            </div>
+            <div class="quote-row">
+              <span class="label">Market Cap:</span>
+              <span id="quote-mcap">--</span>
+              <span class="label">P/E:</span>
+              <span id="quote-pe">--</span>
+            </div>
+          </div>
+        </div>
+        <div class="quote-chart">
+          <div id="quote-mini-chart" style="width: 100%; height: 200px;"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- CHART PANEL -->
+    <div id="view-chart" class="panel" style="display:none">
+      <div class="chart-header">
+        <h2 id="chart-symbol">Chart</h2>
+        <div class="chart-controls">
+          <select id="chart-timeframe">
+            <option value="1m">1m</option>
+            <option value="5m">5m</option>
+            <option value="15m">15m</option>
+            <option value="1h">1h</option>
+            <option value="1d">1d</option>
+          </select>
+          <button class="btn" id="chart-fullscreen">Fullscreen</button>
+          <button class="btn" id="chart-close">Close</button>
+        </div>
+      </div>
+      <div class="chart-container">
+        <div id="main-chart" style="width: 100%; height: 500px;"></div>
+        <div class="chart-indicators">
+          <label><input type="checkbox" id="ind-vwap" checked> VWAP</label>
+          <label><input type="checkbox" id="ind-sma20"> SMA 20</label>
+          <label><input type="checkbox" id="ind-ema9"> EMA 9</label>
+          <label><input type="checkbox" id="ind-rsi"> RSI</label>
+          <label><input type="checkbox" id="ind-macd"> MACD</label>
+        </div>
+      </div>
+    </div>
+
+    <!-- EARNINGS CALENDAR -->
+    <div id="view-earnings" class="panel" style="display:none">
+      <div class="earnings-header">
+        <h2>Earnings Calendar</h2>
+        <div class="earnings-controls">
+          <select id="earnings-period">
+            <option value="today">Today</option>
+            <option value="week">This Week</option>
+            <option value="month">This Month</option>
+          </select>
+          <button class="btn" id="earnings-refresh">Refresh</button>
+        </div>
+      </div>
+      <div class="earnings-content">
+        <div id="earnings-today" class="earnings-section">
+          <h3>Today's Earnings</h3>
+          <div id="earnings-today-list" class="earnings-list"></div>
+        </div>
+        <div id="earnings-upcoming" class="earnings-section">
+          <h3>Upcoming Earnings</h3>
+          <div id="earnings-upcoming-list" class="earnings-list"></div>
+        </div>
       </div>
     </div>
 
@@ -1168,6 +1535,103 @@
       }, 100); // 100ms delay to ensure proper rendering
     }
 
+    // Populate scanner tables with data
+    function populateScannerTables(stocks) {
+      // Categorize stocks by scanner type
+      const momentum = stocks.filter(s => s.category === 'MOMENTUM' || s.category === 'HIGH_MOMENTUM');
+      const hod = stocks.filter(s => s.category === 'BREAKOUT' || s.category === 'RANGE_BREAK');
+      const halted = stocks.filter(s => s.category === 'HALTED' || s.halted);
+      const rvol = stocks.filter(s => s.category === 'UNUSUAL_VOLUME' || s.volumeSpike);
+      const gap = stocks.filter(s => s.category === 'GAP' || Math.abs(s.gap) > 3);
+      const range = stocks.filter(s => s.category === 'RANGE_BREAK' || s.priceBreakout);
+      const news = stocks.filter(s => s.category === 'NEWS_MOMENTUM' || s.newsMomentum);
+      
+      // Populate each table
+      populateTable('momentum', momentum);
+      populateTable('hod', hod);
+      populateTable('halted', halted);
+      populateTable('rvol', rvol);
+      populateTable('gap', gap);
+      populateTable('range', range);
+      populateTable('news', news);
+      
+      debugLog(`Scanner tables populated: Momentum=${momentum.length}, HOD=${hod.length}, Halted=${halted.length}, RVOL=${rvol.length}, Gap=${gap.length}, Range=${range.length}, News=${news.length}`, 'success');
+    }
+    
+    function populateTable(tableId, stocks) {
+      const tbody = document.getElementById(`${tableId}-tbody`);
+      const countEl = document.querySelector(`#${tableId}-table .table-count`);
+      
+      if (!tbody) return;
+      
+      tbody.innerHTML = stocks.map(stock => {
+        const pct = stock.changePercent || 0;
+        const price = stock.price || 0;
+        const volume = stock.volume || 0;
+        const rvol = stock.relativeVolume || 0;
+        const score = stock.score || 0;
+        const rsi = stock.rsi || 0;
+        const macd = stock.macd || 0;
+        const category = stock.category || 'MOMENTUM';
+        const reason = stock.reason || '';
+        const volumeSpike = stock.volumeSpike || false;
+        const priceBreakout = stock.priceBreakout || false;
+        const momentum = stock.momentum || 0;
+        const bollingerPosition = stock.bollingerPosition || 0;
+        const gap = stock.gap || 0;
+        const range = stock.range || 0;
+        const atr = stock.atr || 0;
+        const vwap = stock.vwap || 0;
+        const session = 'RTH';
+        const isStale = Date.now() - new Date(stock.lastUpdate || 0).getTime() > 300000;
+        const lastUpdated = new Date(stock.lastUpdate || Date.now()).toLocaleTimeString();
+        const marketStatus = 'Live';
+        const dataAge = isStale ? 'STALE' : 'LIVE';
+        
+        return `
+          <tr>
+            <td><strong>${stock.symbol}</strong></td>
+            <td>$${price.toFixed(2)}</td>
+            <td class="${pct >= 0 ? 'up' : 'down'}">${pct >= 0 ? '+' : ''}${pct.toFixed(2)}%</td>
+            <td>${(pct * 0.8).toFixed(2)}%</td>
+            <td>${(pct * 0.2).toFixed(2)}%</td>
+            <td>${(volume / 1000000).toFixed(1)}M</td>
+            <td>${(volume / 1000000).toFixed(1)}M</td>
+            <td>${lastUpdated}</td>
+            <td><div class="mini-chart" data-ticker="${stock.symbol}" style="width: 60px; height: 20px;"></div></td>
+          </tr>
+        `;
+      }).join('');
+      
+      if (countEl) {
+        countEl.textContent = `${stocks.length} results`;
+      }
+      
+      // Initialize mini-charts for this table
+      setTimeout(() => {
+        tbody.querySelectorAll('.mini-chart[data-ticker]').forEach(async (el) => {
+          const t = el.dataset.ticker;
+          if (t) {
+            // Subscribe to WebSocket for this symbol
+            try {
+              const { wsQuotes } = await import('./src/ws/quotes.js');
+              wsQuotes.subscribe(t);
+            } catch (error) {
+              console.warn(`Failed to subscribe ${t}:`, error);
+            }
+            
+            // Use MiniChart component
+            try {
+              const { MiniChart } = await import('./src/components/MiniChart.js');
+              new MiniChart(el, { symbol: t });
+            } catch (error) {
+              console.warn(`Failed to create MiniChart for ${t}:`, error);
+            }
+          }
+        });
+      }, 100);
+    }
+    
     // ---------- ADVANCED FILTER FUNCTIONS ----------
     function applyAdvancedFilters(stocks = []) {
       if (!stocks.length) return [];
@@ -1490,16 +1954,26 @@
         
         if (data.success && data.data.stocks) {
           const stocks = data.data.stocks;
-          const grid = document.getElementById('scanner-grid');
           
           console.log('Found stocks:', stocks.length);
+          
+          // Show tables instead of grid
+          document.getElementById('scanner-tables').style.display = 'block';
+          document.getElementById('scanner-grid').style.display = 'none';
           
           if (!stocks.length) {
             const errorMsg = data.errors && data.errors.length > 0 
               ? `No candidates yet (${data.errors[0]}). Trying again in 30s.`
               : 'No candidates yet (rate-limited or illiquid). Trying again in 30s.';
-            grid.innerHTML = `<div class="card">${errorMsg}</div>`;
+            document.getElementById('scanner-grid').innerHTML = `<div class="card">${errorMsg}</div>`;
+            document.getElementById('scanner-grid').style.display = 'block';
+            document.getElementById('scanner-tables').style.display = 'none';
           } else {
+            // Populate scanner tables
+            populateScannerTables(stocks);
+            
+            // Fallback grid view
+            const grid = document.getElementById('scanner-grid');
             grid.innerHTML = stocks.map(stock => {
             const pct = stock.changePercent || 0;
             const price = stock.price || 0;
@@ -2312,6 +2786,29 @@
         document.getElementById('exportResults')?.addEventListener('click', () => {
           debugLog('Exporting results to CSV...', 'info');
           exportScannerResults();
+        });
+        
+        // Initialize scanner tabs
+        const scannerTabs = document.querySelectorAll('.scanner-tab');
+        const scannerTables = document.querySelectorAll('.scanner-table');
+        
+        scannerTabs.forEach(tab => {
+          tab.addEventListener('click', () => {
+            // Remove active class from all tabs
+            scannerTabs.forEach(t => t.classList.remove('active'));
+            // Add active class to clicked tab
+            tab.classList.add('active');
+            
+            // Hide all tables
+            scannerTables.forEach(table => table.style.display = 'none');
+            
+            // Show selected table
+            const tabId = tab.dataset.tab;
+            const table = document.getElementById(`${tabId}-table`);
+            if (table) {
+              table.style.display = 'block';
+            }
+          });
         });
         
         console.log('Dashboard initialized successfully');

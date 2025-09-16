@@ -13,14 +13,27 @@ class WebSocketQuotes {
     this.lastHeartbeat = 0;
     this.onTickCallback = null;
     
-    // Get client key from build-injected environment
-    this.CLIENT_KEY = this.getClientKey();
+    // Initialize key as null, will be fetched on connect
+    this.CLIENT_KEY = null;
     this.HEARTBEAT_INTERVAL = 25000; // 25 seconds
     this.MAX_TICKS_PER_SYMBOL = 300;
   }
 
-  getClientKey() {
-    // Try different ways to get the key based on build system
+  async getClientKey() {
+    // Fetch key from /api/env endpoint
+    try {
+      const response = await fetch('/api/env');
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success && data.data.FINNHUB_KEY) {
+          return data.data.FINNHUB_KEY;
+        }
+      }
+    } catch (error) {
+      console.warn('Failed to fetch FINNHUB_KEY from /api/env:', error);
+    }
+    
+    // Fallback to build-injected environment
     if (typeof window !== 'undefined' && window.ENV) {
       return window.ENV.FINNHUB_KEY;
     }
@@ -35,6 +48,11 @@ class WebSocketQuotes {
 
   async connect() {
     try {
+      // Fetch the key if not already available
+      if (!this.CLIENT_KEY) {
+        this.CLIENT_KEY = await this.getClientKey();
+      }
+      
       if (!this.CLIENT_KEY) {
         this.updateStatus('OFFLINE');
         this.showKeyMissingBanner('FINNHUB_KEY');
