@@ -1,12 +1,8 @@
-// Consolidated News API - Multi-source news aggregation
+// Consolidated News API - Direct multi-source news aggregation
 import fetch from 'node-fetch';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
-
-import { providerQueue } from '../lib/provider-queue.js';
-import { sharedCache } from '../lib/shared-cache.js';
-import { singleTickerResolver } from '../lib/single-ticker-resolver.js';
 
 // URL validation and normalization
 function isHttp(url) {
@@ -27,16 +23,22 @@ function normalizeUrl(url) {
   }
 }
 
-// Deduplicate news items
+// Deduplicate news items by title and URL with 5-minute time window
 function deduplicateNews(newsItems) {
   const seen = new Set();
   const seenTitles = new Set();
+  const now = Date.now();
+  const FIVE_MINUTES = 5 * 60 * 1000;
   
   return newsItems.filter(item => {
     const url = normalizeUrl(item.url);
     const title = item.title?.toLowerCase().trim();
+    const publishedAt = new Date(item.published_at).getTime();
     
     if (!url || !title) return false;
+    
+    // Skip if older than 5 minutes for deduplication
+    if (now - publishedAt > FIVE_MINUTES) return true;
     
     const key = `${url}|${title}`;
     if (seen.has(key) || seenTitles.has(title)) {
@@ -49,129 +51,245 @@ function deduplicateNews(newsItems) {
   });
 }
 
-// Normalize news item structure
+// Normalize news item to consistent schema
 function normalizeNewsItem(item, source) {
   return {
-    id: item.id || `${source}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-    title: item.title || item.headline || '',
+    id: item.id || `${source}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+    title: item.title || '',
     summary: item.summary || item.description || '',
-    url: normalizeUrl(item.url || item.link || ''),
-    publishedAt: item.publishedAt || item.published_at || item.pubDate || new Date().toISOString(),
+    url: normalizeUrl(item.url) || '',
+    published_at: item.published_at || item.publishedAt || new Date().toISOString(),
     source: source,
     author: item.author || '',
     category: item.category || 'general',
-    tickers: item.tickers || [],
+    symbols: item.symbols || [],
     image: item.image || item.imageUrl || '',
     sentiment: item.sentiment || 'neutral',
     priority: item.priority || 'normal'
   };
 }
 
-// Fetch news from multiple providers
-async function fetchNewsFromProviders() {
-  const providers = [
-    { name: 'finnhub', priority: 1 },
-    { name: 'fmp', priority: 2 },
-    { name: 'alpha_vantage', priority: 3 }
-  ];
-
-  const newsPromises = providers.map(async (provider) => {
-    try {
-      const news = await providerQueue.getNews(provider.name);
-      return news.map(item => normalizeNewsItem(item, provider.name));
-    } catch (error) {
-      console.error(`Error fetching news from ${provider.name}:`, error);
-      return [];
+// FMP News Fetcher
+async function fetchFMP(limit = 50) {
+  const apiKey = process.env.FMP_KEY;
+  if (!apiKey) {
+    throw new Error('FMP_KEY not configured');
+  }
+  
+  const url = `https://financialmodelingprep.com/api/v3/stock_news?limit=${limit}&apikey=${apiKey}`;
+  
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 4000);
+  
+  try {
+    const response = await fetch(url, { 
+      signal: controller.signal,
+      headers: { 'User-Agent': 'Financial-News-Dashboard/1.0' }
+    });
+    clearTimeout(timeoutId);
+    
+    if (response.status === 429) {
+      throw new Error('FMP rate limit exceeded');
     }
-  });
-
-  const results = await Promise.allSettled(newsPromises);
-  const allNews = results
-    .filter(result => result.status === 'fulfilled')
-    .flatMap(result => result.value);
-
-  return deduplicateNews(allNews);
+    
+    if (!response.ok) {
+      throw new Error(`FMP API error: ${response.status}`);
+    }
+    
+    const data = await response.json();
+    if (!Array.isArray(data)) return [];
+    
+    return data.map(item => ({
+      id: `fmp_${item.id || Date.now()}`,
+      title: item.title || '',
+      summary: item.text || '',
+      url: item.url || '',
+      published_at: item.publishedDate || new Date().toISOString(),
+      source: 'fmp',
+      symbols: item.tickers ? item.tickers.split(',').map(s => s.trim().toUpperCase()) : [],
+      image: item.image || '',
+      sentiment: 'neutral'
+    }));
+  } catch (error) {
+    clearTimeout(timeoutId);
+    throw error;
+  }
 }
 
-// Main handler
-export default async function handler(req, res) {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-
-  if (req.method === 'OPTIONS') {
-    return res.status(200).end();
+// Alpha Vantage News Fetcher
+async function fetchAlpha(limit = 50) {
+  const apiKey = process.env.ALPHAVANTAGE_KEY;
+  if (!apiKey) {
+    throw new Error('ALPHAVANTAGE_KEY not configured');
   }
+  
+  const url = `https://www.alphavantage.co/query?function=NEWS_SENTIMENT&sort=LATEST&apikey=${apiKey}`;
+  
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 4000);
+  
+  try {
+    const response = await fetch(url, { 
+      signal: controller.signal,
+      headers: { 'User-Agent': 'Financial-News-Dashboard/1.0' }
+    });
+    clearTimeout(timeoutId);
+    
+    if (response.status === 429) {
+      throw new Error('Alpha Vantage rate limit exceeded');
+    }
+    
+    if (!response.ok) {
+      throw new Error(`Alpha Vantage API error: ${response.status}`);
+    }
+    
+    const data = await response.json();
+    if (!data.feed || !Array.isArray(data.feed)) return [];
+    
+    return data.feed.slice(0, limit).map(item => ({
+      id: `av_${item.uuid || Date.now()}`,
+      title: item.title || '',
+      summary: item.summary || '',
+      url: item.url || '',
+      published_at: item.time_published || new Date().toISOString(),
+      source: 'alphavantage',
+      symbols: item.ticker_sentiment ? 
+        item.ticker_sentiment.map(ts => ts.ticker).filter(Boolean) : [],
+      image: item.banner_image || '',
+      sentiment: item.overall_sentiment_score ? 
+        (item.overall_sentiment_score > 0.1 ? 'positive' : 
+         item.overall_sentiment_score < -0.1 ? 'negative' : 'neutral') : 'neutral'
+    }));
+  } catch (error) {
+    clearTimeout(timeoutId);
+    throw error;
+  }
+}
 
+// Finnhub News Fetcher (optional)
+async function fetchFinnhub(limit = 50) {
+  const apiKey = process.env.FINNHUB_KEY;
+  if (!apiKey) {
+    throw new Error('FINNHUB_KEY not configured');
+  }
+  
+  const url = `https://finnhub.io/api/v1/news?category=general&token=${apiKey}`;
+  
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 4000);
+  
+  try {
+    const response = await fetch(url, { 
+      signal: controller.signal,
+      headers: { 'User-Agent': 'Financial-News-Dashboard/1.0' }
+    });
+    clearTimeout(timeoutId);
+    
+    if (response.status === 429) {
+      throw new Error('Finnhub rate limit exceeded');
+    }
+    
+    if (!response.ok) {
+      throw new Error(`Finnhub API error: ${response.status}`);
+    }
+    
+    const data = await response.json();
+    if (!Array.isArray(data)) return [];
+    
+    return data.slice(0, limit).map(item => ({
+      id: `fh_${item.id || Date.now()}`,
+      title: item.headline || '',
+      summary: item.summary || '',
+      url: item.url || '',
+      published_at: new Date(item.datetime * 1000).toISOString(),
+      source: 'finnhub',
+      symbols: item.related ? 
+        item.related.split(',').map(s => s.trim().toUpperCase()) : [],
+      image: item.image || '',
+      sentiment: 'neutral'
+    }));
+  } catch (error) {
+    clearTimeout(timeoutId);
+    throw error;
+  }
+}
+
+// Main news aggregation
+async function fetchNewsFromProviders() {
+  const results = await Promise.allSettled([
+    fetchFMP(50),
+    fetchAlpha(50),
+    fetchFinnhub(50)
+  ]);
+  
+  const items = [];
+  const errors = [];
+  const counts = { fmp: 0, alphavantage: 0, finnhub: 0 };
+  
+  results.forEach((result, index) => {
+    const provider = ['fmp', 'alphavantage', 'finnhub'][index];
+    
+    if (result.status === 'fulfilled') {
+      const providerItems = result.value.map(item => normalizeNewsItem(item, provider));
+      items.push(...providerItems);
+      counts[provider] = providerItems.length;
+    } else {
+      errors.push(`${provider}: ${result.reason.message}`);
+    }
+  });
+  
+  return { items, counts, errors };
+}
+
+export default async function handler(req, res) {
   if (req.method !== 'GET') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
   try {
-    const { limit = 50, category = 'all', source = 'all' } = req.query;
+    const { limit = 50, source } = req.query;
+    const limitNum = Math.min(parseInt(limit) || 50, 100);
     
-    // Check cache first
-    const cacheKey = `news-${category}-${source}-${limit}`;
-    const cached = sharedCache.get(cacheKey);
+    console.log(`Fetching news: limit=${limitNum}, source=${source || 'all'}`);
     
-    if (cached && (Date.now() - cached.timestamp) < 300000) { // 5 minutes
-      return res.status(200).json({
-        success: true,
-        data: {
-          news: cached.data,
-          total: cached.data.length,
-          cached: true,
-          timestamp: cached.timestamp
-        }
-      });
-    }
-
-    // Fetch fresh news
-    const newsItems = await fetchNewsFromProviders();
+    const { items, counts, errors } = await fetchNewsFromProviders();
     
-    // Filter by category and source
-    let filteredNews = newsItems;
+    // Deduplicate and sort
+    const deduplicated = deduplicateNews(items);
+    const sorted = deduplicated
+      .sort((a, b) => new Date(b.published_at) - new Date(a.published_at))
+      .slice(0, limitNum);
     
-    if (category !== 'all') {
-      filteredNews = filteredNews.filter(item => 
-        item.category.toLowerCase() === category.toLowerCase()
-      );
-    }
+    console.log(`News aggregation complete: ${sorted.length} items, errors: ${errors.length}`);
     
-    if (source !== 'all') {
-      filteredNews = filteredNews.filter(item => 
-        item.source.toLowerCase() === source.toLowerCase()
-      );
-    }
-
-    // Sort by published date (newest first)
-    filteredNews.sort((a, b) => new Date(b.publishedAt) - new Date(a.publishedAt));
-    
-    // Apply limit
-    const limitedNews = filteredNews.slice(0, parseInt(limit));
-
-    // Cache the results
-    sharedCache.set(cacheKey, {
-      data: limitedNews,
-      timestamp: Date.now()
-    });
-
     return res.status(200).json({
       success: true,
       data: {
-        news: limitedNews,
-        total: limitedNews.length,
-        cached: false,
-        timestamp: Date.now()
+        news: sorted,
+        meta: {
+          counts,
+          errors,
+          total: sorted.length,
+          timestamp: new Date().toISOString()
+        }
       }
     });
-
+    
   } catch (error) {
     console.error('News API error:', error);
     return res.status(500).json({
       success: false,
       error: 'Failed to fetch news',
-      message: error.message
+      message: error.message,
+      data: {
+        news: [],
+        meta: {
+          counts: { fmp: 0, alphavantage: 0, finnhub: 0 },
+          errors: [error.message],
+          total: 0,
+          timestamp: new Date().toISOString()
+        }
+      }
     });
   }
 }

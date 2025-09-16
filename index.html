@@ -869,10 +869,15 @@
         }
         
         const newsCount = data.data?.news?.length || 0;
+        const meta = data.data?.meta || {};
         console.log(`News loaded: ${newsCount} items (status: ${r.status})`);
+        console.log('Provider counts:', meta.counts);
         
         if (newsCount === 0) {
-          feed.innerHTML = `<div class="card">No news from provider (status ${r.status})</div>`;
+          const errorMsg = meta.errors && meta.errors.length > 0 
+            ? `No news returned. Provider errors: ${meta.errors.join('; ')}`
+            : `No news from provider (status ${r.status})`;
+          feed.innerHTML = `<div class="card">${errorMsg}</div>`;
           return;
         }
         
@@ -1910,7 +1915,18 @@
           // Process news with ticker resolution
           const processedNews = [];
           for (const item of newsData.data.news) {
-            const resolution = await tickerResolver.resolveTicker(item);
+            // Use provider symbols first, then fall back to resolver
+            let resolution;
+            if (item.symbols && item.symbols.length > 0) {
+              resolution = {
+                ticker: item.symbols[0].toUpperCase(),
+                confidence: 0.95,
+                reason: 'provider_symbol'
+              };
+            } else {
+              resolution = await tickerResolver.resolveTicker(item);
+            }
+            
             processedNews.push({
               ...item,
               primaryTicker: resolution.ticker,

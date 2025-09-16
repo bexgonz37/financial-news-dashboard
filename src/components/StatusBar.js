@@ -63,7 +63,7 @@ class StatusBar {
           </span>
           <span class="separator">|</span>
           <span class="news-status">
-            News: ${status.lastNewsResponse}
+            News: ${this.getNewsStatusText(status.newsMeta, status.lastNewsResponse)}
           </span>
           <span class="separator">|</span>
           <span class="next-update">
@@ -98,12 +98,21 @@ class StatusBar {
       console.warn('Failed to check environment variables:', error);
     }
     
-    // Check last news response
+    // Check last news response and get meta info
+    let newsMeta = { counts: { fmp: 0, alphavantage: 0, finnhub: 0 }, errors: [] };
     try {
       const newsResponse = await fetch('/api/news?limit=1');
       lastNewsResponse = newsResponse.status.toString();
+      
+      if (newsResponse.ok) {
+        const newsData = await newsResponse.json();
+        if (newsData.success && newsData.data?.meta) {
+          newsMeta = newsData.data.meta;
+        }
+      }
     } catch (error) {
       lastNewsResponse = 'error';
+      newsMeta.errors = [error.message];
     }
     
     return {
@@ -120,7 +129,8 @@ class StatusBar {
       lastHeartbeat: liveStatus.lastHeartbeat,
       timeSinceHeartbeat: liveStatus.timeSinceHeartbeat,
       envStatus,
-      lastNewsResponse
+      lastNewsResponse,
+      newsMeta
     };
   }
 
@@ -187,6 +197,21 @@ class StatusBar {
     }
     
     return nextUpdate.toLocaleTimeString();
+  }
+
+  getNewsStatusText(newsMeta, lastNewsResponse) {
+    const totalItems = newsMeta.counts.fmp + newsMeta.counts.alphavantage + newsMeta.counts.finnhub;
+    
+    if (totalItems > 0) {
+      const counts = `FMP ${newsMeta.counts.fmp}, AV ${newsMeta.counts.alphavantage}, FH ${newsMeta.counts.finnhub}`;
+      const errors = newsMeta.errors.length > 0 ? ` • Errors: ${newsMeta.errors.length}` : '';
+      return `LIVE (${counts})${errors}`;
+    } else if (lastNewsResponse === '200') {
+      const firstError = newsMeta.errors.length > 0 ? newsMeta.errors[0] : 'no items';
+      return `DEGRADED • reason: ${firstError}`;
+    } else {
+      return `${lastNewsResponse}`;
+    }
   }
 
   destroy() {
