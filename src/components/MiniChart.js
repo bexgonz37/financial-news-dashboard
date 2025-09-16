@@ -129,6 +129,15 @@ class MiniChart {
     
     return age > threshold;
   }
+  
+  // Get last tick age in seconds for debugging
+  getLastTickAgeSec() {
+    if (this.ringBuffer.length === 0) return null;
+    
+    const lastTick = this.ringBuffer[this.ringBuffer.length - 1];
+    const now = Date.now();
+    return Math.floor((now - lastTick.timestamp) / 1000);
+  }
 
   isStaleRingBuffer() {
     if (this.ringBuffer.length === 0) return true;

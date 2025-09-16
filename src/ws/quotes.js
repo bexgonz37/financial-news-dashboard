@@ -26,6 +26,7 @@ class WebSocketQuotes {
       if (response.ok) {
         const data = await response.json();
         if (data.success && data.data.FINNHUB_KEY) {
+          console.log('✅ Got FINNHUB_KEY from /api/env');
           return data.data.FINNHUB_KEY;
         }
       }
@@ -35,14 +36,26 @@ class WebSocketQuotes {
     
     // Fallback to build-injected environment
     if (typeof window !== 'undefined' && window.ENV) {
+      console.log('✅ Got FINNHUB_KEY from window.ENV');
       return window.ENV.FINNHUB_KEY;
     }
     if (typeof process !== 'undefined' && process.env) {
-      return process.env.FINNHUB_KEY || process.env.NEXT_PUBLIC_FINNHUB_KEY || process.env.VITE_FINNHUB_KEY;
+      const key = process.env.FINNHUB_KEY || process.env.NEXT_PUBLIC_FINNHUB_KEY || process.env.VITE_FINNHUB_KEY;
+      if (key) {
+        console.log('✅ Got FINNHUB_KEY from process.env');
+        return key;
+      }
     }
     if (typeof import.meta !== 'undefined' && import.meta.env) {
-      return import.meta.env.VITE_FINNHUB_KEY;
+      const key = import.meta.env.VITE_FINNHUB_KEY;
+      if (key) {
+        console.log('✅ Got FINNHUB_KEY from import.meta.env');
+        return key;
+      }
     }
+    
+    console.error('❌ FINNHUB_KEY not found in any source');
+    this.showKeyMissingBanner();
     return null;
   }
 
