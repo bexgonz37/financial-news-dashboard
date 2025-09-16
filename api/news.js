@@ -1,5 +1,6 @@
-// Phase 0: Finnhub + Yahoo RSS only (robust baseline)
+// Phase 1: Full multi-provider news aggregation with safety nets
 import fetch from 'node-fetch';
+import fmpLimiter from '../lib/fmp-limiter.js';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -11,8 +12,10 @@ const CACHE_DURATION = 90 * 1000; // 90 seconds
 
 // Provider health tracking
 const providerHealth = {
-  finnhub: { status: 'unknown', lastSuccess: null, lastError: null },
-  yahoo: { status: 'unknown', lastSuccess: null, lastError: null }
+  fmp: { status: 'unknown', lastSuccess: null, lastError: null, rateLimitBudget: 2 },
+  finnhub: { status: 'unknown', lastSuccess: null, lastError: null, rateLimitBudget: 60 },
+  alphavantage: { status: 'unknown', lastSuccess: null, lastError: null, rateLimitBudget: 5 },
+  yahoo: { status: 'unknown', lastSuccess: null, lastError: null, rateLimitBudget: 10 }
 };
 
 // Yahoo Finance RSS feeds
@@ -82,6 +85,48 @@ function parseRSS(xmlText) {
   }
 }
 
+// FMP News fetcher (with limiter)
+async function fetchFMPNews(limit = 50) {
+  try {
+    const fmpKey = process.env.FMP_KEY;
+    if (!fmpKey) {
+      providerHealth.fmp.lastError = 'No API key';
+      return { items: [], error: 'No FMP API key' };
+    }
+
+    const url = `https://financialmodelingprep.com/api/v3/stock_news?limit=${limit}&apikey=${fmpKey}`;
+    const response = await fmpLimiter.makeRequest(url, {
+      headers: { 'User-Agent': 'Financial-News-Dashboard/1.0' }
+    });
+
+    if (!response.ok) {
+      const error = `FMP ${response.status}: ${response.statusText}`;
+      providerHealth.fmp.lastError = error;
+      return { items: [], error };
+    }
+
+    const data = await response.json();
+    const items = (data || []).map(item => ({
+      id: `fmp_${item.publishedDate}_${item.title?.substring(0, 20)}`,
+      title: item.title || '',
+      summary: item.text || '',
+      url: item.url || '',
+      published_at: item.publishedDate || new Date().toISOString(),
+      source: 'fmp',
+      symbols: item.symbol ? [item.symbol] : (item.tickers || [])
+    }));
+
+    providerHealth.fmp.status = 'success';
+    providerHealth.fmp.lastSuccess = Date.now();
+    return { items, error: null };
+
+  } catch (error) {
+    const errorMsg = `FMP error: ${error.message}`;
+    providerHealth.fmp.lastError = errorMsg;
+    return { items: [], error: errorMsg };
+  }
+}
+
 // Finnhub News fetcher
 async function fetchFinnhubNews(limit = 50) {
   try {
@@ -121,6 +166,50 @@ async function fetchFinnhubNews(limit = 50) {
   } catch (error) {
     const errorMsg = `Finnhub error: ${error.message}`;
     providerHealth.finnhub.lastError = errorMsg;
+    return { items: [], error: errorMsg };
+  }
+}
+
+// Alpha Vantage News fetcher
+async function fetchAlphaVantageNews(limit = 50) {
+  try {
+    const avKey = process.env.ALPHAVANTAGE_KEY;
+    if (!avKey) {
+      providerHealth.alphavantage.lastError = 'No API key';
+      return { items: [], error: 'No Alpha Vantage API key' };
+    }
+
+    const url = `https://www.alphavantage.co/query?function=NEWS_SENTIMENT&sort=LATEST&apikey=${avKey}`;
+    const response = await fetch(url, {
+      headers: { 'User-Agent': 'Financial-News-Dashboard/1.0' },
+      timeout: 5000
+    });
+
+    if (!response.ok) {
+      const error = `Alpha Vantage ${response.status}: ${response.statusText}`;
+      providerHealth.alphavantage.lastError = error;
+      return { items: [], error };
+    }
+
+    const data = await response.json();
+    const feed = data.feed || [];
+    const items = feed.slice(0, limit).map(item => ({
+      id: `av_${item.time_published}_${item.title?.substring(0, 20)}`,
+      title: item.title || '',
+      summary: item.summary || '',
+      url: item.url || '',
+      published_at: item.time_published || new Date().toISOString(),
+      source: 'alphavantage',
+      symbols: (item.ticker_sentiment || []).map(t => t.ticker).filter(Boolean)
+    }));
+
+    providerHealth.alphavantage.status = 'success';
+    providerHealth.alphavantage.lastSuccess = Date.now();
+    return { items, error: null };
+
+  } catch (error) {
+    const errorMsg = `Alpha Vantage error: ${error.message}`;
+    providerHealth.alphavantage.lastError = errorMsg;
     return { items: [], error: errorMsg };
   }
 }
@@ -197,22 +286,24 @@ function deduplicateNews(items) {
   });
 }
 
-// Main news aggregation function (Phase 0: Finnhub + Yahoo only)
+// Main news aggregation function (Phase 1: All 4 providers)
 async function aggregateNews(limit = 100) {
-  console.log('Phase 0: Starting Finnhub + Yahoo news aggregation...');
+  console.log('Phase 1: Starting full multi-provider news aggregation...');
   
-  // Fetch from both providers in parallel
+  // Fetch from all 4 providers in parallel
   const results = await Promise.allSettled([
+    fetchFMPNews(limit),
     fetchFinnhubNews(limit),
+    fetchAlphaVantageNews(limit),
     fetchYahooNews(limit)
   ]);
   
   const allItems = [];
   const errors = [];
-  const counts = { finnhub: 0, yahoo: 0 };
+  const counts = { fmp: 0, finnhub: 0, alphavantage: 0, yahoo: 0 };
   
   results.forEach((result, index) => {
-    const providers = ['finnhub', 'yahoo'];
+    const providers = ['fmp', 'finnhub', 'alphavantage', 'yahoo'];
     const provider = providers[index];
     
     if (result.status === 'fulfilled') {
@@ -234,8 +325,8 @@ async function aggregateNews(limit = 100) {
     new Date(b.published_at).getTime() - new Date(a.published_at).getTime()
   );
   
-  console.log(`Phase 0 news aggregation complete: ${sorted.length} items from ${Object.values(counts).filter(c => c > 0).length} providers`);
-  console.log(`Provider counts: Finnhub=${counts.finnhub}, Yahoo=${counts.yahoo}`);
+  console.log(`Phase 1 news aggregation complete: ${sorted.length} items from ${Object.values(counts).filter(c => c > 0).length} providers`);
+  console.log(`Provider counts: FMP=${counts.fmp}, Finnhub=${counts.finnhub}, AV=${counts.alphavantage}, Yahoo=${counts.yahoo}`);
   
   return {
     items: sorted,

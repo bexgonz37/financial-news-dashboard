@@ -2,16 +2,16 @@
 import fmpLimiter from '../lib/fmp-limiter.js';
 
 export const dynamic = 'force-dynamic';
-export const revalidate = 21600; // Cache for 6 hours
+export const revalidate = 43200; // Cache for 12 hours
 
 let companyMaster = null;
 let lastFetch = 0;
-const CACHE_DURATION = 21600 * 1000; // 6 hours
+const CACHE_DURATION = 8 * 60 * 60 * 1000; // 8 hours (6-12h range)
 
 async function fetchCompanyMaster() {
   const now = Date.now();
   
-  // Return cached data if less than 6 hours old
+  // Return cached data if less than 8 hours old
   if (companyMaster && (now - lastFetch) < CACHE_DURATION) {
     return companyMaster;
   }
