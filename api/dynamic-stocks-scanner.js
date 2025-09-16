@@ -244,21 +244,24 @@ async function scanStocks(preset = 'high-momentum', limit = 100, customFilters =
     
     console.log(`📊 Scanner universe size: ${symbols.length} symbols`);
     
-    // Process symbols in batches to avoid rate limits
-    const batchSize = 50;
+    // Process symbols in batches with progressive results
+    const batchSize = 200; // Larger batches for better performance
     const allQuotes = [];
     const errors = [];
     let providerStatus = 'offline';
+    let processedBatches = 0;
+    const maxBatches = Math.min(Math.ceil(symbols.length / batchSize), 5); // Process up to 5 batches (1000 symbols)
     
-    for (let i = 0; i < Math.min(symbols.length, 1000); i += batchSize) { // Limit to 1000 for performance
+    for (let i = 0; i < Math.min(symbols.length, maxBatches * batchSize); i += batchSize) {
       const batch = symbols.slice(i, i + batchSize);
+      processedBatches++;
       
       try {
         // Check cache first
         const cachedQuotes = sharedCache.getQuotesBatch(batch);
         if (cachedQuotes.length > 0) {
           allQuotes.push(...cachedQuotes);
-          console.log(`Using ${cachedQuotes.length} cached quotes for batch ${i}-${i + batchSize}`);
+          console.log(`Using ${cachedQuotes.length} cached quotes for batch ${processedBatches}/${maxBatches}`);
         } else {
           // Fetch from providers
           const quotes = await fetchQuotesFromProviders(batch);
@@ -266,14 +269,15 @@ async function scanStocks(preset = 'high-momentum', limit = 100, customFilters =
           
           // Cache the quotes
           sharedCache.setQuotesBatch(quotes);
+          console.log(`Fetched ${quotes.length} quotes for batch ${processedBatches}/${maxBatches}`);
         }
         
         // Rate limiting protection
-        await new Promise(resolve => setTimeout(resolve, 200));
+        await new Promise(resolve => setTimeout(resolve, 100));
         
       } catch (error) {
-        console.warn(`Batch ${i}-${i + batchSize} failed:`, error.message);
-        errors.push(`Batch ${i}-${i + batchSize}: ${error.message}`);
+        console.warn(`Batch ${processedBatches}/${maxBatches} failed:`, error.message);
+        errors.push(`Batch ${processedBatches}: ${error.message}`);
       }
     }
     
@@ -407,39 +411,74 @@ export default async function handler(req, res) {
     console.log(`scanner_universe=${result.universeSize} processed=${result.totalProcessed} rate_limited=${rateLimited}`);
     console.log(`scanner_results=${result.stocks.length} preset=${preset} errors=[${(result.errors || []).join(',')}]`);
 
-    // If no stocks and providers are failing, show error state
-    if (result.stocks.length === 0 && result.providerStatus === 'offline') {
-      return res.status(200).json({
-        success: true,
-        data: {
-          refreshInterval: 30000,
-          stocks: [{
-            symbol: 'ERROR',
-            name: 'Scanner providers temporarily unavailable',
-            price: 0,
-            change: 0,
-            changePercent: 0,
-            volume: 0,
-            avgVolume: 0,
-            relativeVolume: 0,
-            gapPercent: 0,
-            exchange: 'ERROR',
-            sector: 'System',
-            industry: 'Error',
-            marketCap: 0,
+    // If no stocks, show partial results or error state
+    if (result.stocks.length === 0) {
+      if (result.providerStatus === 'offline') {
+        return res.status(200).json({
+          success: true,
+          data: {
+            refreshInterval: 30000,
+            stocks: [{
+              symbol: 'ERROR',
+              name: 'Scanner providers temporarily unavailable',
+              price: 0,
+              change: 0,
+              changePercent: 0,
+              volume: 0,
+              avgVolume: 0,
+              relativeVolume: 0,
+              gapPercent: 0,
+              exchange: 'ERROR',
+              sector: 'System',
+              industry: 'Error',
+              marketCap: 0,
+              lastUpdate: new Date().toISOString(),
+              isError: true,
+              errorMessage: 'All providers are offline. Retrying automatically...'
+            }],
+            totalProcessed: 0,
+            universeSize: result.universeSize,
+            preset: result.preset,
+            filters: result.filters,
+            providerStatus: result.providerStatus,
             lastUpdate: new Date().toISOString(),
-            isError: true,
-            errorMessage: 'All providers are offline. Retrying automatically...'
-          }],
-          totalProcessed: 0,
-          universeSize: result.universeSize,
-          preset: result.preset,
-          filters: result.filters,
-          providerStatus: result.providerStatus,
-          lastUpdate: new Date().toISOString(),
-          errors: result.errors || []
-        }
-      });
+            errors: result.errors || []
+          }
+        });
+      } else {
+        // Providers are working but no stocks match filters - show message
+        return res.status(200).json({
+          success: true,
+          data: {
+            refreshInterval: 30000,
+            stocks: [{
+              symbol: 'NO_MATCH',
+              name: 'No stocks match current filters',
+              price: 0,
+              change: 0,
+              changePercent: 0,
+              volume: 0,
+              avgVolume: 0,
+              relativeVolume: 0,
+              gapPercent: 0,
+              exchange: 'INFO',
+              sector: 'System',
+              industry: 'Info',
+              marketCap: 0,
+              lastUpdate: new Date().toISOString(),
+              isInfo: true,
+              infoMessage: 'Try broadening your filters to see more results'
+            }],
+            totalProcessed: result.totalProcessed,
+            universeSize: result.universeSize,
+            preset: result.preset,
+            filters: result.filters,
+            providerStatus: result.providerStatus,
+            lastUpdate: new Date().toISOString(),
+            errors: result.errors || []
+          }
+        });
+      }
     }
 
     return res.status(200).json({ 

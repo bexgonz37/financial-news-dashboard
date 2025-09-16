@@ -922,8 +922,12 @@
         return;
       }
       feed.innerHTML = filteredNews.map(n=>{
-        const tickers = n.tickers || [];
-        const t = tickers.length > 0 ? tickers[0].toUpperCase() : (n.ticker||'').toUpperCase();
+        // Use new single-ticker resolver structure
+        const primaryTicker = n.primaryTicker || '';
+        const secondaryTickers = n.secondaryTickers || [];
+        const isGeneral = n.isGeneral || false;
+        const tickerReason = n.tickerReason || '';
+        const t = primaryTicker.toUpperCase();
         const when = n.publishedAt ? timeAgo(n.publishedAt) : '';
         const source = n.source ? n.source : '';
         const starred = watchlist.has(t) ? 'active' : '';
@@ -979,19 +983,20 @@
                 : '<span style="color:red;font-size:0.8rem;">No URL</span>'
             }</div>
             ${badgeHtml}
-            ${tickers.length > 0 ? `
-              <div style="margin: 8px 0; display: flex; flex-wrap: wrap; gap: 4px;">
-                ${tickers.map((ticker, index) => {
-                  const matchDetail = n.matchDetails?.[index];
-                  const tooltip = matchDetail ? `Matched by ${matchDetail.matchStage} (score ${matchDetail.score})` : '';
-                  return `
-                    <span style="background: var(--accent); color: white; padding: 2px 6px; border-radius: 4px; font-size: 0.8rem; cursor: pointer;" 
-                          title="${tooltip}"
-                          onclick="document.getElementById('ticker').value='${ticker}'; fetchData();">
-                      $${ticker}
-                    </span>
-                  `;
-                }).join('')}
+            ${primaryTicker ? `
+              <div style="margin: 8px 0; display: flex; flex-wrap: wrap; gap: 4px; align-items: center;">
+                <span style="background: var(--accent); color: white; padding: 2px 6px; border-radius: 4px; font-size: 0.8rem; cursor: pointer;" 
+                      title="${tickerReason}"
+                      onclick="document.getElementById('ticker').value='${primaryTicker}'; fetchData();">
+                  $${primaryTicker}
+                </span>
+                <div class="mini-chart" data-ticker="${primaryTicker}" style="width: 60px; height: 20px; margin-left: 8px;"></div>
+              </div>
+            ` : isGeneral ? `
+              <div style="margin: 8px 0;">
+                <span style="background: var(--meta); color: white; padding: 2px 6px; border-radius: 4px; font-size: 0.8rem;">
+                  GENERAL
+                </span>
               </div>
             ` : ''}
             <div class="mini-row">
@@ -1806,6 +1811,9 @@
       refreshIntervals.health = setInterval(() => {
         updateHealthStatus();
         updateProviderDiagnostics();
+        
+        // Load mini-charts for visible tickers
+        loadMiniCharts();
       }, 10000);
       
       console.log('Auto-refresh started');
@@ -1842,6 +1850,79 @@
           diagEl.textContent = 'Provider diagnostics unavailable';
         }
       }
+    }
+
+    // Load mini-charts for visible tickers
+    async function loadMiniCharts() {
+      const miniCharts = document.querySelectorAll('.mini-chart[data-ticker]');
+      const tickers = Array.from(miniCharts).map(chart => chart.dataset.ticker);
+      
+      if (tickers.length === 0) return;
+      
+      try {
+        const response = await fetch(`/api/ohlc-mini?symbols=${tickers.join(',')}&range=1d`);
+        const data = await response.json();
+        
+        if (data.success) {
+          miniCharts.forEach(chart => {
+            const ticker = chart.dataset.ticker;
+            const ohlcData = data.data[ticker];
+            
+            if (ohlcData && ohlcData.data && ohlcData.data.length > 0) {
+              renderMiniChart(chart, ohlcData.data);
+            } else {
+              chart.innerHTML = '<div style="color: var(--meta); font-size: 0.7rem;">No data</div>';
+            }
+          });
+        }
+      } catch (error) {
+        console.warn('Mini-chart loading failed:', error);
+      }
+    }
+
+    // Render mini-chart sparkline
+    function renderMiniChart(container, ohlcData) {
+      if (!ohlcData || ohlcData.length === 0) {
+        container.innerHTML = '<div style="color: var(--meta); font-size: 0.7rem;">No data</div>';
+        return;
+      }
+      
+      const width = container.offsetWidth || 60;
+      const height = container.offsetHeight || 20;
+      
+      // Calculate price range
+      const prices = ohlcData.map(d => d.close);
+      const minPrice = Math.min(...prices);
+      const maxPrice = Math.max(...prices);
+      const priceRange = maxPrice - minPrice;
+      
+      if (priceRange === 0) {
+        container.innerHTML = '<div style="color: var(--meta); font-size: 0.7rem;">Flat</div>';
+        return;
+      }
+      
+      // Create SVG
+      const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+      svg.setAttribute('width', width);
+      svg.setAttribute('height', height);
+      svg.style.overflow = 'visible';
+      
+      // Create path
+      const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      const points = ohlcData.map((d, i) => {
+        const x = (i / (ohlcData.length - 1)) * width;
+        const y = height - ((d.close - minPrice) / priceRange) * height;
+        return `${i === 0 ? 'M' : 'L'} ${x} ${y}`;
+      }).join(' ');
+      
+      path.setAttribute('d', points);
+      path.setAttribute('stroke', 'var(--accent)');
+      path.setAttribute('stroke-width', '1');
+      path.setAttribute('fill', 'none');
+      
+      svg.appendChild(path);
+      container.innerHTML = '';
+      container.appendChild(svg);
     }
 
     // Health status function
