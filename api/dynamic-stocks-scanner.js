@@ -7,51 +7,60 @@ export const revalidate = 0;
 import { unifiedProviderManager } from '../lib/unified-provider-manager.js';
 import { comprehensiveSymbolMaster } from '../lib/comprehensive-symbol-master.js';
 
-// Scanner presets
+// Scanner presets - BROAD FILTERS for maximum coverage
 const SCANNER_PRESETS = {
   'high-momentum': {
     name: 'High Momentum',
     description: 'Stocks with strong price momentum and volume',
     filters: {
-      minChangePercent: 2,
-      minRelativeVolume: 1.5,
-      minPrice: 1
+      minChangePercent: 0.5, // Very broad
+      minRelativeVolume: 1.0, // Very broad
+      minPrice: 0.5 // Very broad
     }
   },
   'breakouts': {
     name: 'Breakouts',
     description: 'Stocks breaking out of consolidation patterns',
     filters: {
-      minChangePercent: 3,
-      minRelativeVolume: 2,
-      minPrice: 5
+      minChangePercent: 1.0, // Broad
+      minRelativeVolume: 1.0, // Broad
+      minPrice: 0.5 // Broad
     }
   },
   'gap-go': {
     name: 'Gap & Go',
     description: 'Stocks with significant gaps and early volume',
     filters: {
-      minGapPercent: 5,
-      minRelativeVolume: 2,
-      minPrice: 2
+      minGapPercent: 2.0, // Broad
+      minRelativeVolume: 1.0, // Broad
+      minPrice: 0.5 // Broad
     }
   },
   'reversal': {
     name: 'Reversal Watch',
     description: 'Stocks showing potential reversal patterns',
     filters: {
-      maxChangePercent: -2,
-      minRelativeVolume: 1.2,
-      minPrice: 1
+      maxChangePercent: -0.5, // Broad
+      minRelativeVolume: 1.0, // Broad
+      minPrice: 0.5 // Broad
     }
   },
   'news-movers': {
     name: 'News Movers',
     description: 'Stocks with recent news and price reaction',
     filters: {
-      minChangePercent: 1,
-      minRelativeVolume: 1.3,
-      minPrice: 1
+      minChangePercent: 0.1, // Very broad
+      minRelativeVolume: 1.0, // Broad
+      minPrice: 0.5 // Broad
+    }
+  },
+  'all-movers': {
+    name: 'All Movers',
+    description: 'All stocks with any price movement',
+    filters: {
+      minChangePercent: 0.01, // Extremely broad
+      minRelativeVolume: 0.5, // Very broad
+      minPrice: 0.1 // Very broad
     }
   }
 };
@@ -74,6 +83,8 @@ async function scanStocks(preset = 'high-momentum', limit = 100, customFilters =
     // Process symbols in batches to avoid rate limits
     const batchSize = 50;
     const allQuotes = [];
+    const errors = [];
+    let providerStatus = 'offline';
     
     for (let i = 0; i < Math.min(symbols.length, 1000); i += batchSize) { // Limit to 1000 for performance
       const batch = symbols.slice(i, i + batchSize);
@@ -87,10 +98,20 @@ async function scanStocks(preset = 'high-momentum', limit = 100, customFilters =
         
       } catch (error) {
         console.warn(`Batch ${i}-${i + batchSize} failed:`, error.message);
+        errors.push(`Batch ${i}-${i + batchSize}: ${error.message}`);
       }
     }
     
-    console.log(`✅ Retrieved ${allQuotes.length} quotes`);
+    // Determine provider status
+    if (allQuotes.length > 0) {
+      providerStatus = errors.length > 0 ? 'degraded' : 'healthy';
+    } else if (errors.length > 0) {
+      providerStatus = 'degraded';
+    } else {
+      providerStatus = 'offline';
+    }
+    
+    console.log(`✅ Retrieved ${allQuotes.length} quotes, status: ${providerStatus}`);
     
     // Process quotes and calculate metrics
     const processedStocks = [];
@@ -162,7 +183,8 @@ async function scanStocks(preset = 'high-momentum', limit = 100, customFilters =
       universeSize: symbols.length,
       preset: presetConfig.name,
       filters: filters,
-      errors: []
+      providerStatus,
+      errors: errors
     };
     
   } catch (error) {
@@ -210,6 +232,41 @@ export default async function handler(req, res) {
     console.log(`scanner_universe=${result.universeSize} processed=${result.totalProcessed} rate_limited=${rateLimited}`);
     console.log(`scanner_results=${result.stocks.length} preset=${preset} errors=[${(result.errors || []).join(',')}]`);
 
+    // If no stocks and providers are failing, show error state
+    if (result.stocks.length === 0 && result.providerStatus === 'offline') {
+      return res.status(200).json({
+        success: true,
+        data: {
+          refreshInterval: 30000,
+          stocks: [{
+            symbol: 'ERROR',
+            name: 'Scanner providers temporarily unavailable',
+            price: 0,
+            change: 0,
+            changePercent: 0,
+            volume: 0,
+            avgVolume: 0,
+            relativeVolume: 0,
+            gapPercent: 0,
+            exchange: 'ERROR',
+            sector: 'System',
+            industry: 'Error',
+            marketCap: 0,
+            lastUpdate: new Date().toISOString(),
+            isError: true,
+            errorMessage: 'All providers are offline. Retrying automatically...'
+          }],
+          totalProcessed: 0,
+          universeSize: result.universeSize,
+          preset: result.preset,
+          filters: result.filters,
+          providerStatus: result.providerStatus,
+          lastUpdate: new Date().toISOString(),
+          errors: result.errors || []
+        }
+      });
+    }
+
     return res.status(200).json({ 
       success: true, 
       data: { 
@@ -219,6 +276,7 @@ export default async function handler(req, res) {
         universeSize: result.universeSize,
         preset: result.preset,
         filters: result.filters,
+        providerStatus: result.providerStatus,
         lastUpdate: new Date().toISOString(),
         errors: result.errors || []
       }

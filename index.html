@@ -222,9 +222,12 @@
       </div>
       <div class="header-right">
         <div class="health-panel">
-          <span class="status-indicator live" data-type="news">News: LIVE</span>
-          <span class="status-indicator live" data-type="scanner">Scanner: LIVE</span>
-          <span class="status-indicator live" data-type="symbols">Symbols: LIVE</span>
+          <span class="status-indicator live" data-type="news" id="news-status">News: LIVE</span>
+          <span class="status-indicator live" data-type="scanner" id="scanner-status">Scanner: LIVE</span>
+          <span class="status-indicator live" data-type="symbols" id="symbols-status">Symbols: LIVE</span>
+        </div>
+        <div class="provider-diagnostics" id="provider-diagnostics" style="margin-top: 8px; font-size: 0.7rem; color: var(--meta);">
+          Loading provider status...
         </div>
         <div class="status-bar" id="statusBar">
           <span class="status-indicator" id="statusIndicator">●</span>
@@ -1802,6 +1805,7 @@
       // Start health status updates (every 10 seconds)
       refreshIntervals.health = setInterval(() => {
         updateHealthStatus();
+        updateProviderDiagnostics();
       }, 10000);
       
       console.log('Auto-refresh started');
@@ -1810,6 +1814,36 @@
     // Start auto-refresh
     startAutoRefresh();
     
+    // Provider diagnostics function
+    async function updateProviderDiagnostics() {
+      try {
+        const response = await fetch('/api/providers/diag');
+        const data = await response.json();
+        
+        if (data.success) {
+          const diag = data.data;
+          const diagEl = document.getElementById('provider-diagnostics');
+          
+          if (diagEl) {
+            const providerStatuses = Object.entries(diag.providers).map(([name, status]) => {
+              const keyStatus = status.keyPresent ? '✓' : '✗';
+              const healthStatus = status.status === 'healthy' ? '🟢' : 
+                                 status.status === 'degraded' ? '🟡' : '🔴';
+              return `${name.toUpperCase()}: ${keyStatus} ${healthStatus}`;
+            }).join(' | ');
+            
+            diagEl.textContent = providerStatuses;
+          }
+        }
+      } catch (error) {
+        console.warn('Provider diagnostics update failed:', error);
+        const diagEl = document.getElementById('provider-diagnostics');
+        if (diagEl) {
+          diagEl.textContent = 'Provider diagnostics unavailable';
+        }
+      }
+    }
+
     // Health status function
     async function updateHealthStatus() {
       try {

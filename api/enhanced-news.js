@@ -755,19 +755,45 @@ export default async function handler(req, res) {
     
     console.log('Query parameters:', { limit, source, dateRange, search });
     
-    // Use UnifiedProviderManager for fetching news
-    const result = await unifiedProviderManager.getNews({
-      limit: parseInt(limit),
-      ticker: search,
-      search: search,
-      dateRange: dateRange
-    });
-    
-    // Handle different return structures
-    const newsItems = result.news || result || [];
-    const errors = result.errors || [];
-    
-    console.log(`ProviderManager returned ${newsItems.length} items, ${errors.length} provider errors`);
+    // Try to get news from providers with failover
+    let newsItems = [];
+    let errors = [];
+    let providerStatus = 'offline';
+    let retryAfter = null;
+
+    try {
+      const result = await unifiedProviderManager.getNews({
+        limit: parseInt(limit),
+        ticker: search,
+        search: search,
+        dateRange: dateRange
+      });
+      
+      // Handle different return structures
+      newsItems = result.news || result || [];
+      errors = result.errors || [];
+      
+      console.log(`ProviderManager returned ${newsItems.length} items, ${errors.length} provider errors`);
+      
+      // Determine provider status
+      if (newsItems.length > 0) {
+        providerStatus = errors.length > 0 ? 'degraded' : 'healthy';
+      } else if (errors.length > 0) {
+        providerStatus = 'degraded';
+        // Check for rate limiting
+        const rateLimitError = errors.find(err => err.includes('429') || err.includes('rate limit'));
+        if (rateLimitError) {
+          retryAfter = 60; // Default 60 seconds
+        }
+      } else {
+        providerStatus = 'offline';
+      }
+      
+    } catch (error) {
+      console.error('News fetch error:', error);
+      errors.push(error.message);
+      providerStatus = 'offline';
+    }
     
     // Add ticker extraction and sentiment analysis
     const processedNews = [];
@@ -803,8 +829,41 @@ export default async function handler(req, res) {
     const tickersResolved = processedNews.filter(item => item.tickers && item.tickers.length > 0).length;
     const unmatchedTitles = processedNews.length - tickersResolved;
     
-    console.log(`news_live_items=${processedNews.length} providers_ok=[${result.errors.length === 0 ? 'finnhub,fmp' : 'partial'}] providers_err=[${result.errors.join(',')}]`);
+    console.log(`news_live_items=${processedNews.length} providers_ok=[${errors.length === 0 ? 'finnhub,fmp' : 'partial'}] providers_err=[${errors.join(',')}]`);
     console.log(`tickers_resolved=${tickersResolved} unmatched_titles=${unmatchedTitles}`);
+
+    // If no news and providers are rate limited, show error state
+    if (processedNews.length === 0 && providerStatus === 'degraded' && retryAfter) {
+      return res.status(200).json({
+        success: true,
+        data: {
+          news: [{
+            id: 'rate-limit-error',
+            title: `News providers temporarily limited — retrying in ${retryAfter}s`,
+            summary: 'Some providers are rate limited. We\'re retrying automatically.',
+            source: 'System',
+            publishedAt: new Date().toISOString(),
+            url: '#',
+            tickers: [],
+            sentiment: 'neutral',
+            badges: ['rate-limited'],
+            newsImpact: null,
+            isError: true
+          }],
+          count: 1,
+          lastUpdate: new Date().toISOString(),
+          providerStatus,
+          retryAfter,
+          filters: {
+            limit: parseInt(limit),
+            source: source,
+            dateRange: dateRange,
+            search: search
+          }
+        },
+        errors: errors
+      });
+    }
 
     return res.status(200).json({
       success: true,
@@ -812,6 +871,8 @@ export default async function handler(req, res) {
         news: processedNews,
         count: processedNews.length,
         lastUpdate: new Date().toISOString(),
+        providerStatus,
+        retryAfter,
         filters: {
           limit: parseInt(limit),
           source: source,
@@ -819,7 +880,7 @@ export default async function handler(req, res) {
           search: search
         }
       },
-      errors: result.errors
+      errors: errors
     });
 
   } catch (error) {
