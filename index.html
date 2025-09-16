@@ -1842,12 +1842,19 @@
         const { tickerResolver } = await import('./src/lib/tickers/resolve.js');
         const { scannerEngine } = await import('./src/lib/scanners/run.js');
         const { scannerScheduler } = await import('./src/lib/scanners/schedule.js');
+        const { marketHours } = await import('./src/lib/time/marketHours.js');
         
         // Initialize status bar
         const statusBar = new StatusBar('status-bar');
         
         // Initialize news feed
         const newsFeed = new NewsFeed('news-feed');
+        
+        // Initialize WebSocket quotes with tick callback
+        wsQuotes.setOnTickCallback((tick) => {
+          console.log('Received tick:', tick.symbol, tick.price);
+          // The tick is automatically added to the store by wsQuotes
+        });
         
         // Load initial data
         await loadInitialData();

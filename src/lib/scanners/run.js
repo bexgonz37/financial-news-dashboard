@@ -35,29 +35,62 @@ class ScannerEngine {
 
   // Get all symbols with tick data
   getAllSymbolsWithTicks() {
-    const symbols = [];
-    const state = appState.state;
+    return appState.getAllSymbolsWithTicks();
+  }
+
+  // Calculate percentage change from first tick in buffer
+  calculateChangePercent(symbol, ticks) {
+    if (ticks.length < 2) return 0;
     
-    for (const [symbol, ticks] of state.ticks) {
-      if (ticks.length > 0) {
-        const latestTick = ticks[ticks.length - 1];
-        const quote = state.quotes.get(symbol);
-        
-        if (quote) {
-          symbols.push({
-            symbol,
-            price: latestTick.price,
-            change: quote.change || 0,
-            changePercent: quote.changePercent || 0,
-            volume: latestTick.volume,
-            timestamp: latestTick.timestamp,
-            ticks: ticks.slice(-100) // Last 100 ticks for analysis
-          });
-        }
-      }
-    }
+    const firstTick = ticks[0];
+    const lastTick = ticks[ticks.length - 1];
     
-    return symbols;
+    return ((lastTick.price - firstTick.price) / firstTick.price) * 100;
+  }
+
+  // Calculate relative volume from tick buffer
+  calculateRelativeVolume(symbol, ticks) {
+    if (ticks.length < 10) return 1;
+    
+    const recentVolume = ticks.slice(-10).reduce((sum, tick) => sum + tick.volume, 0) / 10;
+    const averageVolume = ticks.reduce((sum, tick) => sum + tick.volume, 0) / ticks.length;
+    
+    return recentVolume / averageVolume;
+  }
+
+  // Calculate gap from first tick vs previous close (if available)
+  calculateGap(symbol, ticks) {
+    if (ticks.length < 1) return 0;
+    
+    const firstTick = ticks[0];
+    // For now, use first tick as proxy for gap calculation
+    // In production, you'd fetch previous close from a single REST call at session start
+    return 0; // Placeholder - would need previous close reference
+  }
+
+  // Calculate range breakout from tick buffer
+  calculateRangeBreakout(symbol, ticks) {
+    if (ticks.length < 20) return { breakout20Day: false, breakout20DayLow: false };
+    
+    const currentPrice = ticks[ticks.length - 1].price;
+    const last20Ticks = ticks.slice(-20);
+    const high20Day = Math.max(...last20Ticks.map(t => t.price));
+    const low20Day = Math.min(...last20Ticks.map(t => t.price));
+    
+    return {
+      breakout20Day: currentPrice > high20Day,
+      breakout20DayLow: currentPrice < low20Day
+    };
+  }
+
+  // Calculate unusual volume from tick buffer
+  calculateUnusualVolume(symbol, ticks) {
+    if (ticks.length < 20) return 1;
+    
+    const recentVolume = ticks.slice(-5).reduce((sum, tick) => sum + tick.volume, 0) / 5;
+    const averageVolume = ticks.reduce((sum, tick) => sum + tick.volume, 0) / ticks.length;
+    
+    return recentVolume / averageVolume;
   }
 
   // High momentum scanner
@@ -65,16 +98,24 @@ class ScannerEngine {
     const symbols = this.getAllSymbolsWithTicks();
     
     return symbols
-      .filter(quote => 
-        quote.changePercent > 2 && // > 2% change
-        quote.volume > 100000 && // > 100k volume
-        quote.price > 1 // > $1 price
-      )
-      .map(quote => ({
-        ...quote,
-        score: this.calculateMomentumScore(quote),
-        scanner: 'high-momentum'
-      }))
+      .filter(symbol => {
+        const changePercent = this.calculateChangePercent(symbol.symbol, symbol.ticks);
+        return changePercent > 2 && // > 2% change
+               symbol.volume > 100000 && // > 100k volume
+               symbol.price > 1; // > $1 price
+      })
+      .map(symbol => {
+        const changePercent = this.calculateChangePercent(symbol.symbol, symbol.ticks);
+        const relativeVolume = this.calculateRelativeVolume(symbol.symbol, symbol.ticks);
+        
+        return {
+          ...symbol,
+          changePercent,
+          relativeVolume,
+          score: this.calculateMomentumScore(symbol, changePercent, relativeVolume),
+          scanner: 'high-momentum'
+        };
+      })
       .sort((a, b) => b.score - a.score)
       .slice(0, 50);
   }
@@ -84,18 +125,18 @@ class ScannerEngine {
     const symbols = this.getAllSymbolsWithTicks();
     
     return symbols
-      .filter(quote => {
-        const gapPercent = this.calculateGapPercent(quote);
+      .filter(symbol => {
+        const gapPercent = this.calculateGap(symbol.symbol, symbol.ticks);
         return gapPercent > 5 && // > 5% gap up
-               quote.volume > 200000 && // > 200k volume
-               quote.price > 2; // > $2 price
+               symbol.volume > 200000 && // > 200k volume
+               symbol.price > 2; // > $2 price
       })
-      .map(quote => {
-        const gapPercent = this.calculateGapPercent(quote);
+      .map(symbol => {
+        const gapPercent = this.calculateGap(symbol.symbol, symbol.ticks);
         return {
-          ...quote,
+          ...symbol,
           gapPercent,
-          score: gapPercent * 0.7 + (quote.volume / 1000000) * 0.3,
+          score: gapPercent * 0.7 + (symbol.volume / 1000000) * 0.3,
           scanner: 'gap-up'
         };
       })
@@ -132,18 +173,18 @@ class ScannerEngine {
     const symbols = this.getAllSymbolsWithTicks();
     
     return symbols
-      .filter(quote => {
-        const relativeVolume = this.calculateRelativeVolume(quote);
+      .filter(symbol => {
+        const relativeVolume = this.calculateRelativeVolume(symbol.symbol, symbol.ticks);
         return relativeVolume > 2 && // > 2x average volume
-               quote.volume > 500000 && // > 500k volume
-               quote.price > 1; // > $1 price
+               symbol.volume > 500000 && // > 500k volume
+               symbol.price > 1; // > $1 price
       })
-      .map(quote => {
-        const relativeVolume = this.calculateRelativeVolume(quote);
+      .map(symbol => {
+        const relativeVolume = this.calculateRelativeVolume(symbol.symbol, symbol.ticks);
         return {
-          ...quote,
+          ...symbol,
           relativeVolume,
-          score: relativeVolume * 0.8 + (quote.volume / 1000000) * 0.2,
+          score: relativeVolume * 0.8 + (symbol.volume / 1000000) * 0.2,
           scanner: 'unusual-volume'
         };
       })
@@ -156,18 +197,23 @@ class ScannerEngine {
     const symbols = this.getAllSymbolsWithTicks();
     
     return symbols
-      .filter(quote => {
-        const breakout = this.calculateRangeBreakout(quote);
+      .filter(symbol => {
+        const breakout = this.calculateRangeBreakout(symbol.symbol, symbol.ticks);
         return breakout.breakout20Day && // 20-day high breakout
-               quote.volume > 300000 && // > 300k volume
-               quote.price > 2; // > $2 price
+               symbol.volume > 300000 && // > 300k volume
+               symbol.price > 2; // > $2 price
       })
-      .map(quote => {
-        const breakout = this.calculateRangeBreakout(quote);
+      .map(symbol => {
+        const breakout = this.calculateRangeBreakout(symbol.symbol, symbol.ticks);
+        const changePercent = this.calculateChangePercent(symbol.symbol, symbol.ticks);
+        const relativeVolume = this.calculateRelativeVolume(symbol.symbol, symbol.ticks);
+        
         return {
-          ...quote,
+          ...symbol,
           ...breakout,
-          score: quote.changePercent * 0.6 + breakout.relativeVolume * 0.4,
+          changePercent,
+          relativeVolume,
+          score: changePercent * 0.6 + relativeVolume * 0.4,
           scanner: 'range-breakout'
         };
       })
@@ -287,10 +333,10 @@ class ScannerEngine {
   }
 
   // Calculate momentum score
-  calculateMomentumScore(quote) {
-    const changeScore = Math.abs(quote.changePercent) * 0.4;
-    const volumeScore = Math.min(quote.relativeVolume || 1, 5) * 0.3;
-    const priceScore = Math.min(quote.price / 100, 1) * 0.3;
+  calculateMomentumScore(symbol, changePercent, relativeVolume) {
+    const changeScore = Math.abs(changePercent) * 0.4;
+    const volumeScore = Math.min(relativeVolume || 1, 5) * 0.3;
+    const priceScore = Math.min(symbol.price / 100, 1) * 0.3;
     
     return changeScore + volumeScore + priceScore;
   }

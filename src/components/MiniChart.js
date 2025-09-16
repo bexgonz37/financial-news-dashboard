@@ -52,11 +52,11 @@ class MiniChart {
     this.unsubscribe = appState.subscribe((state) => {
       const ticks = state.ticks.get(this.options.symbol);
       if (ticks && ticks.length > 0) {
-        const latestTick = ticks[ticks.length - 1];
-        if (latestTick.timestamp > this.lastDataTime) {
-          this.addDataPoint(latestTick);
-          this.lastDataTime = latestTick.timestamp;
-        }
+        // Update the entire buffer with latest ticks
+        this.updateFromTicks(ticks);
+      } else {
+        // No ticks available - show loading or resolve state
+        this.renderNoData();
       }
     });
   }
@@ -97,10 +97,57 @@ class MiniChart {
     this.render();
   }
 
+  updateFromTicks(ticks) {
+    // Convert ticks to data points
+    this.ringBuffer = ticks.map(tick => ({
+      timestamp: tick.timestamp,
+      price: tick.price,
+      volume: tick.volume || 0
+    }));
+    
+    // Update last data time
+    if (ticks.length > 0) {
+      this.lastDataTime = ticks[ticks.length - 1].timestamp;
+    }
+    
+    this.render();
+  }
+
+  renderNoData() {
+    if (!this.container) return;
+    
+    this.container.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--meta);font-size:0.7rem;">Resolve</div>';
+  }
+
+  isStale() {
+    if (this.ringBuffer.length === 0) return true;
+    
+    const lastTick = this.ringBuffer[this.ringBuffer.length - 1];
+    const now = Date.now();
+    const timeSinceLastTick = now - lastTick.timestamp;
+    
+    // Stale thresholds: 5 minutes for regular hours, 15 minutes for after hours
+    const staleThreshold = this.isAfterHours() ? 15 * 60 * 1000 : 5 * 60 * 1000;
+    
+    return timeSinceLastTick > staleThreshold;
+  }
+
+  isAfterHours() {
+    const now = new Date();
+    const hour = now.getHours();
+    const day = now.getDay();
+    
+    // After hours: 4 PM - 8 PM ET (21:00 - 01:00 UTC)
+    return day >= 1 && day <= 5 && (hour >= 21 || hour < 1);
+  }
+
   render() {
     if (this.isRendering || !this.svg) return;
     
     this.isRendering = true;
+    
+    // Check if data is stale
+    const isStale = this.isStale();
     
     try {
       // Clear previous content
@@ -139,6 +186,18 @@ class MiniChart {
       
       // Add gradient fill
       this.addGradientFill(prices, minPrice, maxPrice);
+      
+      // Add stale badge if data is stale
+      if (isStale) {
+        const staleText = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+        staleText.setAttribute('x', 5);
+        staleText.setAttribute('y', this.options.height - 5);
+        staleText.setAttribute('text-anchor', 'start');
+        staleText.setAttribute('font-size', '6px');
+        staleText.setAttribute('fill', '#ffc107');
+        staleText.textContent = 'STALE';
+        this.svg.appendChild(staleText);
+      }
       
     } finally {
       this.isRendering = false;

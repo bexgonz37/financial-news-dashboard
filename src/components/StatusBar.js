@@ -47,6 +47,10 @@ class StatusBar {
           <span class="data-age">
             Scanner: ${status.scannerAge}
           </span>
+          <span class="separator">|</span>
+          <span class="data-age">
+            Ticks: ${status.ticksAge}
+          </span>
         </div>
         <div class="status-right">
           <span class="ws-status ${status.wsStatus.toLowerCase()}">
@@ -75,8 +79,11 @@ class StatusBar {
       quotesAge: this.formatDataAge(appState.getDataAge('quotes')),
       newsAge: this.formatDataAge(appState.getDataAge('news')),
       scannerAge: this.formatDataAge(appState.getDataAge('scanners')),
+      ticksAge: this.formatDataAge(appState.getDataAge('ticks')),
       nextUpdate: this.getNextUpdateTime(),
-      isStale: liveStatus.isStale
+      isStale: liveStatus.isStale,
+      lastHeartbeat: liveStatus.lastHeartbeat,
+      timeSinceHeartbeat: liveStatus.timeSinceHeartbeat
     };
   }
 

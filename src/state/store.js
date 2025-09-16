@@ -5,19 +5,27 @@ class AppState {
       quotes: new Map(), // symbol -> quote data
       scanners: new Map(), // scanner type -> results
       news: new Map(), // news id -> news item
-      tickMap: new Map(), // symbol -> ticker info
+      ticks: new Map(), // symbol -> Tick[] (ring buffer)
+      tickerResolutions: new Map(), // news id -> resolution
       lastUpdated: new Map(), // data type -> timestamp
       status: {
         marketOpen: false,
         afterHours: false,
         wsConnected: false,
+        wsStatus: 'OFFLINE', // LIVE/DEGRADED/OFFLINE
+        lastHeartbeat: 0,
         providers: new Map()
       },
       watchlist: new Set(),
       ui: {
         activeTab: 'news',
         selectedSymbol: null,
-        focusMode: false
+        focusMode: false,
+        ages: {
+          news: 0,
+          scanners: 0,
+          quotes: 0
+        }
       }
     };
     
@@ -125,13 +133,74 @@ class AppState {
   }
 
   // Update ticker resolution
-  updateTickerResolution(symbol, resolution) {
+  updateTickerResolution(newsId, resolution) {
     this.batch(() => {
-      this.state.tickMap.set(symbol, {
+      this.state.tickerResolutions.set(newsId, {
         ...resolution,
         lastUpdate: Date.now()
       });
     });
+  }
+
+  // Get ticker resolution
+  getTickerResolution(newsId) {
+    return this.state.tickerResolutions.get(newsId);
+  }
+
+  // Update ticks for symbol
+  updateTicks(symbol, ticks) {
+    this.batch(() => {
+      this.state.ticks.set(symbol, ticks);
+      this.state.lastUpdated.set('ticks', Date.now());
+    });
+  }
+
+  // Get ticks for symbol
+  getTicks(symbol) {
+    return this.state.ticks.get(symbol) || [];
+  }
+
+  // Get all symbols with ticks
+  getAllSymbolsWithTicks() {
+    const symbols = [];
+    for (const [symbol, ticks] of this.state.ticks) {
+      if (ticks.length > 0) {
+        const latestTick = ticks[ticks.length - 1];
+        const quote = this.state.quotes.get(symbol);
+        
+        symbols.push({
+          symbol,
+          price: latestTick.price,
+          volume: latestTick.volume,
+          timestamp: latestTick.timestamp,
+          change: quote?.change || 0,
+          changePercent: quote?.changePercent || 0,
+          ticks: ticks
+        });
+      }
+    }
+    return symbols;
+  }
+
+  // Get live status
+  getLiveStatus() {
+    const { wsStatus, lastHeartbeat } = this.state.status;
+    const now = Date.now();
+    const timeSinceHeartbeat = now - lastHeartbeat;
+    
+    let isStale = false;
+    if (wsStatus === 'LIVE' && timeSinceHeartbeat > 30000) { // 30 seconds
+      isStale = true;
+    } else if (wsStatus === 'DEGRADED' && timeSinceHeartbeat > 60000) { // 1 minute
+      isStale = true;
+    }
+    
+    return {
+      wsStatus,
+      isStale,
+      lastHeartbeat,
+      timeSinceHeartbeat
+    };
   }
 
   // Update status
