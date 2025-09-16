@@ -299,7 +299,7 @@
       <!-- Removed category filters popover -->
       
       <div id="news-feed" class="news-list">
-        <div class="loading">Click "Load News" to get started...</div>
+        <div class="loading">Loading live financial news...</div>
       </div>
     </div>
 
@@ -1075,8 +1075,13 @@
           }
         }
         
-        // Draw mini chart with retry logic
-        await drawSparklineWithRetry(card.querySelector('.mini-chart'), t);
+        // Draw mini chart from tick buffer
+        const miniChart = card.querySelector('.mini-chart');
+        if (miniChart) {
+          // Use the new MiniChart component
+          const { MiniChart } = await import('./src/components/MiniChart.js');
+          new MiniChart(miniChart, { symbol: t });
+        }
       });
       }, 100); // 100ms delay to ensure proper rendering
     }
@@ -1092,12 +1097,30 @@
       
       try {
         console.log('Building scanners with preset:', preset);
-        console.log('Scanners now run client-side - no server calls needed');
+        console.log('Scanners now run client-side using tick buffer data');
         
-        // Scanners now run client-side using WebSocket tick data
-        const scannerUrl = null; // No longer needed
-        // Scanners now run client-side - no server calls needed
-        const data = { success: true, data: { stocks: [] } };
+        // Use client-side scanner engine
+        const { scannerEngine } = await import('./src/lib/scanners/run.js');
+        const results = await scannerEngine.runAllScanners();
+        
+        console.log('Scanner results:', results);
+        
+        // Get stocks from the appropriate scanner based on preset
+        let stocks = [];
+        if (preset === 'momentum' && results.movers) {
+          stocks = results.movers.slice(0, limit);
+        } else if (preset === 'volume' && results['unusual-volume']) {
+          stocks = results['unusual-volume'].slice(0, limit);
+        } else if (preset === 'breakout' && results['range-break']) {
+          stocks = results['range-break'].slice(0, limit);
+        } else if (preset === 'news' && results['news-momentum']) {
+          stocks = results['news-momentum'].slice(0, limit);
+        } else {
+          // Default to movers if preset not found
+          stocks = results.movers ? results.movers.slice(0, limit) : [];
+        }
+        
+        const data = { success: true, data: { stocks } };
         console.log('Scanner API response:', data);
         console.log('Data success:', data.success);
         console.log('Data stocks length:', data.data?.stocks?.length);
@@ -1924,7 +1947,7 @@
               resolution = {
                 ticker: item.symbols[0].toUpperCase(),
                 confidence: 0.95,
-                reason: 'provider_symbol'
+                reason: 'provider'
               };
             } else {
               resolution = await tickerResolver.resolveTicker(item);
@@ -1941,10 +1964,18 @@
           
           // Update app state
           appState.updateNews(processedNews);
+          
+          // Update filtered news array
+          newsData = processedNews;
+          filteredNews = processedNews;
+          
+          // Render news immediately
+          renderNews();
         }
         
-        // Scanners now run client-side - no initial load needed
-        console.log('Scanners will run client-side using WebSocket tick data');
+        // Start scanners immediately
+        console.log('Starting client-side scanners...');
+        buildScanners();
         
       } catch (error) {
         console.error('Failed to load initial data:', error);

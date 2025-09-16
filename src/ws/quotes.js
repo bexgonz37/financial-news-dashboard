@@ -21,6 +21,9 @@ class WebSocketQuotes {
 
   getClientKey() {
     // Try different ways to get the key based on build system
+    if (typeof window !== 'undefined' && window.ENV) {
+      return window.ENV.FINNHUB_KEY;
+    }
     if (typeof process !== 'undefined' && process.env) {
       return process.env.FINNHUB_KEY || process.env.NEXT_PUBLIC_FINNHUB_KEY || process.env.VITE_FINNHUB_KEY;
     }
