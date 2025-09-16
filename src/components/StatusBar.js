@@ -23,10 +23,10 @@ class StatusBar {
     });
   }
 
-  render() {
+  async render() {
     if (!this.container) return;
     
-    const status = this.getStatus();
+    const status = await this.getStatus();
     const marketInfo = marketHours.getSessionInfo();
     
     this.container.innerHTML = `
@@ -54,12 +54,16 @@ class StatusBar {
         </div>
         <div class="status-right">
           <span class="env-status">
-            API: ${status.envStatus.finnhub ? '✅' : '❌'}FH ${status.envStatus.fmp ? '✅' : '❌'}FMP ${status.envStatus.alphavantage ? '✅' : '❌'}AV
+            Keys: ${status.envStatus.wsKeyLoaded ? '✅' : '❌'}WS ${status.envStatus.fmpKeyLoaded ? '✅' : '❌'}FMP ${status.envStatus.avKeyLoaded ? '✅' : '❌'}AV
           </span>
           <span class="separator">|</span>
           <span class="ws-status ${status.wsStatus.toLowerCase()}">
             ${this.getWsStatusIcon(status.wsStatus)} ${status.wsStatus}
             ${status.isStale ? ' (Stale)' : ''}
+          </span>
+          <span class="separator">|</span>
+          <span class="news-status">
+            News: ${status.lastNewsResponse}
           </span>
           <span class="separator">|</span>
           <span class="next-update">
@@ -70,17 +74,37 @@ class StatusBar {
     `;
   }
 
-  getStatus() {
+  async getStatus() {
     const state = appState.state;
     const marketStatus = marketHours.getMarketStatus();
     const liveStatus = appState.getLiveStatus();
     
-    // Check environment variable availability
-    const envStatus = {
-      finnhub: !!(process.env.NEXT_PUBLIC_FINNHUB_KEY || process.env.VITE_FINNHUB_KEY),
-      fmp: !!(process.env.NEXT_PUBLIC_FMP_KEY || process.env.VITE_FMP_KEY),
-      alphavantage: !!(process.env.NEXT_PUBLIC_ALPHAVANTAGE_KEY || process.env.VITE_ALPHAVANTAGE_KEY)
-    };
+    // Check environment variable availability via API
+    let envStatus = { wsKeyLoaded: false, fmpKeyLoaded: false, avKeyLoaded: false };
+    let lastNewsResponse = 'unknown';
+    
+    try {
+      const envResponse = await fetch('/api/env');
+      const envData = await envResponse.json();
+      
+      if (envData.success) {
+        envStatus = {
+          wsKeyLoaded: !!envData.data.FINNHUB_KEY,
+          fmpKeyLoaded: !!envData.data.FMP_KEY,
+          avKeyLoaded: !!envData.data.ALPHAVANTAGE_KEY
+        };
+      }
+    } catch (error) {
+      console.warn('Failed to check environment variables:', error);
+    }
+    
+    // Check last news response
+    try {
+      const newsResponse = await fetch('/api/news?limit=1');
+      lastNewsResponse = newsResponse.status.toString();
+    } catch (error) {
+      lastNewsResponse = 'error';
+    }
     
     return {
       marketStatus,
@@ -95,7 +119,8 @@ class StatusBar {
       isStale: liveStatus.isStale,
       lastHeartbeat: liveStatus.lastHeartbeat,
       timeSinceHeartbeat: liveStatus.timeSinceHeartbeat,
-      envStatus
+      envStatus,
+      lastNewsResponse
     };
   }
 

@@ -23,12 +23,21 @@ class WebSocketQuotes {
 
   async connect() {
     try {
-      // Use public environment variable for client-side WebSocket
+      // Get environment variables from API endpoint
       if (!this.FINNHUB_WS_URL) {
-        const apiKey = process.env.NEXT_PUBLIC_FINNHUB_KEY || process.env.VITE_FINNHUB_KEY;
+        const response = await fetch('/api/env');
+        const data = await response.json();
+        
+        if (!data.success) {
+          throw new Error('Failed to get environment variables');
+        }
+        
+        const apiKey = data.data.FINNHUB_KEY;
         
         if (!apiKey) {
-          throw new Error('FINNHUB_KEY not configured for client-side use');
+          this.updateStatus('OFFLINE');
+          this.showKeyMissingBanner('FINNHUB_KEY');
+          throw new Error('FINNHUB_KEY not configured');
         }
         
         this.FINNHUB_WS_URL = `wss://ws.finnhub.io?token=${apiKey}`;
@@ -215,6 +224,34 @@ class WebSocketQuotes {
       wsStatus: status,
       lastHeartbeat: this.lastHeartbeat
     });
+  }
+
+  showKeyMissingBanner(keyName) {
+    // Remove existing banner if any
+    const existingBanner = document.getElementById('key-missing-banner');
+    if (existingBanner) {
+      existingBanner.remove();
+    }
+
+    // Create banner
+    const banner = document.createElement('div');
+    banner.id = 'key-missing-banner';
+    banner.style.cssText = `
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      background: #dc2626;
+      color: white;
+      padding: 12px;
+      text-align: center;
+      font-weight: bold;
+      z-index: 10000;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    `;
+    banner.textContent = `${keyName} MISSING/INVALID - WebSocket connection failed`;
+    
+    document.body.insertBefore(banner, document.body.firstChild);
   }
 
   setOnTickCallback(callback) {

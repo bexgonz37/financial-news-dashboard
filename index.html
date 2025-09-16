@@ -856,15 +856,23 @@
         const r = await fetch(url, { cache: 'no-store' });
         if (!r.ok) {
           const txt = await r.text();
-          showApiError('enhanced-news', `${r.status}: ${txt.slice(0,200)}`);
-          throw new Error(`enhanced-news failed ${r.status}`);
+          showApiError('news', `${r.status}: ${txt.slice(0,200)}`);
+          throw new Error(`news failed ${r.status}`);
         }
         const data = await r.json();
         console.log('News API response:', data);
         
         if (!data?.success) {
           console.error('News API returned success=false:', data);
-          showApiError('enhanced-news', 'success=false');
+          showApiError('news', 'success=false');
+          return;
+        }
+        
+        const newsCount = data.data?.news?.length || 0;
+        console.log(`News loaded: ${newsCount} items (status: ${r.status})`);
+        
+        if (newsCount === 0) {
+          feed.innerHTML = `<div class="card">No news from provider (status ${r.status})</div>`;
           return;
         }
         
@@ -1863,14 +1871,27 @@
         
         console.log('Dashboard initialized successfully');
         
-        // Test environment variables
+        // Test environment variables via API
         console.log('=== Environment Variable Test ===');
-        const envTest = {
-          finnhub: !!(process.env.NEXT_PUBLIC_FINNHUB_KEY || process.env.VITE_FINNHUB_KEY),
-          fmp: !!(process.env.NEXT_PUBLIC_FMP_KEY || process.env.VITE_FMP_KEY),
-          alphavantage: !!(process.env.NEXT_PUBLIC_ALPHAVANTAGE_KEY || process.env.VITE_ALPHAVANTAGE_KEY)
-        };
-        console.log('API Keys Available:', envTest);
+        try {
+          const envResponse = await fetch('/api/env');
+          const envData = await envResponse.json();
+          
+          if (envData.success) {
+            const envTest = {
+              finnhub: !!envData.data.FINNHUB_KEY,
+              fmp: !!envData.data.FMP_KEY,
+              alphavantage: !!envData.data.ALPHAVANTAGE_KEY
+            };
+            console.log('API Keys Available:', envTest);
+            console.log('Framework: Vanilla JS on Vercel');
+            console.log('Config: Environment variables served via /api/env');
+          } else {
+            console.error('Failed to get environment variables:', envData.error);
+          }
+        } catch (error) {
+          console.error('Environment variable test failed:', error);
+        }
         console.log('===============================');
         
       } catch (error) {
