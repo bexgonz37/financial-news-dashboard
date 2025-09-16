@@ -237,11 +237,23 @@ function deduplicateNews(newsItems) {
 async function fetchNewsFromProviders() {
   console.log('Starting news aggregation from all providers...');
   
-  const results = await Promise.allSettled([
-    fetchFMP(50),
-    fetchAlpha(50),
-    fetchFinnhub(50)
-  ]);
+  // Force all providers to be called with individual error handling
+  const fmpPromise = fetchFMP(50).catch(err => {
+    console.log(`FMP: ERROR - ${err.message}`);
+    return { error: err.message, items: [] };
+  });
+  
+  const alphaPromise = fetchAlpha(50).catch(err => {
+    console.log(`Alpha Vantage: ERROR - ${err.message}`);
+    return { error: err.message, items: [] };
+  });
+  
+  const finnhubPromise = fetchFinnhub(50).catch(err => {
+    console.log(`Finnhub: ERROR - ${err.message}`);
+    return { error: err.message, items: [] };
+  });
+  
+  const results = await Promise.allSettled([fmpPromise, alphaPromise, finnhubPromise]);
   
   const items = [];
   const errors = [];
@@ -251,11 +263,17 @@ async function fetchNewsFromProviders() {
     const provider = ['fmp', 'alphavantage', 'finnhub'][index];
     
     if (result.status === 'fulfilled') {
-      console.log(`${provider}: SUCCESS - ${result.value.length} items`);
-      items.push(...result.value);
-      counts[provider] = result.value.length;
+      const data = result.value;
+      if (data.error) {
+        console.log(`${provider}: ERROR - ${data.error}`);
+        errors.push(`${provider}: ${data.error}`);
+      } else {
+        console.log(`${provider}: SUCCESS - ${data.length} items`);
+        items.push(...data);
+        counts[provider] = data.length;
+      }
     } else {
-      console.log(`${provider}: ERROR - ${result.reason.message}`);
+      console.log(`${provider}: PROMISE REJECTED - ${result.reason.message}`);
       errors.push(`${provider}: ${result.reason.message}`);
     }
   });
@@ -263,6 +281,11 @@ async function fetchNewsFromProviders() {
   console.log(`Total items collected: ${items.length}`);
   console.log(`Provider counts:`, counts);
   console.log(`Errors:`, errors);
+  
+  // Ensure we never return empty if any provider succeeded
+  if (items.length === 0 && errors.length > 0) {
+    console.log('All providers failed, but continuing with empty results');
+  }
   
   return { items, counts, errors };
 }

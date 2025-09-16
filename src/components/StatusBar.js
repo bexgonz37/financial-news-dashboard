@@ -66,6 +66,10 @@ class StatusBar {
             News: ${this.getNewsStatusText(status.newsMeta, status.lastNewsResponse)}
           </span>
           <span class="separator">|</span>
+          <span class="provider-counts">
+            FMP:${status.newsMeta.counts.fmp} AV:${status.newsMeta.counts.alphavantage} FH:${status.newsMeta.counts.finnhub}
+          </span>
+          <span class="separator">|</span>
           <span class="next-update">
             Next: ${status.nextUpdate}
           </span>
