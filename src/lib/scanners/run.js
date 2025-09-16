@@ -1,7 +1,7 @@
 // Enhanced scanner engine consuming live tick buffers
 import { appState } from '../../state/store.js';
 import { marketHours } from '../time/marketHours.js';
-import { marketWideScanner } from './market-wide.js';
+import { conservativeScanner } from './conservative-scanner.js';
 
 class ScannerEngine {
   constructor() {
@@ -155,8 +155,8 @@ class ScannerEngine {
   // High momentum scanner
   async scanHighMomentum() {
     try {
-      // Use market-wide scanner for comprehensive results
-      const results = await marketWideScanner.getHighMomentumStocks(100);
+      // Use conservative scanner for stable results
+      const results = await conservativeScanner.getHighMomentumStocks(50);
       
       return results.map(stock => ({
         ...stock,
@@ -173,8 +173,8 @@ class ScannerEngine {
   // Gap up scanner
   async scanGapUp() {
     try {
-      // Use market-wide scanner for comprehensive results
-      const results = await marketWideScanner.getGapUpStocks(100);
+      // Use conservative scanner for stable results
+      const results = await conservativeScanner.getGapUpStocks(50);
       
       return results.map(stock => ({
         ...stock,
@@ -215,8 +215,8 @@ class ScannerEngine {
   // Unusual volume scanner
   async scanUnusualVolume() {
     try {
-      // Use market-wide scanner for comprehensive results
-      const results = await marketWideScanner.getUnusualVolumeStocks(100);
+      // Use conservative scanner for stable results
+      const results = await conservativeScanner.getUnusualVolumeStocks(50);
       
       return results.map(stock => ({
         ...stock,
