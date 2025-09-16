@@ -4,7 +4,8 @@ import fetch from 'node-fetch';
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
-import { unifiedProviderManager } from '../lib/unified-provider-manager.js';
+import { providerQueue } from '../lib/provider-queue.js';
+import { sharedCache } from '../lib/shared-cache.js';
 import { comprehensiveSymbolMaster } from '../lib/comprehensive-symbol-master.js';
 
 // Scanner presets - BROAD FILTERS for maximum coverage
@@ -65,6 +66,169 @@ const SCANNER_PRESETS = {
   }
 };
 
+// Fetch quotes from providers with failover
+async function fetchQuotesFromProviders(symbols) {
+  const quotes = [];
+  const errors = [];
+  
+  // Try FMP first
+  try {
+    if (providerQueue.canMakeRequest('fmp')) {
+      const fmpQuotes = await fetchFMPQuotes(symbols);
+      quotes.push(...fmpQuotes);
+      providerQueue.handleResponse('fmp', true);
+      console.log(`FMP: ${fmpQuotes.length} quotes`);
+    }
+  } catch (error) {
+    providerQueue.handleResponse('fmp', false, error);
+    errors.push(`FMP: ${error.message}`);
+  }
+  
+  // Try Finnhub if we need more quotes
+  if (quotes.length < symbols.length * 0.5) {
+    try {
+      if (providerQueue.canMakeRequest('finnhub')) {
+        const finnhubQuotes = await fetchFinnhubQuotes(symbols);
+        quotes.push(...finnhubQuotes);
+        providerQueue.handleResponse('finnhub', true);
+        console.log(`Finnhub: ${finnhubQuotes.length} quotes`);
+      }
+    } catch (error) {
+      providerQueue.handleResponse('finnhub', false, error);
+      errors.push(`Finnhub: ${error.message}`);
+    }
+  }
+  
+  // Try AlphaVantage as last resort
+  if (quotes.length < symbols.length * 0.3) {
+    try {
+      if (providerQueue.canMakeRequest('alphavantage')) {
+        const avQuotes = await fetchAlphaVantageQuotes(symbols.slice(0, 5)); // Very limited
+        quotes.push(...avQuotes);
+        providerQueue.handleResponse('alphavantage', true);
+        console.log(`AlphaVantage: ${avQuotes.length} quotes`);
+      }
+    } catch (error) {
+      providerQueue.handleResponse('alphavantage', false, error);
+      errors.push(`AlphaVantage: ${error.message}`);
+    }
+  }
+  
+  if (quotes.length === 0 && errors.length > 0) {
+    throw new Error(`All providers failed: ${errors.join(', ')}`);
+  }
+  
+  return quotes;
+}
+
+// Fetch quotes from FMP
+async function fetchFMPQuotes(symbols) {
+  const apiKey = process.env.FMP_KEY;
+  if (!apiKey) throw new Error('FMP_KEY not configured');
+  
+  const symbolList = symbols.join(',');
+  const response = await fetch(`https://financialmodelingprep.com/api/v3/quote/${symbolList}?apikey=${apiKey}`, {
+    cache: 'no-store',
+    timeout: 10000
+  });
+  
+  if (!response.ok) {
+    throw new Error(`FMP API error: ${response.status}`);
+  }
+  
+  const data = await response.json();
+  if (!Array.isArray(data)) return [];
+  
+  return data.map(item => ({
+    symbol: item.symbol,
+    name: item.name,
+    price: item.price,
+    change: item.change,
+    changePercent: item.changesPercentage,
+    volume: item.volume,
+    averageDailyVolume3Month: item.avgVolume
+  }));
+}
+
+// Fetch quotes from Finnhub
+async function fetchFinnhubQuotes(symbols) {
+  const apiKey = process.env.FINNHUB_KEY;
+  if (!apiKey) throw new Error('FINNHUB_KEY not configured');
+  
+  const quotes = [];
+  
+  for (const symbol of symbols.slice(0, 100)) { // Limit for rate limits
+    try {
+      const response = await fetch(`https://finnhub.io/api/v1/quote?symbol=${symbol}&token=${apiKey}`, {
+        cache: 'no-store',
+        timeout: 5000
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        if (data.c && data.c > 0) {
+          quotes.push({
+            symbol: symbol,
+            name: symbol,
+            price: data.c,
+            change: data.d || 0,
+            changePercent: data.dp || 0,
+            volume: data.v || 0,
+            averageDailyVolume3Month: data.v || 0
+          });
+        }
+      }
+      
+      // Rate limiting protection
+      await new Promise(resolve => setTimeout(resolve, 100));
+    } catch (error) {
+      console.warn(`Finnhub quote failed for ${symbol}:`, error.message);
+    }
+  }
+  
+  return quotes;
+}
+
+// Fetch quotes from AlphaVantage
+async function fetchAlphaVantageQuotes(symbols) {
+  const apiKey = process.env.ALPHAVANTAGE_KEY;
+  if (!apiKey) throw new Error('ALPHAVANTAGE_KEY not configured');
+  
+  const quotes = [];
+  
+  for (const symbol of symbols) {
+    try {
+      const response = await fetch(`https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=${symbol}&apikey=${apiKey}`, {
+        cache: 'no-store',
+        timeout: 15000
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        const quote = data['Global Quote'];
+        if (quote && quote['05. price']) {
+          quotes.push({
+            symbol: symbol,
+            name: symbol,
+            price: parseFloat(quote['05. price']),
+            change: parseFloat(quote['09. change']),
+            changePercent: parseFloat(quote['10. change percent'].replace('%', '')),
+            volume: parseInt(quote['06. volume']),
+            averageDailyVolume3Month: parseInt(quote['06. volume'])
+          });
+        }
+      }
+      
+      // AlphaVantage rate limiting
+      await new Promise(resolve => setTimeout(resolve, 12000));
+    } catch (error) {
+      console.warn(`AlphaVantage quote failed for ${symbol}:`, error.message);
+    }
+  }
+  
+  return quotes;
+}
+
 // Main scanner function
 async function scanStocks(preset = 'high-momentum', limit = 100, customFilters = {}) {
   try {
@@ -90,8 +254,19 @@ async function scanStocks(preset = 'high-momentum', limit = 100, customFilters =
       const batch = symbols.slice(i, i + batchSize);
       
       try {
-        const quotes = await unifiedProviderManager.getQuotes(batch);
-        allQuotes.push(...quotes);
+        // Check cache first
+        const cachedQuotes = sharedCache.getQuotesBatch(batch);
+        if (cachedQuotes.length > 0) {
+          allQuotes.push(...cachedQuotes);
+          console.log(`Using ${cachedQuotes.length} cached quotes for batch ${i}-${i + batchSize}`);
+        } else {
+          // Fetch from providers
+          const quotes = await fetchQuotesFromProviders(batch);
+          allQuotes.push(...quotes);
+          
+          // Cache the quotes
+          sharedCache.setQuotesBatch(quotes);
+        }
         
         // Rate limiting protection
         await new Promise(resolve => setTimeout(resolve, 200));

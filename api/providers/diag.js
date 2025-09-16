@@ -2,7 +2,7 @@
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
-import { unifiedProviderManager } from '../../lib/unified-provider-manager.js';
+import { providerQueue } from '../../lib/provider-queue.js';
 
 export default async function handler(req, res) {
   if (req.method !== 'GET') {
@@ -21,45 +21,55 @@ export default async function handler(req, res) {
       }
     };
 
-    // Get provider health status
-    const healthStatus = unifiedProviderManager.getHealthStatus();
+    // Get provider status from provider queue
+    const providerStatus = providerQueue.getProviderStatus();
     
     // Check each provider
     const providerNames = ['fmp', 'finnhub', 'alphavantage', 'marketaux'];
     
     for (const providerName of providerNames) {
-      const health = healthStatus.providers[providerName] || {
-        status: 'unknown',
-        lastCheck: null,
-        lastSuccess: null,
+      const status = providerStatus[providerName] || {
+        enabled: false,
+        keyPresent: false,
+        rateLimitBackoffUntil: null,
+        lastAttemptAt: null,
+        lastSuccessAt: null,
         lastError: null,
         consecutiveFailures: 0,
-        backoffUntil: null
+        tokens: 0,
+        requestCount: 0
       };
 
-      const keyPresent = !!process.env[`${providerName.toUpperCase()}_KEY`];
-      const isEnabled = keyPresent && health.status !== 'offline';
+      // Determine provider health status
+      let healthStatus = 'offline';
+      if (status.enabled && status.keyPresent) {
+        if (status.rateLimitBackoffUntil && new Date(status.rateLimitBackoffUntil) > new Date()) {
+          healthStatus = 'degraded';
+        } else if (status.lastSuccessAt) {
+          healthStatus = 'healthy';
+        } else {
+          healthStatus = 'degraded';
+        }
+      }
       
       diagnostics.providers[providerName] = {
-        enabled: isEnabled,
-        keyPresent,
-        lastAttemptAt: health.lastCheck ? new Date(health.lastCheck).toISOString() : null,
-        lastSuccessAt: health.lastSuccess ? new Date(health.lastSuccess).toISOString() : null,
-        lastError: health.lastError ? {
-          message: health.lastError.message,
-          statusCode: health.lastError.statusCode,
-          timestamp: new Date(health.lastError.timestamp).toISOString()
-        } : null,
-        rateLimitBackoffUntil: health.backoffUntil ? new Date(health.backoffUntil).toISOString() : null,
-        consecutiveFailures: health.consecutiveFailures,
-        status: health.status
+        enabled: status.enabled,
+        keyPresent: status.keyPresent,
+        lastAttemptAt: status.lastAttemptAt,
+        lastSuccessAt: status.lastSuccessAt,
+        lastError: status.lastError,
+        rateLimitBackoffUntil: status.rateLimitBackoffUntil,
+        consecutiveFailures: status.consecutiveFailures,
+        tokens: status.tokens,
+        requestCount: status.requestCount,
+        status: healthStatus
       };
 
       // Update overall counts
       diagnostics.overall.total++;
-      if (health.status === 'healthy') {
+      if (healthStatus === 'healthy') {
         diagnostics.overall.healthy++;
-      } else if (health.status === 'degraded') {
+      } else if (healthStatus === 'degraded') {
         diagnostics.overall.degraded++;
       } else {
         diagnostics.overall.offline++;
