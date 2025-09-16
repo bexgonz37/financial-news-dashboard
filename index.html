@@ -1834,30 +1834,23 @@
       try {
         console.log('Initializing pro day-trader dashboard...');
         
-        // Initialize status bar
-        const statusBar = new StatusBar('status-bar');
-        
-        // Initialize WebSocket quotes
+        // Import modules
+        const { appState } = await import('./src/state/store.js');
+        const { StatusBar } = await import('./src/components/StatusBar.js');
+        const { NewsFeed } = await import('./src/components/NewsFeed.js');
         const { wsQuotes } = await import('./src/ws/quotes.js');
-        
-        // Initialize ticker resolver
         const { tickerResolver } = await import('./src/lib/tickers/resolve.js');
-        
-        // Initialize news aggregator
-        const { newsAggregator } = await import('./src/lib/news/aggregate.js');
-        
-        // Initialize scanner engine
         const { scannerEngine } = await import('./src/lib/scanners/run.js');
         const { scannerScheduler } = await import('./src/lib/scanners/schedule.js');
         
-        // Initialize logger
-        const { logger } = await import('./src/lib/log.js');
+        // Initialize status bar
+        const statusBar = new StatusBar('status-bar');
+        
+        // Initialize news feed
+        const newsFeed = new NewsFeed('news-feed');
         
         // Load initial data
         await loadInitialData();
-        
-        // Initialize mini-charts
-        initializeMiniCharts();
         
         console.log('Dashboard initialized successfully');
         

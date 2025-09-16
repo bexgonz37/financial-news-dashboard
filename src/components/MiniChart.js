@@ -50,10 +50,13 @@ class MiniChart {
     if (!this.options.symbol) return;
     
     this.unsubscribe = appState.subscribe((state) => {
-      const quote = state.quotes.get(this.options.symbol);
-      if (quote && quote.timestamp > this.lastDataTime) {
-        this.addDataPoint(quote);
-        this.lastDataTime = quote.timestamp;
+      const ticks = state.ticks.get(this.options.symbol);
+      if (ticks && ticks.length > 0) {
+        const latestTick = ticks[ticks.length - 1];
+        if (latestTick.timestamp > this.lastDataTime) {
+          this.addDataPoint(latestTick);
+          this.lastDataTime = latestTick.timestamp;
+        }
       }
     });
   }
@@ -77,11 +80,11 @@ class MiniChart {
     }
   }
 
-  addDataPoint(quote) {
+  addDataPoint(tick) {
     const dataPoint = {
-      timestamp: quote.timestamp || Date.now(),
-      price: quote.price,
-      volume: quote.volume || 0
+      timestamp: tick.timestamp || Date.now(),
+      price: tick.price,
+      volume: tick.volume || 0
     };
     
     this.ringBuffer.push(dataPoint);

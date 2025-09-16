@@ -49,8 +49,9 @@ class StatusBar {
           </span>
         </div>
         <div class="status-right">
-          <span class="ws-status ${status.wsConnected ? 'connected' : 'disconnected'}">
-            ${status.wsConnected ? '🟢 Live' : '🔴 Polling'}
+          <span class="ws-status ${status.wsStatus.toLowerCase()}">
+            ${this.getWsStatusIcon(status.wsStatus)} ${status.wsStatus}
+            ${status.isStale ? ' (Stale)' : ''}
           </span>
           <span class="separator">|</span>
           <span class="next-update">
@@ -64,15 +65,18 @@ class StatusBar {
   getStatus() {
     const state = appState.state;
     const marketStatus = marketHours.getMarketStatus();
+    const liveStatus = appState.getLiveStatus();
     
     return {
       marketStatus,
       marketStatusText: this.getMarketStatusText(marketStatus),
+      wsStatus: liveStatus.wsStatus,
       wsConnected: state.status.wsConnected,
       quotesAge: this.formatDataAge(appState.getDataAge('quotes')),
       newsAge: this.formatDataAge(appState.getDataAge('news')),
       scannerAge: this.formatDataAge(appState.getDataAge('scanners')),
-      nextUpdate: this.getNextUpdateTime()
+      nextUpdate: this.getNextUpdateTime(),
+      isStale: liveStatus.isStale
     };
   }
 
@@ -99,6 +103,19 @@ class StatusBar {
         return '🟠';
       default:
         return '🔴';
+    }
+  }
+
+  getWsStatusIcon(status) {
+    switch (status) {
+      case 'LIVE':
+        return '🟢';
+      case 'DEGRADED':
+        return '🟡';
+      case 'OFFLINE':
+        return '🔴';
+      default:
+        return '⚪';
     }
   }
 

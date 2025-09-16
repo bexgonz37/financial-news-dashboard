@@ -1,4 +1,4 @@
-// Pure scanner functions over snapshot data
+// Enhanced scanner engine consuming live tick buffers
 import { appState } from '../../state/store.js';
 import { marketHours } from '../time/marketHours.js';
 
@@ -19,14 +19,11 @@ class ScannerEngine {
 
   // Run all scanners
   async runAllScanners() {
-    const quotes = Array.from(appState.state.quotes.values());
-    const news = Array.from(appState.state.news.values());
-    
     const results = {};
     
     for (const [name, scanner] of Object.entries(this.scanners)) {
       try {
-        results[name] = await scanner(quotes, news);
+        results[name] = await scanner();
       } catch (error) {
         console.error(`Scanner ${name} failed:`, error);
         results[name] = [];
@@ -36,9 +33,38 @@ class ScannerEngine {
     return results;
   }
 
+  // Get all symbols with tick data
+  getAllSymbolsWithTicks() {
+    const symbols = [];
+    const state = appState.state;
+    
+    for (const [symbol, ticks] of state.ticks) {
+      if (ticks.length > 0) {
+        const latestTick = ticks[ticks.length - 1];
+        const quote = state.quotes.get(symbol);
+        
+        if (quote) {
+          symbols.push({
+            symbol,
+            price: latestTick.price,
+            change: quote.change || 0,
+            changePercent: quote.changePercent || 0,
+            volume: latestTick.volume,
+            timestamp: latestTick.timestamp,
+            ticks: ticks.slice(-100) // Last 100 ticks for analysis
+          });
+        }
+      }
+    }
+    
+    return symbols;
+  }
+
   // High momentum scanner
-  scanHighMomentum(quotes, news) {
-    return quotes
+  scanHighMomentum() {
+    const symbols = this.getAllSymbolsWithTicks();
+    
+    return symbols
       .filter(quote => 
         quote.changePercent > 2 && // > 2% change
         quote.volume > 100000 && // > 100k volume
@@ -54,78 +80,108 @@ class ScannerEngine {
   }
 
   // Gap up scanner
-  scanGapUp(quotes, news) {
-    return quotes
-      .filter(quote => 
-        quote.gapPercent > 5 && // > 5% gap up
-        quote.volume > 200000 && // > 200k volume
-        quote.price > 2 // > $2 price
-      )
-      .map(quote => ({
-        ...quote,
-        score: quote.gapPercent * 0.7 + (quote.volume / 1000000) * 0.3,
-        scanner: 'gap-up'
-      }))
+  scanGapUp() {
+    const symbols = this.getAllSymbolsWithTicks();
+    
+    return symbols
+      .filter(quote => {
+        const gapPercent = this.calculateGapPercent(quote);
+        return gapPercent > 5 && // > 5% gap up
+               quote.volume > 200000 && // > 200k volume
+               quote.price > 2; // > $2 price
+      })
+      .map(quote => {
+        const gapPercent = this.calculateGapPercent(quote);
+        return {
+          ...quote,
+          gapPercent,
+          score: gapPercent * 0.7 + (quote.volume / 1000000) * 0.3,
+          scanner: 'gap-up'
+        };
+      })
       .sort((a, b) => b.score - a.score)
       .slice(0, 30);
   }
 
   // Gap down scanner
-  scanGapDown(quotes, news) {
-    return quotes
-      .filter(quote => 
-        quote.gapPercent < -5 && // > 5% gap down
-        quote.volume > 200000 && // > 200k volume
-        quote.price > 2 // > $2 price
-      )
-      .map(quote => ({
-        ...quote,
-        score: Math.abs(quote.gapPercent) * 0.7 + (quote.volume / 1000000) * 0.3,
-        scanner: 'gap-down'
-      }))
+  scanGapDown() {
+    const symbols = this.getAllSymbolsWithTicks();
+    
+    return symbols
+      .filter(quote => {
+        const gapPercent = this.calculateGapPercent(quote);
+        return gapPercent < -5 && // > 5% gap down
+               quote.volume > 200000 && // > 200k volume
+               quote.price > 2; // > $2 price
+      })
+      .map(quote => {
+        const gapPercent = this.calculateGapPercent(quote);
+        return {
+          ...quote,
+          gapPercent,
+          score: Math.abs(gapPercent) * 0.7 + (quote.volume / 1000000) * 0.3,
+          scanner: 'gap-down'
+        };
+      })
       .sort((a, b) => b.score - a.score)
       .slice(0, 30);
   }
 
   // Unusual volume scanner
-  scanUnusualVolume(quotes, news) {
-    return quotes
-      .filter(quote => 
-        quote.relativeVolume > 2 && // > 2x average volume
-        quote.volume > 500000 && // > 500k volume
-        quote.price > 1 // > $1 price
-      )
-      .map(quote => ({
-        ...quote,
-        score: quote.relativeVolume * 0.8 + (quote.volume / 1000000) * 0.2,
-        scanner: 'unusual-volume'
-      }))
+  scanUnusualVolume() {
+    const symbols = this.getAllSymbolsWithTicks();
+    
+    return symbols
+      .filter(quote => {
+        const relativeVolume = this.calculateRelativeVolume(quote);
+        return relativeVolume > 2 && // > 2x average volume
+               quote.volume > 500000 && // > 500k volume
+               quote.price > 1; // > $1 price
+      })
+      .map(quote => {
+        const relativeVolume = this.calculateRelativeVolume(quote);
+        return {
+          ...quote,
+          relativeVolume,
+          score: relativeVolume * 0.8 + (quote.volume / 1000000) * 0.2,
+          scanner: 'unusual-volume'
+        };
+      })
       .sort((a, b) => b.score - a.score)
       .slice(0, 40);
   }
 
   // Range breakout scanner
-  scanRangeBreakout(quotes, news) {
-    return quotes
-      .filter(quote => 
-        quote.breakout20Day && // 20-day high breakout
-        quote.volume > 300000 && // > 300k volume
-        quote.price > 2 // > $2 price
-      )
-      .map(quote => ({
-        ...quote,
-        score: quote.changePercent * 0.6 + quote.relativeVolume * 0.4,
-        scanner: 'range-breakout'
-      }))
+  scanRangeBreakout() {
+    const symbols = this.getAllSymbolsWithTicks();
+    
+    return symbols
+      .filter(quote => {
+        const breakout = this.calculateRangeBreakout(quote);
+        return breakout.breakout20Day && // 20-day high breakout
+               quote.volume > 300000 && // > 300k volume
+               quote.price > 2; // > $2 price
+      })
+      .map(quote => {
+        const breakout = this.calculateRangeBreakout(quote);
+        return {
+          ...quote,
+          ...breakout,
+          score: quote.changePercent * 0.6 + breakout.relativeVolume * 0.4,
+          scanner: 'range-breakout'
+        };
+      })
       .sort((a, b) => b.score - a.score)
       .slice(0, 35);
   }
 
   // News momentum scanner
-  scanNewsMomentum(quotes, news) {
+  scanNewsMomentum() {
+    const symbols = this.getAllSymbolsWithTicks();
+    const news = Array.from(appState.state.news.values());
     const newsBySymbol = this.groupNewsBySymbol(news);
     
-    return quotes
+    return symbols
       .filter(quote => {
         const symbolNews = newsBySymbol.get(quote.symbol) || [];
         const recentNews = symbolNews.filter(n => 
@@ -151,59 +207,81 @@ class ScannerEngine {
   }
 
   // Premarket movers scanner
-  scanPremarketMovers(quotes, news) {
+  scanPremarketMovers() {
     if (!marketHours.isPreMarket()) {
       return [];
     }
     
-    return quotes
-      .filter(quote => 
-        quote.premarketChange > 2 && // > 2% premarket change
-        quote.volume > 100000 && // > 100k volume
-        quote.price > 1 // > $1 price
-      )
-      .map(quote => ({
-        ...quote,
-        score: quote.premarketChange * 0.8 + (quote.volume / 1000000) * 0.2,
-        scanner: 'premarket-movers'
-      }))
+    const symbols = this.getAllSymbolsWithTicks();
+    
+    return symbols
+      .filter(quote => {
+        const premarketChange = this.calculatePremarketChange(quote);
+        return premarketChange > 2 && // > 2% premarket change
+               quote.volume > 100000 && // > 100k volume
+               quote.price > 1; // > $1 price
+      })
+      .map(quote => {
+        const premarketChange = this.calculatePremarketChange(quote);
+        return {
+          ...quote,
+          premarketChange,
+          score: premarketChange * 0.8 + (quote.volume / 1000000) * 0.2,
+          scanner: 'premarket-movers'
+        };
+      })
       .sort((a, b) => b.score - a.score)
       .slice(0, 25);
   }
 
   // After-hours movers scanner
-  scanAfterHoursMovers(quotes, news) {
+  scanAfterHoursMovers() {
     if (!marketHours.isAfterHours()) {
       return [];
     }
     
-    return quotes
-      .filter(quote => 
-        quote.afterHoursChange > 1 && // > 1% after-hours change
-        quote.volume > 50000 && // > 50k volume
-        quote.price > 1 // > $1 price
-      )
-      .map(quote => ({
-        ...quote,
-        score: quote.afterHoursChange * 0.8 + (quote.volume / 1000000) * 0.2,
-        scanner: 'after-hours-movers'
-      }))
+    const symbols = this.getAllSymbolsWithTicks();
+    
+    return symbols
+      .filter(quote => {
+        const afterHoursChange = this.calculateAfterHoursChange(quote);
+        return afterHoursChange > 1 && // > 1% after-hours change
+               quote.volume > 50000 && // > 50k volume
+               quote.price > 1; // > $1 price
+      })
+      .map(quote => {
+        const afterHoursChange = this.calculateAfterHoursChange(quote);
+        return {
+          ...quote,
+          afterHoursChange,
+          score: afterHoursChange * 0.8 + (quote.volume / 1000000) * 0.2,
+          scanner: 'after-hours-movers'
+        };
+      })
       .sort((a, b) => b.score - a.score)
       .slice(0, 25);
   }
 
   // Halt/resume scanner
-  scanHaltResume(quotes, news) {
-    return quotes
-      .filter(quote => 
-        quote.isHalted || quote.isResumed || // Halt/resume flags
-        quote.lastTradeTime && (Date.now() - quote.lastTradeTime) > 300000 // No trades for 5+ minutes
-      )
-      .map(quote => ({
-        ...quote,
-        score: quote.isHalted ? 100 : quote.isResumed ? 90 : 50,
-        scanner: 'halt-resume'
-      }))
+  scanHaltResume() {
+    const symbols = this.getAllSymbolsWithTicks();
+    
+    return symbols
+      .filter(quote => {
+        const lastTick = quote.ticks[quote.ticks.length - 1];
+        const timeSinceLastTick = Date.now() - (lastTick?.timestamp || 0);
+        return timeSinceLastTick > 300000; // No trades for 5+ minutes
+      })
+      .map(quote => {
+        const lastTick = quote.ticks[quote.ticks.length - 1];
+        const timeSinceLastTick = Date.now() - (lastTick?.timestamp || 0);
+        return {
+          ...quote,
+          timeSinceLastTick,
+          score: timeSinceLastTick > 600000 ? 100 : 50, // Higher score for longer halt
+          scanner: 'halt-resume'
+        };
+      })
       .sort((a, b) => b.score - a.score)
       .slice(0, 20);
   }
@@ -215,6 +293,62 @@ class ScannerEngine {
     const priceScore = Math.min(quote.price / 100, 1) * 0.3;
     
     return changeScore + volumeScore + priceScore;
+  }
+
+  // Calculate gap percent
+  calculateGapPercent(quote) {
+    if (quote.ticks.length < 2) return 0;
+    
+    const currentPrice = quote.price;
+    const previousClose = quote.ticks[0].price; // First tick as proxy for previous close
+    
+    return ((currentPrice - previousClose) / previousClose) * 100;
+  }
+
+  // Calculate relative volume
+  calculateRelativeVolume(quote) {
+    if (quote.ticks.length < 20) return 1;
+    
+    const recentVolume = quote.ticks.slice(-20).reduce((sum, tick) => sum + tick.volume, 0) / 20;
+    const averageVolume = quote.ticks.reduce((sum, tick) => sum + tick.volume, 0) / quote.ticks.length;
+    
+    return recentVolume / averageVolume;
+  }
+
+  // Calculate range breakout
+  calculateRangeBreakout(quote) {
+    if (quote.ticks.length < 20) return { breakout20Day: false, relativeVolume: 1 };
+    
+    const currentPrice = quote.price;
+    const last20Ticks = quote.ticks.slice(-20);
+    const high20Day = Math.max(...last20Ticks.map(t => t.price));
+    const low20Day = Math.min(...last20Ticks.map(t => t.price));
+    
+    return {
+      breakout20Day: currentPrice > high20Day,
+      breakout20DayLow: currentPrice < low20Day,
+      relativeVolume: this.calculateRelativeVolume(quote)
+    };
+  }
+
+  // Calculate premarket change
+  calculatePremarketChange(quote) {
+    if (quote.ticks.length < 2) return 0;
+    
+    const currentPrice = quote.price;
+    const premarketOpen = quote.ticks[0].price;
+    
+    return ((currentPrice - premarketOpen) / premarketOpen) * 100;
+  }
+
+  // Calculate after-hours change
+  calculateAfterHoursChange(quote) {
+    if (quote.ticks.length < 2) return 0;
+    
+    const currentPrice = quote.price;
+    const afterHoursOpen = quote.ticks[0].price;
+    
+    return ((currentPrice - afterHoursOpen) / afterHoursOpen) * 100;
   }
 
   // Group news by symbol

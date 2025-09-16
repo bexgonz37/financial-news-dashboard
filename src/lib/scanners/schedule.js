@@ -190,6 +190,14 @@ class ScannerScheduler {
       
       this.lastRun = new Date();
       
+      // Update UI ages
+      appState.updateUI({
+        ages: {
+          ...appState.state.ui.ages,
+          scanners: Math.floor((Date.now() - this.lastRun.getTime()) / 1000)
+        }
+      });
+      
     } catch (error) {
       console.error('Scanner run failed:', error);
     }
