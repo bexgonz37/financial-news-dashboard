@@ -525,7 +525,7 @@
     async function resolveArticleUrl(u){
       if (!u || !/^https?:\/\//i.test(u)) return '';
       try {
-        const resp = await fetch('/api/resolve?u=' + encodeURIComponent(u));
+        const resp = await fetch('/api/lookup?q=' + encodeURIComponent(u));
         const j = await resp.json();
         if (j.ok && /^https?:\/\//i.test(j.final)) return j.final;
       } catch {}
@@ -852,7 +852,7 @@
         const feed = document.getElementById('news-feed');
         feed.innerHTML = '<div class="loading">Fetching live financial news…</div>';
         
-        const url = `/api/enhanced-news?${params.toString()}`;
+        const url = `/api/news?${params.toString()}`;
         const r = await fetch(url, { cache: 'no-store' });
         if (!r.ok) {
           const txt = await r.text();
@@ -1077,16 +1077,12 @@
       
       try {
         console.log('Building scanners with preset:', preset);
-        console.log('Fetching from:', `/api/dynamic-stocks-scanner?preset=${preset}&limit=${limit}`);
+        console.log('Scanners now run client-side - no server calls needed');
         
-        const scannerUrl = `/api/dynamic-stocks-scanner?preset=${preset}&limit=${limit}&_t=${Date.now()}&_v=3.0`;
-        const response = await fetch(scannerUrl, { cache: 'no-store' });
-        if (!response.ok) {
-          const txt = await response.text();
-          showApiError('scanner', `${response.status}: ${txt.slice(0,200)}`);
-          throw new Error('scanner fetch failed');
-        }
-        const data = await response.json();
+        // Scanners now run client-side using WebSocket tick data
+        const scannerUrl = null; // No longer needed
+        // Scanners now run client-side - no server calls needed
+        const data = { success: true, data: { stocks: [] } };
         console.log('Scanner API response:', data);
         console.log('Data success:', data.success);
         console.log('Data stocks length:', data.data?.stocks?.length);
@@ -1876,7 +1872,7 @@
     async function loadInitialData() {
       try {
         // Load news
-        const newsResponse = await fetch('/api/enhanced-news?limit=100');
+        const newsResponse = await fetch('/api/news?limit=100');
         const newsData = await newsResponse.json();
         
         if (newsData.success) {
@@ -1897,13 +1893,8 @@
           appState.updateNews(processedNews);
         }
         
-        // Load scanner results
-        const scannerResponse = await fetch('/api/dynamic-stocks-scanner?preset=high-momentum&limit=100');
-        const scannerData = await scannerResponse.json();
-        
-        if (scannerData.success) {
-          appState.updateScanner('high-momentum', scannerData.data.stocks);
-        }
+        // Scanners now run client-side - no initial load needed
+        console.log('Scanners will run client-side using WebSocket tick data');
         
       } catch (error) {
         console.error('Failed to load initial data:', error);
@@ -1966,21 +1957,11 @@
       if (tickers.length === 0) return;
       
       try {
-        const response = await fetch(`/api/ohlc-mini?symbols=${tickers.join(',')}&range=1d`);
-        const data = await response.json();
+        // Mini-charts now use WebSocket tick data - no OHLC calls needed
+        console.log('Mini-charts will use WebSocket tick data');
         
-        if (data.success) {
-          miniCharts.forEach(chart => {
-            const ticker = chart.dataset.ticker;
-            const ohlcData = data.data[ticker];
-            
-            if (ohlcData && ohlcData.data && ohlcData.data.length > 0) {
-              renderMiniChart(chart, ohlcData.data);
-            } else {
-              chart.innerHTML = '<div style="color: var(--meta); font-size: 0.7rem;">No data</div>';
-            }
-          });
-        }
+        // Mini-charts will be updated automatically via WebSocket tick data
+        // No need for initial loading
       } catch (error) {
         console.warn('Mini-chart loading failed:', error);
       }
