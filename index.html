@@ -301,6 +301,14 @@
       <div id="news-feed" class="news-list">
         <div class="loading">Loading live financial news...</div>
       </div>
+      
+      <!-- Debug Panel -->
+      <div id="debug-panel" style="margin-top: 20px; padding: 15px; background: #1a1a1a; border: 1px solid #333; border-radius: 8px; font-family: monospace; font-size: 12px;">
+        <h4 style="color: #00ff00; margin: 0 0 10px 0;">🐛 Debug Console</h4>
+        <div id="debug-logs" style="max-height: 200px; overflow-y: auto; color: #ccc;">
+          <div>Initializing debug panel...</div>
+        </div>
+      </div>
     </div>
 
     <!-- SCANNERS -->
@@ -408,6 +416,21 @@
     const stockCache = new Map();
     // Removed category filtering
     let watchlist = new Set();
+    
+    // ---------- DEBUG LOGGING ----------
+    function debugLog(message, type = 'info') {
+      const timestamp = new Date().toLocaleTimeString();
+      const logElement = document.getElementById('debug-logs');
+      if (logElement) {
+        const color = type === 'error' ? '#ff6b6b' : type === 'success' ? '#00ff00' : type === 'warning' ? '#ffa500' : '#ccc';
+        const logEntry = document.createElement('div');
+        logEntry.style.color = color;
+        logEntry.textContent = `[${timestamp}] ${message}`;
+        logElement.appendChild(logEntry);
+        logElement.scrollTop = logElement.scrollHeight;
+      }
+      console.log(`[DEBUG ${timestamp}] ${message}`);
+    }
     // Live data only - no fallback tracking needed
     let providerStatus = { 
       news: { status: 'unknown', providers: [], errors: [] },
@@ -1088,22 +1111,21 @@
 
     // ---------- ADVANCED DAY TRADER SCANNER ----------
     async function buildScanners(){
-      console.log('=== BUILDING SCANNERS ===');
+      debugLog('=== BUILDING SCANNERS ===', 'info');
       const preset = document.getElementById('scannerPreset')?.value || 'momentum';
       const limit = 50;
       
-      console.log('Scanner preset:', preset);
-      console.log('Scanner limit:', limit);
+      debugLog(`Scanner preset: ${preset}, limit: ${limit}`, 'info');
       
       try {
-        console.log('Building scanners with preset:', preset);
-        console.log('Scanners now run client-side using tick buffer data');
+        debugLog('Building scanners with preset: ' + preset, 'info');
+        debugLog('Scanners now run client-side using tick buffer data', 'info');
         
         // Use client-side scanner engine
         const { scannerEngine } = await import('./src/lib/scanners/run.js');
         const results = await scannerEngine.runAllScanners();
         
-        console.log('Scanner results:', results);
+        debugLog(`Scanner results: ${JSON.stringify(results).substring(0, 200)}...`, 'info');
         
         // Get stocks from the appropriate scanner based on preset
         let stocks = [];
@@ -1121,9 +1143,7 @@
         }
         
         const data = { success: true, data: { stocks } };
-        console.log('Scanner API response:', data);
-        console.log('Data success:', data.success);
-        console.log('Data stocks length:', data.data?.stocks?.length);
+        debugLog(`Scanner API response: ${data.success}, stocks: ${data.data?.stocks?.length}`, 'success');
         
         if (!data?.success) {
           console.error('Scanner API returned success=false:', data);
@@ -1932,12 +1952,22 @@
     
     // Load initial data
     async function loadInitialData() {
+      debugLog('=== LOADING INITIAL DATA ===', 'info');
       try {
-        // Load news
+        debugLog('Fetching news from /api/news...', 'info');
         const newsResponse = await fetch('/api/news?limit=100');
-        const newsData = await newsResponse.json();
+        debugLog(`News response status: ${newsResponse.status}`, newsResponse.ok ? 'success' : 'error');
         
-        if (newsData.success) {
+        if (!newsResponse.ok) {
+          throw new Error(`HTTP ${newsResponse.status}: ${newsResponse.statusText}`);
+        }
+        
+        const newsData = await newsResponse.json();
+        debugLog(`News data received: ${JSON.stringify(newsData).substring(0, 200)}...`, 'info');
+        
+        if (newsData.success && newsData.data?.news) {
+          debugLog(`Processing ${newsData.data.news.length} news items...`, 'info');
+          
           // Process news with ticker resolution
           const processedNews = [];
           for (const item of newsData.data.news) {
@@ -1949,7 +1979,9 @@
                 confidence: 0.95,
                 reason: 'provider'
               };
+              debugLog(`Provider symbol found: ${item.symbols[0]} for "${item.title?.substring(0, 50)}..."`, 'success');
             } else {
+              debugLog(`No provider symbol, resolving: "${item.title?.substring(0, 50)}..."`, 'warning');
               resolution = await tickerResolver.resolveTicker(item);
             }
             
@@ -1962,6 +1994,8 @@
             });
           }
           
+          debugLog(`Processed ${processedNews.length} news items`, 'success');
+          
           // Update app state
           appState.updateNews(processedNews);
           
@@ -1969,16 +2003,27 @@
           newsData = processedNews;
           filteredNews = processedNews;
           
+          debugLog('Rendering news...', 'info');
           // Render news immediately
           renderNews();
+        } else {
+          debugLog(`News API returned no data: ${JSON.stringify(newsData)}`, 'error');
+          const feed = document.getElementById('news-feed');
+          if (feed) {
+            feed.innerHTML = '<div class="loading">No news data available. Check debug console for errors.</div>';
+          }
         }
         
         // Start scanners immediately
-        console.log('Starting client-side scanners...');
+        debugLog('Starting client-side scanners...', 'info');
         buildScanners();
         
       } catch (error) {
-        console.error('Failed to load initial data:', error);
+        debugLog(`Failed to load initial data: ${error.message}`, 'error');
+        const feed = document.getElementById('news-feed');
+        if (feed) {
+          feed.innerHTML = `<div class="loading" style="color: #ff6b6b;">Error loading news: ${error.message}</div>`;
+        }
       }
     }
     
