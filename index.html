@@ -1496,7 +1496,7 @@
           const primaryTicker = resolution.ticker;
           const confidence = resolution.confidence;
           const reason = resolution.reason;
-          const isGeneral = !primaryTicker;
+          const isResolved = !!primaryTicker;
           const t = primaryTicker ? primaryTicker.toUpperCase() : '';
           const when = n.published_at ? timeAgo(n.published_at) : '';
           const source = n.source ? n.source : '';
@@ -1540,7 +1540,7 @@
           return `
             <div class="news-item" style="border-left: 4px solid ${sentimentColor};">
               <div class="item-top">
-                <a class="ticker" href="#" data-open-chart="${t}">${t || 'GENERAL'}</a>
+                <a class="ticker" href="#" data-open-chart="${t}">${t || 'Resolve'}</a>
                 <span class="source-pill source-${source.toLowerCase()}">${source.toUpperCase()}</span>
                 ${pctNode}
                 ${rvolNode}
@@ -1564,11 +1564,11 @@
                   </span>
                   <div class="mini-chart" data-ticker="${primaryTicker}" style="width: 60px; height: 20px; margin-left: 8px;"></div>
                 </div>
-              ` : isGeneral ? `
+              ` : !isResolved ? `
                 <div style="margin: 8px 0;">
-                  <span style="background: var(--meta); color: white; padding: 2px 6px; border-radius: 4px; font-size: 0.8rem;">
-                    GENERAL
-                  </span>
+                  <button class="resolve-pill" onclick="resolveTickerForNews('${n.title}', '${n.summary}', '${n.symbols ? n.symbols.join(',') : ''}')">
+                    Resolve
+                  </button>
                 </div>
               ` : `
                 <div style="margin: 8px 0;">
@@ -2429,9 +2429,133 @@
       
       debugLog(`Scanner preset: ${preset}, limit: ${limit}`, 'info');
       
-      // Apply advanced filters
-      const filteredStocks = applyAdvancedFilters();
-      debugLog(`After filtering: ${filteredStocks.length} stocks`, 'info');
+      try {
+        // Call scanner API
+        const response = await fetch(`/api/scanner?preset=${preset}&limit=${limit}`);
+        const data = await response.json();
+        
+        if (!data?.success) {
+          console.error('Scanner API returned success=false:', data);
+          providerStatus.scanner.status = 'offline';
+          providerStatus.scanner.errors = ['API returned success=false'];
+          const grid = document.getElementById('scanner-grid');
+          grid.innerHTML = `<div class="card">No live scanner data available. Trying again in 30s.</div>`;
+          return;
+        }
+        
+        // Update scanner provider status
+        providerStatus.scanner.status = 'live';
+        providerStatus.scanner.lastUpdate = Date.now();
+        providerStatus.scanner.errors = [];
+        
+        const stocks = data.data.results || [];
+        console.log('Found stocks:', stocks.length);
+        
+        // Show tables instead of grid
+        document.getElementById('scanner-tables').style.display = 'block';
+        document.getElementById('scanner-grid').style.display = 'none';
+        
+        if (!stocks.length) {
+          const errorMsg = data.errors && data.errors.length > 0 
+            ? `No candidates yet (${data.errors[0]}). Trying again in 30s.`
+            : 'No candidates yet (rate-limited or illiquid). Trying again in 30s.';
+          document.getElementById('scanner-grid').innerHTML = `<div class="card">${errorMsg}</div>`;
+          document.getElementById('scanner-grid').style.display = 'block';
+          document.getElementById('scanner-tables').style.display = 'none';
+        } else {
+          // Populate scanner tables
+          populateScannerTables(stocks);
+          
+          // Fallback grid view
+          const grid = document.getElementById('scanner-grid');
+          grid.innerHTML = stocks.map(stock => {
+            const pct = parseFloat(stock.changePercent) || 0;
+            const price = parseFloat(stock.price) || 0;
+            const volume = stock.volume || 0;
+            const rvol = parseFloat(stock.relativeVolume) || 0;
+            const rsi = parseFloat(stock.rsi) || 0;
+            const score = stock.score || 0;
+            const category = stock.category || 'neutral';
+            const reason = stock.reason || '';
+            const gap = parseFloat(stock.gap) || 0;
+            const range = parseFloat(stock.range) || 0;
+            const atr = parseFloat(stock.atr) || 0;
+            const dataAge = stock.lastUpdate ? timeAgo(stock.lastUpdate) : 'now';
+            
+            const pctClass = pct > 0 ? 'up' : pct < 0 ? 'down' : '';
+            const categoryClass = category === 'momentum' ? 'momentum' : 
+                                category === 'oversold' ? 'oversold' : 
+                                category === 'breakout' ? 'breakout' : 'neutral';
+            
+            return `
+          <div class="card ${categoryClass}">
+            <div class="card-header">
+              <div class="symbol">${stock.symbol}</div>
+              <div class="price">$${price}</div>
+              <div class="pct ${pctClass}">${pct > 0 ? '+' : ''}${pct}%</div>
+            </div>
+            <div class="card-body">
+              <div class="metrics">
+                <div class="metric">
+                  <span class="label">Score:</span>
+                  <span class="value">${score}</span>
+                </div>
+                <div class="metric">
+                  <span class="label">RVOL:</span>
+                  <span class="value">${rvol}x</span>
+                </div>
+                <div class="metric">
+                  <span class="label">RSI:</span>
+                  <span class="value">${rsi}</span>
+                </div>
+              </div>
+              <div class="reason">${reason}</div>
+              <div class="meta">
+                ${reason} · Gap: ${gap.toFixed(1)}% · Range: ${range.toFixed(1)}% · ATR: ${atr.toFixed(2)} · ${dataAge}
+              </div>
+              <div class="mini-chart" data-ticker="${stock.symbol}" style="width:100%;height:60px;margin-top:8px;"></div>
+          </div>
+        `;
+          }).join('');
+          
+          // Draw mini-charts for all rendered cards and subscribe to WebSocket
+          setTimeout(async () => {
+            document.querySelectorAll('#scanner-grid .mini-chart[data-ticker]').forEach(async (el) => {
+              const t = el.dataset.ticker;
+              if (t) {
+                // Subscribe to WebSocket for this symbol
+                try {
+                  const { wsQuotes } = await import('./src/ws/quotes.js');
+                  wsQuotes.subscribe(t);
+                } catch (error) {
+                  console.warn(`Failed to subscribe ${t}:`, error);
+                }
+                
+                // Use MiniChart component
+                try {
+                  const { MiniChart } = await import('./src/components/MiniChart.js');
+                  new MiniChart(el, { symbol: t, width: el.offsetWidth, height: el.offsetHeight });
+                } catch (error) {
+                  console.warn('Failed to load MiniChart component, using fallback:', error);
+                  drawSparkline(el, t);
+                }
+              }
+            });
+          }, 100);
+          
+          // Set up auto-refresh
+          if (data.data.refreshInterval) {
+            clearTimeout(window.scannerRefreshTimeout);
+            window.scannerRefreshTimeout = setTimeout(buildScanners, data.data.refreshInterval);
+          }
+        }
+      } catch (error) {
+        console.error('Scanner error:', error);
+        providerStatus.scanner.status = 'offline';
+        providerStatus.scanner.errors = [error.message];
+        const grid = document.getElementById('scanner-grid');
+        grid.innerHTML = `<div class="card">Scanner error: ${error.message}</div>`;
+      }
       
       try {
         debugLog('Building scanners with preset: ' + preset, 'info');
