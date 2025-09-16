@@ -118,14 +118,14 @@ class MiniChart {
   }
 
   isStale() {
-    if (!this.data || this.data.length === 0) return false;
+    if (this.ringBuffer.length === 0) return true;
     
-    const lastTick = this.data[this.data.length - 1];
+    const lastTick = this.ringBuffer[this.ringBuffer.length - 1];
     const now = Date.now();
     const age = now - lastTick.timestamp;
     
     // 5 minutes for regular hours, 15 minutes for after-hours
-    const threshold = marketHours.getMarketStatus() === 'market' ? 5 * 60 * 1000 : 15 * 60 * 1000;
+    const threshold = this.isAfterHours() ? 15 * 60 * 1000 : 5 * 60 * 1000;
     
     return age > threshold;
   }
@@ -157,15 +157,19 @@ class MiniChart {
     
     this.isRendering = true;
     
-    // Check if data is stale
-    const isStale = this.isStale();
-    
     try {
       // Clear previous content
       this.svg.innerHTML = '';
       
       if (this.ringBuffer.length < 2) {
-        this.renderNoData();
+        this.renderNoData('No ticks yet');
+        return;
+      }
+      
+      // Check if data is stale
+      const isStale = this.isStale();
+      if (isStale) {
+        this.renderNoData('Stale');
         return;
       }
       
@@ -197,18 +201,6 @@ class MiniChart {
       
       // Add gradient fill
       this.addGradientFill(prices, minPrice, maxPrice);
-      
-      // Add stale badge if data is stale
-      if (isStale) {
-        const staleText = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-        staleText.setAttribute('x', 5);
-        staleText.setAttribute('y', this.options.height - 5);
-        staleText.setAttribute('text-anchor', 'start');
-        staleText.setAttribute('font-size', '6px');
-        staleText.setAttribute('fill', '#ffc107');
-        staleText.textContent = 'STALE';
-        this.svg.appendChild(staleText);
-      }
       
     } finally {
       this.isRendering = false;
@@ -271,15 +263,15 @@ class MiniChart {
     }
   }
 
-  renderNoData() {
+  renderNoData(message = 'No data') {
     const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
     text.setAttribute('x', this.options.width / 2);
     text.setAttribute('y', this.options.height / 2);
     text.setAttribute('text-anchor', 'middle');
     text.setAttribute('dominant-baseline', 'middle');
-    text.setAttribute('font-size', '10');
+    text.setAttribute('font-size', '8');
     text.setAttribute('fill', 'var(--meta)');
-    text.textContent = 'No data';
+    text.textContent = message;
     
     this.svg.appendChild(text);
   }

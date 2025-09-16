@@ -403,10 +403,9 @@
         </select>
         <select class="select" id="source">
           <option value="">All Sources</option>
-          <option value="Alpha Vantage">Alpha Vantage</option>
-          <option value="Yahoo Finance">Yahoo Finance</option>
-          <option value="Financial Modeling Prep">FMP</option>
-          <option value="Finnhub">Finnhub</option>
+          <option value="alphavantage">Alpha Vantage</option>
+          <option value="fmp">Financial Modeling Prep</option>
+          <option value="finnhub">Finnhub</option>
         </select>
         <div class="auto-refresh-indicator">
           <span class="status-indicator live">🔄 Auto-refresh enabled</span>
@@ -1472,10 +1471,12 @@
 
     function applyFilter(){
       const k = (document.getElementById('keyword').value||'').toLowerCase();
-      // Only apply keyword search - no category filtering to show ALL news
+      const s = (document.getElementById('source').value||'').toLowerCase();
+      
       filteredNews = newsData.filter(n=>{
         const byKey = !k || ( (n.title||'').toLowerCase().includes(k) || (n.summary||'').toLowerCase().includes(k) || (n.ticker||'').toLowerCase().includes(k) );
-        return byKey;
+        const bySource = !s || (n.source||'').toLowerCase() === s;
+        return byKey && bySource;
       });
       renderNews();
     }
@@ -1816,8 +1817,37 @@
       'Workday': 'WDAY'
     };
     
+    // Company master cache
+    let companyMaster = null;
+    let companyMasterLastFetch = 0;
+    
     // Throttled company search
     let searchThrottle = new Map();
+    
+    async function fetchCompanyMaster() {
+      const now = Date.now();
+      
+      // Return cached data if less than 1 hour old
+      if (companyMaster && (now - companyMasterLastFetch) < 3600000) {
+        return companyMaster;
+      }
+      
+      try {
+        const response = await fetch('/api/company-master');
+        if (response.ok) {
+          const data = await response.json();
+          if (data.success) {
+            companyMaster = data.data;
+            companyMasterLastFetch = now;
+            return companyMaster;
+          }
+        }
+      } catch (error) {
+        console.warn('Failed to fetch company master:', error);
+      }
+      
+      return null;
+    }
     
     async function resolveTicker(title, summary = '', symbols = []) {
       // 1. Check provider symbols first
@@ -1849,7 +1879,40 @@
         }
       }
       
-      // 3. Live company search (throttled)
+      // 3. Company master lookup
+      const master = await fetchCompanyMaster();
+      if (master && master.nameToSymbol) {
+        const titleLower = title.toLowerCase();
+        const summaryLower = summary.toLowerCase();
+        
+        // Try exact matches first
+        for (const [name, symbol] of Object.entries(master.nameToSymbol)) {
+          if (titleLower.includes(name) || summaryLower.includes(name)) {
+            return {
+              ticker: symbol,
+              confidence: 0.8,
+              reason: 'master_exact'
+            };
+          }
+        }
+        
+        // Try partial matches
+        for (const [name, symbol] of Object.entries(master.nameToSymbol)) {
+          const nameWords = name.split(' ');
+          if (nameWords.some(word => 
+            word.length > 3 && 
+            (titleLower.includes(word) || summaryLower.includes(word))
+          )) {
+            return {
+              ticker: symbol,
+              confidence: 0.7,
+              reason: 'master_partial'
+            };
+          }
+        }
+      }
+      
+      // 4. Live company search (throttled)
       const searchKey = title.toLowerCase().substring(0, 50);
       const now = Date.now();
       const lastSearch = searchThrottle.get(searchKey);
