@@ -76,6 +76,12 @@ class ConservativeScanner {
   // Get high momentum stocks
   async getHighMomentumStocks(limit = 50) {
     try {
+      // For now, just return fallback stocks to avoid API issues
+      console.log('Using fallback stocks for high momentum scanner');
+      return this.getFallbackStocks();
+      
+      // TODO: Re-enable API calls once provider issues are resolved
+      /*
       const quotes = await this.getPopularStocksQuotes();
       if (quotes.length === 0) {
         return this.getFallbackStocks();
@@ -95,6 +101,7 @@ class ConservativeScanner {
 
       console.log(`High momentum scanner: Found ${results.length} stocks`);
       return results;
+      */
 
     } catch (error) {
       console.error('High momentum scanner error:', error);
@@ -105,25 +112,9 @@ class ConservativeScanner {
   // Get gap up stocks
   async getGapUpStocks(limit = 50) {
     try {
-      const quotes = await this.getPopularStocksQuotes();
-      if (quotes.length === 0) {
-        return this.getFallbackStocks();
-      }
-
-      const results = quotes
-        .map(quote => this.calculateMetrics(quote))
-        .filter(stock => stock !== null)
-        .filter(stock => 
-          stock.changePercent > 5 && // > 5% gap up
-          stock.volume > 200000 && // > 200k volume
-          stock.price > 10 // > $10 price
-        )
-        .sort((a, b) => b.changePercent - a.changePercent)
-        .slice(0, limit);
-
-      console.log(`Gap up scanner: Found ${results.length} stocks`);
-      return results;
-
+      // For now, just return fallback stocks to avoid API issues
+      console.log('Using fallback stocks for gap up scanner');
+      return this.getFallbackStocks();
     } catch (error) {
       console.error('Gap up scanner error:', error);
       return this.getFallbackStocks();
@@ -133,25 +124,9 @@ class ConservativeScanner {
   // Get unusual volume stocks
   async getUnusualVolumeStocks(limit = 50) {
     try {
-      const quotes = await this.getPopularStocksQuotes();
-      if (quotes.length === 0) {
-        return this.getFallbackStocks();
-      }
-
-      const results = quotes
-        .map(quote => this.calculateMetrics(quote))
-        .filter(stock => stock !== null)
-        .filter(stock => 
-          stock.relativeVolume > 2 && // > 2x average volume
-          stock.volume > 500000 && // > 500k volume
-          stock.price > 5 // > $5 price
-        )
-        .sort((a, b) => b.relativeVolume - a.relativeVolume)
-        .slice(0, limit);
-
-      console.log(`Unusual volume scanner: Found ${results.length} stocks`);
-      return results;
-
+      // For now, just return fallback stocks to avoid API issues
+      console.log('Using fallback stocks for unusual volume scanner');
+      return this.getFallbackStocks();
     } catch (error) {
       console.error('Unusual volume scanner error:', error);
       return this.getFallbackStocks();
