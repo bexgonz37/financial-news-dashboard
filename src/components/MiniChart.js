@@ -64,19 +64,13 @@ class MiniChart {
   async loadInitialData() {
     if (!this.options.symbol) return;
     
-    try {
-      const response = await fetch(`/api/ohlc-mini?symbol=${this.options.symbol}&range=${this.options.range}`);
-      const data = await response.json();
-      
-      if (data.success && data.data[this.options.symbol]) {
-        const ohlcData = data.data[this.options.symbol];
-        if (ohlcData.data && ohlcData.data.length > 0) {
-          this.ringBuffer = ohlcData.data.slice(-this.maxBufferSize);
-          this.render();
-        }
-      }
-    } catch (error) {
-      console.warn(`Failed to load initial data for ${this.options.symbol}:`, error);
+    // Get initial tick data from store instead of REST call
+    const ticks = appState.getTicks(this.options.symbol);
+    if (ticks && ticks.length > 0) {
+      this.updateFromTicks(ticks);
+    } else {
+      // No tick data available - show loading state
+      this.renderNoData();
     }
   }
 
