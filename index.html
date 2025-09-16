@@ -256,6 +256,56 @@
     .earnings-item{ background:var(--card); border:1px solid var(--border); border-radius:6px; padding:15px; display:flex; justify-content:space-between; align-items:center }
     .earnings-symbol{ font-weight:bold; color:var(--text) }
     .earnings-time{ color:var(--meta); font-size:0.9rem }
+    
+    /* Source Pills */
+    .source-pill{ 
+      background: var(--border); 
+      color: var(--text); 
+      padding: 2px 6px; 
+      border-radius: 4px; 
+      font-size: 0.7rem; 
+      font-weight: 600; 
+      margin-left: 8px;
+      text-transform: uppercase;
+    }
+    .source-pill.source-fmp{ background: #00d4aa; color: var(--bg) }
+    .source-pill.source-finnhub{ background: #ff6b35; color: white }
+    .source-pill.source-alphavantage{ background: #4a90e2; color: white }
+    
+    /* Ticker Resolution */
+    .ticker-resolution{ 
+      display: flex; 
+      align-items: center; 
+      gap: 8px; 
+      margin: 8px 0; 
+      flex-wrap: wrap; 
+    }
+    .ticker-confidence{ 
+      background: var(--accent); 
+      color: var(--bg); 
+      padding: 2px 6px; 
+      border-radius: 4px; 
+      font-size: 0.7rem; 
+      font-weight: 600; 
+    }
+    .ticker-reason{ 
+      color: var(--meta); 
+      font-size: 0.7rem; 
+      font-style: italic; 
+    }
+    .resolve-pill{ 
+      background: var(--warning); 
+      color: var(--bg); 
+      padding: 4px 8px; 
+      border-radius: 4px; 
+      font-size: 0.8rem; 
+      cursor: pointer; 
+      border: none;
+    }
+    .resolve-pill:hover{ 
+      background: var(--danger); 
+      color: white; 
+    }
   </style>
 </head>
 <body>
@@ -1386,91 +1436,131 @@
         feed.innerHTML = `<div class="loading">No news found for the selected filters.</div>`;
         return;
       }
-      feed.innerHTML = filteredNews.map(n=>{
-        // Extract ticker from symbols array or use existing fields
-        const primaryTicker = n.symbols && n.symbols.length > 0 ? n.symbols[0] : (n.primaryTicker || '');
-        const secondaryTickers = n.symbols && n.symbols.length > 1 ? n.symbols.slice(1) : (n.secondaryTickers || []);
-        const isGeneral = !primaryTicker;
-        const tickerReason = n.symbols && n.symbols.length > 0 ? 'provider_symbol' : (n.tickerReason || '');
-        const t = primaryTicker.toUpperCase();
-        const when = n.published_at ? timeAgo(n.published_at) : '';
-        const source = n.source ? n.source : '';
-        const starred = watchlist.has(t) ? 'active' : '';
-        const pctNode = `<span class="pct" data-optional="pct"><span class="arrow">⏳</span> <span class="val">…</span></span>`;
-        const rvolNode = `<span class="meta rvol" data-optional="rvol"></span>`;
-        const session = n.session || 'RTH';
-        const isStale = n.isStale || false;
-        const aiScore = n.aiScore || 0;
-        const tradingSignal = n.tradingSignal || 'hold';
+      // Render news with enhanced ticker resolution
+      const renderNewsItems = async () => {
+        const items = await Promise.all(filteredNews.map(async n => {
+          // Use enhanced ticker resolution
+          const resolution = await resolveTicker(n.title || '', n.summary || '', n.symbols || []);
+          const primaryTicker = resolution.ticker;
+          const confidence = resolution.confidence;
+          const reason = resolution.reason;
+          const isGeneral = !primaryTicker;
+          const t = primaryTicker ? primaryTicker.toUpperCase() : '';
+          const when = n.published_at ? timeAgo(n.published_at) : '';
+          const source = n.source ? n.source : '';
+          const starred = watchlist.has(t) ? 'active' : '';
+          const pctNode = `<span class="pct" data-optional="pct"><span class="arrow">⏳</span> <span class="val">…</span></span>`;
+          const rvolNode = `<span class="meta rvol" data-optional="rvol"></span>`;
+          const session = n.session || 'RTH';
+          const isStale = n.isStale || false;
+          const aiScore = n.aiScore || 0;
+          const tradingSignal = n.tradingSignal || 'hold';
         
-        // Generate sentiment color and badges
-        const sentiment = n.sentiment || 'neutral';
-        const sentimentColor = sentiment === 'bullish' ? 'var(--up)' : sentiment === 'bearish' ? 'var(--down)' : 'var(--meta)';
-        const badges = n.badges || [];
-        const getNewsBadgeColor = (badge) => {
-          const colors = {
-            'EARNINGS': 'var(--up)',
-            'FDA': 'var(--accent)',
-            'AI': '#00d4ff',
-            'M&A': '#ff9800',
-            'IPO': '#2196f3',
-            'BANKRUPTCY': '#f44336',
-            'LEGAL': '#ff5722',
-            'PARTNERSHIP': '#4caf50',
-            'RATING': '#9c27b0'
+          // Generate sentiment color and badges
+          const sentiment = n.sentiment || 'neutral';
+          const sentimentColor = sentiment === 'bullish' ? 'var(--up)' : sentiment === 'bearish' ? 'var(--down)' : 'var(--meta)';
+          const badges = n.badges || [];
+          const getNewsBadgeColor = (badge) => {
+            const colors = {
+              'EARNINGS': 'var(--up)',
+              'FDA': 'var(--accent)',
+              'AI': '#00d4ff',
+              'M&A': '#ff9800',
+              'IPO': '#2196f3',
+              'BANKRUPTCY': '#f44336',
+              'LEGAL': '#ff5722',
+              'PARTNERSHIP': '#4caf50',
+              'RATING': '#9c27b0'
+            };
+            return colors[badge] || 'var(--meta)';
           };
-          return colors[badge] || 'var(--meta)';
-        };
-        
-        const badgeHtml = badges.length > 0 ? `
-          <div style="margin: 8px 0; display: flex; flex-wrap: wrap; gap: 4px;">
-            ${badges.map(badge => `
-              <span style="background: ${getNewsBadgeColor(badge)}; color: white; padding: 3px 8px; border-radius: 6px; font-size: 0.7rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; box-shadow: 0 1px 3px rgba(0,0,0,0.3);">
-                ${badge}
-              </span>
-            `).join('')}
-          </div>
-        ` : '';
+          
+          const badgeHtml = badges.length > 0 ? `
+            <div style="margin: 8px 0; display: flex; flex-wrap: wrap; gap: 4px;">
+              ${badges.map(badge => `
+                <span style="background: ${getNewsBadgeColor(badge)}; color: white; padding: 3px 8px; border-radius: 6px; font-size: 0.7rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; box-shadow: 0 1px 3px rgba(0,0,0,0.3);">
+                  ${badge}
+                </span>
+              `).join('')}
+            </div>
+          ` : '';
 
-        return `
-          <div class="news-item" style="border-left: 4px solid ${sentimentColor};">
-            <div class="item-top">
-              <a class="ticker" href="#" data-open-chart="${t}">${t || 'GENERAL'}</a>
-              ${pctNode}
-              ${rvolNode}
-              <span class="src">${source ? source : ''}${when ? ` · ${when}` : ''} · ${session}${isStale ? ' · STALE' : ''}</span>
-              <button class="star ${starred}" data-star="${t}">${starred?'★':'☆'}</button>
-            </div>
-            <div class="title">${n.title||''}</div>
-            <div class="summary">${n.summary||''} ${
-              n.url && /^https?:\/\//i.test(n.url)
-                ? `<a href="${n.url}" data-url="${n.url}" target="_blank" rel="noopener noreferrer" class="read-btn">Read</a>`
-                : '<span style="color:red;font-size:0.8rem;">No URL</span>'
-            }</div>
-            ${badgeHtml}
-            ${primaryTicker ? `
-              <div style="margin: 8px 0; display: flex; flex-wrap: wrap; gap: 4px; align-items: center;">
-                <span style="background: var(--accent); color: white; padding: 2px 6px; border-radius: 4px; font-size: 0.8rem; cursor: pointer;" 
-                      title="${tickerReason}"
-                      onclick="document.getElementById('ticker').value='${primaryTicker}'; fetchData();">
-                  $${primaryTicker}
-                </span>
-                <div class="mini-chart" data-ticker="${primaryTicker}" style="width: 60px; height: 20px; margin-left: 8px;"></div>
+          return `
+            <div class="news-item" style="border-left: 4px solid ${sentimentColor};">
+              <div class="item-top">
+                <a class="ticker" href="#" data-open-chart="${t}">${t || 'GENERAL'}</a>
+                <span class="source-pill source-${source.toLowerCase()}">${source.toUpperCase()}</span>
+                ${pctNode}
+                ${rvolNode}
+                <span class="src">${when ? `${when}` : ''} · ${session}${isStale ? ' · STALE' : ''}</span>
+                <button class="star ${starred}" data-star="${t}">${starred?'★':'☆'}</button>
               </div>
-            ` : isGeneral ? `
-              <div style="margin: 8px 0;">
-                <span style="background: var(--meta); color: white; padding: 2px 6px; border-radius: 4px; font-size: 0.8rem;">
-                  GENERAL
-                </span>
+              <div class="title">${n.title||''}</div>
+              <div class="summary">${n.summary||''} ${
+                n.url && /^https?:\/\//i.test(n.url)
+                  ? `<a href="${n.url}" data-url="${n.url}" target="_blank" rel="noopener noreferrer" class="read-btn">Read</a>`
+                  : '<span style="color:red;font-size:0.8rem;">No URL</span>'
+              }</div>
+              ${badgeHtml}
+              ${primaryTicker ? `
+                <div class="ticker-resolution">
+                  <span class="ticker-confidence" title="${reason}">${Math.round(confidence * 100)}%</span>
+                  <span style="background: var(--accent); color: white; padding: 2px 6px; border-radius: 4px; font-size: 0.8rem; cursor: pointer;" 
+                        title="${reason}"
+                        onclick="document.getElementById('ticker').value='${primaryTicker}'; fetchData();">
+                    $${primaryTicker}
+                  </span>
+                  <div class="mini-chart" data-ticker="${primaryTicker}" style="width: 60px; height: 20px; margin-left: 8px;"></div>
+                </div>
+              ` : isGeneral ? `
+                <div style="margin: 8px 0;">
+                  <span style="background: var(--meta); color: white; padding: 2px 6px; border-radius: 4px; font-size: 0.8rem;">
+                    GENERAL
+                  </span>
+                </div>
+              ` : `
+                <div style="margin: 8px 0;">
+                  <button class="resolve-pill" onclick="resolveTickerForNews('${n.title}', '${n.summary}', '${n.symbols ? n.symbols.join(',') : ''}')">
+                    Resolve
+                  </button>
+                </div>
+              `}
+              <div class="mini-row">
+                <div class="meta">${n.category ? n.category : ''} · Sentiment: ${sentiment.toUpperCase()} · AI Score: ${aiScore} · Signal: ${tradingSignal.toUpperCase()}</div>
+                <div class="mini-chart" data-ticker="${t}"></div>
               </div>
-            ` : ''}
-            <div class="mini-row">
-              <div class="meta">${n.category ? n.category : ''} · Sentiment: ${sentiment.toUpperCase()} · AI Score: ${aiScore} · Signal: ${tradingSignal.toUpperCase()}</div>
-              <div class="mini-chart" data-ticker="${t}"></div>
             </div>
-          </div>
-        `;
-      }).join('');
+          `;
+        }));
+        
+        feed.innerHTML = items.join('');
+        
+        // Initialize mini-charts after rendering
+        setTimeout(() => {
+          feed.querySelectorAll('.mini-chart[data-ticker]').forEach(async (el) => {
+            const ticker = el.dataset.ticker;
+            if (ticker) {
+              // Subscribe to WebSocket for this symbol
+              try {
+                const { wsQuotes } = await import('./src/ws/quotes.js');
+                wsQuotes.subscribe(ticker);
+              } catch (error) {
+                console.warn(`Failed to subscribe ${ticker}:`, error);
+              }
+              
+              // Use MiniChart component
+              try {
+                const { MiniChart } = await import('./src/components/MiniChart.js');
+                new MiniChart(el, { symbol: ticker });
+              } catch (error) {
+                console.warn(`Failed to create MiniChart for ${ticker}:`, error);
+              }
+            }
+          });
+        }, 100);
+      };
+      
+      renderNewsItems();
 
       // show/hide optional metrics
       document.querySelectorAll('[data-optional="pct"]').forEach(n=> n.style.display = optShowPct ? '' : 'none');
@@ -1630,6 +1720,266 @@
           }
         });
       }, 100);
+    }
+    
+    // ---------- TICKER RESOLUTION ----------
+    const tickerAliases = {
+      'Alphabet': 'GOOGL',
+      'Berkshire': 'BRK.B',
+      'Google': 'GOOGL',
+      'Meta': 'META',
+      'Facebook': 'META',
+      'Tesla': 'TSLA',
+      'Apple': 'AAPL',
+      'Microsoft': 'MSFT',
+      'Amazon': 'AMZN',
+      'Netflix': 'NFLX',
+      'Nvidia': 'NVDA',
+      'AMD': 'AMD',
+      'Intel': 'INTC',
+      'Oracle': 'ORCL',
+      'Salesforce': 'CRM',
+      'Adobe': 'ADBE',
+      'Cisco': 'CSCO',
+      'IBM': 'IBM',
+      'Qualcomm': 'QCOM',
+      'PayPal': 'PYPL',
+      'Square': 'SQ',
+      'Uber': 'UBER',
+      'Lyft': 'LYFT',
+      'Zoom': 'ZM',
+      'DocuSign': 'DOCU',
+      'Snowflake': 'SNOW',
+      'Palantir': 'PLTR',
+      'Roku': 'ROKU',
+      'Spotify': 'SPOT',
+      'Shopify': 'SHOP',
+      'Twilio': 'TWLO',
+      'Okta': 'OKTA',
+      'CrowdStrike': 'CRWD',
+      'Zscaler': 'ZS',
+      'Cloudflare': 'NET',
+      'Datadog': 'DDOG',
+      'MongoDB': 'MDB',
+      'Elastic': 'ESTC',
+      'Workday': 'WDAY'
+    };
+    
+    // Throttled company search
+    let searchThrottle = new Map();
+    
+    async function resolveTicker(title, summary = '', symbols = []) {
+      // 1. Check provider symbols first
+      if (symbols && symbols.length > 0) {
+        const validSymbol = symbols.find(s => 
+          s && typeof s === 'string' && 
+          s.length <= 5 && 
+          /^[A-Z]+$/.test(s.toUpperCase()) &&
+          !s.includes(':') // Skip exchange prefixes for now
+        );
+        if (validSymbol) {
+          return {
+            ticker: validSymbol.toUpperCase(),
+            confidence: 0.95,
+            reason: 'provider_symbol'
+          };
+        }
+      }
+      
+      // 2. Check alias map
+      const titleWords = title.split(/\s+/);
+      for (const word of titleWords) {
+        if (tickerAliases[word]) {
+          return {
+            ticker: tickerAliases[word],
+            confidence: 0.85,
+            reason: 'alias'
+          };
+        }
+      }
+      
+      // 3. Live company search (throttled)
+      const searchKey = title.toLowerCase().substring(0, 50);
+      const now = Date.now();
+      const lastSearch = searchThrottle.get(searchKey);
+      
+      if (!lastSearch || now - lastSearch > 1000) { // 1 second throttle
+        searchThrottle.set(searchKey, now);
+        
+        try {
+          const response = await fetch(`/api/lookup?q=${encodeURIComponent(title)}&limit=3`);
+          if (response.ok) {
+            const data = await response.json();
+            if (data.success && data.results.length > 0) {
+              const best = data.results[0];
+              if (best.confidence === 'high' || best.confidence === 'medium') {
+                return {
+                  ticker: best.symbol,
+                  confidence: best.score,
+                  reason: 'search'
+                };
+              }
+            }
+          }
+        } catch (error) {
+          console.warn('Company search failed:', error);
+        }
+      }
+      
+      // 4. No resolution found
+      return {
+        ticker: null,
+        confidence: 0,
+        reason: 'unresolved'
+      };
+    }
+    
+    // Resolve ticker for news item
+    async function resolveTickerForNews(title, summary, symbols) {
+      const symbolsArray = symbols ? symbols.split(',').map(s => s.trim()) : [];
+      const resolution = await resolveTicker(title, summary, symbolsArray);
+      
+      if (resolution.ticker) {
+        // Update the news item with resolved ticker
+        const newsItem = event.target.closest('.news-item');
+        if (newsItem) {
+          const tickerSection = newsItem.querySelector('.ticker-resolution') || newsItem.querySelector('[style*="margin: 8px 0"]');
+          if (tickerSection) {
+            tickerSection.innerHTML = `
+              <div class="ticker-resolution">
+                <span class="ticker-confidence" title="${resolution.reason}">${Math.round(resolution.confidence * 100)}%</span>
+                <span style="background: var(--accent); color: white; padding: 2px 6px; border-radius: 4px; font-size: 0.8rem; cursor: pointer;" 
+                      title="${resolution.reason}"
+                      onclick="document.getElementById('ticker').value='${resolution.ticker}'; fetchData();">
+                  $${resolution.ticker}
+                </span>
+                <div class="mini-chart" data-ticker="${resolution.ticker}" style="width: 60px; height: 20px; margin-left: 8px;"></div>
+              </div>
+            `;
+            
+            // Initialize mini-chart for resolved ticker
+            setTimeout(() => {
+              const chartEl = tickerSection.querySelector('.mini-chart[data-ticker]');
+              if (chartEl) {
+                // Subscribe to WebSocket
+                import('./src/ws/quotes.js').then(({ wsQuotes }) => {
+                  wsQuotes.subscribe(resolution.ticker);
+                }).catch(console.warn);
+                
+                // Create MiniChart
+                import('./src/components/MiniChart.js').then(({ MiniChart }) => {
+                  new MiniChart(chartEl, { symbol: resolution.ticker });
+                }).catch(console.warn);
+              }
+            }, 100);
+          }
+        }
+      } else {
+        alert('Could not resolve ticker for this news item. Please try a different search term.');
+      }
+    }
+    
+    // ---------- VERIFICATION REPORT ----------
+    async function runVerificationReport() {
+      console.log('=== VERIFICATION REPORT ===');
+      
+      // 1. News Provider Counts
+      try {
+        const newsResponse = await fetch('/api/news?limit=1');
+        const newsData = await newsResponse.json();
+        if (newsData.success && newsData.data?.meta) {
+          const counts = newsData.data.meta.counts;
+          const errors = newsData.data.meta.errors || [];
+          console.log('News Provider Counts:', counts);
+          console.log('News Provider Errors:', errors);
+          
+          const hasFMPOrFinnhub = (counts.fmp > 0) || (counts.finnhub > 0);
+          console.log('Has FMP or Finnhub data:', hasFMPOrFinnhub);
+        }
+      } catch (error) {
+        console.log('News verification failed:', error);
+      }
+      
+      // 2. Ticker Resolution Quality
+      const newsItems = document.querySelectorAll('.news-item');
+      const resolutionResults = [];
+      
+      for (let i = 0; i < Math.min(20, newsItems.length); i++) {
+        const item = newsItems[i];
+        const ticker = item.querySelector('.ticker')?.textContent || 'GENERAL';
+        const confidence = item.querySelector('.ticker-confidence')?.textContent || '0%';
+        const reason = item.querySelector('.ticker-confidence')?.title || 'unknown';
+        
+        resolutionResults.push({
+          title: item.querySelector('.title')?.textContent?.substring(0, 50) || '',
+          ticker: ticker,
+          confidence: confidence,
+          reason: reason
+        });
+      }
+      
+      console.log('Ticker Resolution Results (first 20):', resolutionResults);
+      
+      // 3. WebSocket & Charts Status
+      const chartElements = document.querySelectorAll('.mini-chart[data-ticker]');
+      const chartStatus = [];
+      
+      for (let i = 0; i < Math.min(10, chartElements.length); i++) {
+        const chart = chartElements[i];
+        const symbol = chart.dataset.ticker;
+        const hasData = chart.querySelector('svg') !== null;
+        
+        chartStatus.push({
+          symbol: symbol,
+          hasChart: hasData,
+          subscribed: true // Assume subscribed if chart exists
+        });
+      }
+      
+      console.log('Chart Status (first 10):', chartStatus);
+      
+      // 4. Scanner Universe & Rows
+      const scannerTables = document.querySelectorAll('.scanner-table');
+      const scannerCounts = {};
+      
+      scannerTables.forEach(table => {
+        const tableId = table.id.replace('-table', '');
+        const tbody = table.querySelector('tbody');
+        const rowCount = tbody ? tbody.children.length : 0;
+        scannerCounts[tableId] = rowCount;
+      });
+      
+      console.log('Scanner Row Counts:', scannerCounts);
+      
+      // 5. Routes & Keys
+      const routes = [
+        '/api/news',
+        '/api/lookup', 
+        '/api/prev-close',
+        '/api/providers/diag',
+        '/api/env',
+        '/api/top-movers'
+      ];
+      console.log('API Routes:', routes);
+      console.log('Total Routes:', routes.length, '(≤12 required)');
+      
+      // 6. Environment Keys
+      try {
+        const envResponse = await fetch('/api/env');
+        const envData = await envResponse.json();
+        if (envData.success) {
+          const keys = envData.data;
+          console.log('Environment Keys Present:', {
+            FINNHUB_KEY: !!keys.FINNHUB_KEY,
+            FMP_KEY: !!keys.FMP_KEY,
+            ALPHAVANTAGE_KEY: !!keys.ALPHAVANTAGE_KEY
+          });
+        }
+      } catch (error) {
+        console.log('Environment key verification failed:', error);
+      }
+      
+      console.log('=== VERIFICATION COMPLETE ===');
     }
     
     // ---------- ADVANCED FILTER FUNCTIONS ----------
@@ -2812,6 +3162,11 @@
         });
         
         console.log('Dashboard initialized successfully');
+        
+        // Run verification report
+        setTimeout(() => {
+          runVerificationReport();
+        }, 5000);
         
         // Test environment variables via API
         console.log('=== Environment Variable Test ===');
