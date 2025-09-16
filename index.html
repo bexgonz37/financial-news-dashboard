@@ -297,6 +297,16 @@
     .route-list{ display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin-top:10px }
     .route{ background:var(--border); padding:4px 8px; border-radius:4px; font-size:0.8rem; text-align:center }
     
+    /* Triage Styles */
+    .resolution-table{ display:flex; flex-direction:column; gap:8px; margin-top:10px }
+    .resolution-item{ display:grid; grid-template-columns:2fr 1fr 1fr 1fr; gap:10px; padding:8px; background:var(--border); border-radius:4px; font-size:0.8rem }
+    .resolution-item .title{ color:var(--text); font-weight:600 }
+    .resolution-item .ticker{ color:var(--accent); font-weight:600 }
+    .resolution-item .confidence{ color:var(--up); font-weight:600 }
+    .resolution-item .reason{ color:var(--meta) }
+    .ws-stats{ display:flex; flex-direction:column; gap:5px; margin-bottom:10px }
+    .route-stats{ display:flex; flex-direction:column; gap:5px; margin-bottom:10px }
+    
     /* Source Pills */
     .source-pill{ 
       background: var(--border); 
@@ -885,6 +895,7 @@
       <div class="selftest-header">
         <h2>🔧 System Verification</h2>
         <div class="selftest-controls">
+          <button class="btn" id="runTriage" style="background: var(--danger);">🔧 Run Triage</button>
           <button class="btn" id="runVerification" style="background: var(--accent);">Run Full Verification</button>
           <button class="btn" id="runSelftest" style="background: var(--up);">Run Self-Test</button>
           <button class="btn" id="clearSelftest" style="background: var(--meta);">Clear Results</button>
@@ -2008,6 +2019,155 @@
       }
     }
     
+    // ---------- TRIAGE SYSTEM ----------
+    async function runTriage() {
+      const resultsEl = document.getElementById('selftest-results');
+      const detailsEl = document.getElementById('selftest-details');
+      
+      // Show loading state
+      resultsEl.innerHTML = `
+        <div class="selftest-status">
+          <span class="status-indicator degraded">🔧 Running triage...</span>
+          <span class="selftest-summary">Testing keys, WebSocket, news providers, ticker resolution, and scanners</span>
+        </div>
+      `;
+      
+      try {
+        const response = await fetch('/api/triage');
+        const data = await response.json();
+        
+        // Update status
+        const statusClass = data.overall?.status === 'PASS' ? 'live' : 'offline';
+        const statusText = data.overall?.status === 'PASS' ? '✅ All systems operational' : '❌ Critical issues found';
+        const summaryText = data.overall?.status === 'PASS' ? 
+          `All systems operational. News: ${Object.values(data.summary.news.providers).reduce((a,b) => a+b, 0)} items, Scanners: ${data.summary.scanners.rows.momentum} momentum stocks.` :
+          `Critical issues: ${Object.entries(data.overall).filter(([k,v]) => k !== 'status' && !v).map(([k]) => k).join(', ')}`;
+        
+        resultsEl.innerHTML = `
+          <div class="selftest-status">
+            <span class="status-indicator ${statusClass}">${statusText}</span>
+            <span class="selftest-summary">${summaryText}</span>
+          </div>
+        `;
+        
+        // Show detailed results
+        detailsEl.style.display = 'block';
+        detailsEl.innerHTML = `
+          <div class="check-results">
+            <h4>🔧 Triage Results</h4>
+            <div class="verification-grid">
+              <div class="verification-item">
+                <h5>Environment Keys</h5>
+                <div class="key-stats">
+                  <div class="stat">Server FINNHUB_KEY: ${data.summary.keys.server.FINNHUB_KEY ? '✅' : '❌'}</div>
+                  <div class="stat">Server FMP_KEY: ${data.summary.keys.server.FMP_KEY ? '✅' : '❌'}</div>
+                  <div class="stat">Server ALPHAVANTAGE_KEY: ${data.summary.keys.server.ALPHAVANTAGE_KEY ? '✅' : '❌'}</div>
+                  <div class="stat">Client FINNHUB_KEY: ${data.summary.keys.client.FINNHUB_KEY ? '✅' : '❌'}</div>
+                  <div class="stat">Client FMP_KEY: ${data.summary.keys.client.FMP_KEY ? '✅' : '❌'}</div>
+                  <div class="stat">Client ALPHAVANTAGE_KEY: ${data.summary.keys.client.ALPHAVANTAGE_KEY ? '✅' : '❌'}</div>
+                </div>
+                <div class="status ${data.overall?.keys ? 'pass' : 'fail'}">
+                  ${data.overall?.keys ? '✅ Working' : '❌ Failed'}
+                </div>
+              </div>
+              
+              <div class="verification-item">
+                <h5>WebSocket Status</h5>
+                <div class="ws-stats">
+                  <div class="stat">Status: ${data.summary.websocket.status}</div>
+                  <div class="stat">Subscriptions: ${data.summary.websocket.subscriptions.length}</div>
+                  <div class="stat">Active: ${data.summary.websocket.subscriptions.filter(s => s.subscribed).length}</div>
+                </div>
+                <div class="status ${data.overall?.websocket ? 'pass' : 'fail'}">
+                  ${data.overall?.websocket ? '✅ Working' : '❌ Failed'}
+                </div>
+              </div>
+              
+              <div class="verification-item">
+                <h5>News Providers</h5>
+                <div class="provider-stats">
+                  <div class="provider-stat">
+                    <span class="label">FMP:</span>
+                    <span class="value">${data.summary.news.providers.fmp || 0}</span>
+                  </div>
+                  <div class="provider-stat">
+                    <span class="label">Finnhub:</span>
+                    <span class="value">${data.summary.news.providers.finnhub || 0}</span>
+                  </div>
+                  <div class="provider-stat">
+                    <span class="label">Alpha Vantage:</span>
+                    <span class="value">${data.summary.news.providers.alphavantage || 0}</span>
+                  </div>
+                </div>
+                <div class="status ${data.overall?.newsProviders ? 'pass' : 'fail'}">
+                  ${data.overall?.newsProviders ? '✅ Working' : '❌ Failed'}
+                </div>
+              </div>
+              
+              <div class="verification-item">
+                <h5>Ticker Resolution</h5>
+                <div class="resolution-stats">
+                  <div class="stat">Wrong mappings: ${data.summary.resolution.wrongMappings}</div>
+                  <div class="stat">Quality: ${data.summary.resolution.quality.length} items tested</div>
+                </div>
+                <div class="status ${data.overall?.resolution ? 'pass' : 'fail'}">
+                  ${data.overall?.resolution ? '✅ Working' : '❌ Failed'}
+                </div>
+              </div>
+              
+              <div class="verification-item">
+                <h5>Scanners</h5>
+                <div class="scanner-stats">
+                  <div class="stat">Universe: ${data.summary.scanners.universeSize} symbols</div>
+                  <div class="stat">Momentum: ${data.summary.scanners.rows.momentum} stocks</div>
+                  <div class="stat">Volume: ${data.summary.scanners.rows.volume} stocks</div>
+                </div>
+                <div class="status ${data.overall?.scanners ? 'pass' : 'fail'}">
+                  ${data.overall?.scanners ? '✅ Working' : '❌ Failed'}
+                </div>
+              </div>
+              
+              <div class="verification-item">
+                <h5>API Routes</h5>
+                <div class="route-stats">
+                  <div class="stat">Total: ${data.summary.routes.length}/12</div>
+                  <div class="stat">Target: ≤4 for core features</div>
+                </div>
+                <div class="status ${data.summary.routes.length <= 12 ? 'pass' : 'fail'}">
+                  ${data.summary.routes.length <= 12 ? '✅ Within limit' : '❌ Over limit'}
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <div class="provider-counts">
+            <h4>Resolution Quality (First 20 Items)</h4>
+            <div class="resolution-table">
+              ${data.summary.resolution.quality.slice(0, 10).map(item => `
+                <div class="resolution-item">
+                  <div class="title">${item.title}</div>
+                  <div class="ticker">${item.resolvedTicker}</div>
+                  <div class="confidence">${(item.confidence * 100).toFixed(0)}%</div>
+                  <div class="reason">${item.reason}</div>
+                </div>
+              `).join('')}
+            </div>
+          </div>
+        `;
+        
+        return data;
+        
+      } catch (error) {
+        resultsEl.innerHTML = `
+          <div class="selftest-status">
+            <span class="status-indicator offline">❌ Triage failed</span>
+            <span class="selftest-summary">Error: ${error.message}</span>
+          </div>
+        `;
+        throw error;
+      }
+    }
+
     // ---------- VERIFICATION SYSTEM ----------
     async function runVerification() {
       const resultsEl = document.getElementById('selftest-results');
@@ -3659,6 +3819,16 @@
         document.getElementById('exportResults')?.addEventListener('click', () => {
           debugLog('Exporting results to CSV...', 'info');
           exportScannerResults();
+        });
+        
+        // Triage event listeners
+        document.getElementById('runTriage')?.addEventListener('click', async () => {
+          debugLog('Running triage...', 'info');
+          try {
+            await runTriage();
+          } catch (error) {
+            debugLog(`Triage failed: ${error.message}`, 'error');
+          }
         });
         
         // Verification event listeners
