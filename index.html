@@ -317,56 +317,106 @@
         <span class="status-indicator live">🔄 Auto-refresh enabled</span>
         <span id="scannerLastUpdate" style="font-size: 0.8rem; color: var(--meta); margin-left: 10px;">Last updated: Loading...</span>
       </div>
-      <div class="toolbar">
-        <select class="select" id="scannerPreset">
-          <option value="momentum">🚀 High Momentum</option>
-          <option value="volume">📊 High Volume</option>
-          <option value="oversold">📉 Oversold Bounce</option>
-          <option value="breakout">💥 Breakout Plays</option>
-          <option value="earnings">📈 Earnings Plays</option>
-          <option value="penny">💰 Penny Stocks</option>
-          <option value="growth">🌱 Growth Stocks</option>
-          <option value="after_hours">🌙 After Hours</option>
-          <option value="ai_picks">🤖 AI Picks</option>
-          <option value="insider">👥 Insider Activity</option>
-          <option value="short_squeeze">⚡ Short Squeeze</option>
-          <option value="dividend">💵 Dividend</option>
-          <option value="new_listings">🆕 New Listings</option>
+      <div class="toolbar" style="display: flex; flex-direction: column; gap: 15px;">
+        <!-- Row 1: Presets and Basic Filters -->
+        <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+          <select class="select" id="scannerPreset" style="min-width: 150px;">
+            <option value="momentum">🚀 High Momentum</option>
+            <option value="volume">📊 High Volume</option>
+            <option value="oversold">📉 Oversold Bounce</option>
+            <option value="breakout">💥 Breakout Plays</option>
+            <option value="earnings">📈 Earnings Plays</option>
+            <option value="penny">💰 Penny Stocks</option>
+            <option value="growth">🌱 Growth Stocks</option>
+            <option value="after_hours">🌙 After Hours</option>
+            <option value="ai_picks">🤖 AI Picks</option>
+            <option value="insider">👥 Insider Activity</option>
+            <option value="short_squeeze">⚡ Short Squeeze</option>
+            <option value="dividend">💵 Dividend</option>
+            <option value="new_listings">🆕 New Listings</option>
             <option value="ticker_changes">🔄 Ticker Changes</option>
-        </select>
-        <input class="input" id="minPct" type="number" step="0.1" placeholder="Min % (e.g. 2)"/>
-        <input class="input" id="minRVOL" type="number" step="0.1" placeholder="Min RVOL (e.g. 1.5)"/>
-        <input class="input" id="minMentions" type="number" step="1" placeholder="Min mentions (e.g. 2)"/>
-        <input class="input" id="minVolume" type="number" step="100000" placeholder="Min Volume (e.g. 1M)"/>
-        <input class="input" id="minPrice" type="number" step="0.01" placeholder="Min Price (e.g. 5.00)"/>
-        <select class="select" id="timeframe">
-          <option value="1min">⏱️ 1 Minute</option>
-          <option value="5min">⏱️ 5 Minutes</option>
-          <option value="15min">⏱️ 15 Minutes</option>
-          <option value="1hour">⏱️ 1 Hour</option>
-          <option value="1day">⏱️ 1 Day</option>
-        </select>
+            <option value="custom">⚙️ Custom Filters</option>
+          </select>
+          
+          <select class="select" id="timeframe" style="min-width: 120px;">
+            <option value="1min">⏱️ 1 Minute</option>
+            <option value="5min">⏱️ 5 Minutes</option>
+            <option value="15min">⏱️ 15 Minutes</option>
+            <option value="1hour">⏱️ 1 Hour</option>
+            <option value="1day">⏱️ 1 Day</option>
+          </select>
+          
+          <select class="select" id="sortBy" style="min-width: 120px;">
+            <option value="score">🎯 Score</option>
+            <option value="volume">📊 Volume</option>
+            <option value="change">📈 Change %</option>
+            <option value="rsi">📊 RSI</option>
+            <option value="relativeVolume">📊 RVOL</option>
+            <option value="momentum">⚡ Momentum</option>
+            <option value="price">💰 Price</option>
+          </select>
+        </div>
         
-        <select class="select" id="sortBy">
-          <option value="score">🎯 Score</option>
-          <option value="volume">📊 Volume</option>
-          <option value="change">📈 Change %</option>
-          <option value="rsi">📊 RSI</option>
-          <option value="vwap">📊 VWAP</option>
-          <option value="market_cap">💰 Market Cap</option>
-        </select>
+        <!-- Row 2: Advanced Volume Filters -->
+        <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap; background: var(--card); padding: 10px; border-radius: 8px; border: 1px solid var(--border);">
+          <span style="font-weight: 600; color: var(--text); font-size: 0.9rem;">📊 Volume Filters</span>
+          <input class="input" id="minVolume" type="number" step="100000" placeholder="Min Volume (e.g. 1000000)" style="width: 150px;"/>
+          <input class="input" id="maxVolume" type="number" step="100000" placeholder="Max Volume" style="width: 150px;"/>
+          <input class="input" id="minRVOL" type="number" step="0.1" placeholder="Min RVOL (e.g. 1.5)" style="width: 120px;"/>
+          <input class="input" id="maxRVOL" type="number" step="0.1" placeholder="Max RVOL" style="width: 120px;"/>
+        </div>
         
-        <!-- Auto-refresh enabled - no manual buttons needed -->
-        <!-- Optional metrics toggles -->
-        <label class="meta" style="display:flex;align-items:center;gap:6px">
-          <input type="checkbox" id="scanShowRVOL" /> Show RVOL
-        </label>
-        <label class="meta" style="display:flex;align-items:center;gap:6px">
-          <input type="checkbox" id="scanShowMentions" /> Show Mentions
-        </label>
-        <label class="meta" style="display:flex;align-items:center;gap:6px">
-          <input type="checkbox" id="scanShowChart" checked /> Show mini chart
-        </label>
+        <!-- Row 3: Price and Change Filters -->
+        <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap; background: var(--card); padding: 10px; border-radius: 8px; border: 1px solid var(--border);">
+          <span style="font-weight: 600; color: var(--text); font-size: 0.9rem;">💰 Price & Change</span>
+          <input class="input" id="minPrice" type="number" step="0.01" placeholder="Min Price (e.g. 5.00)" style="width: 120px;"/>
+          <input class="input" id="maxPrice" type="number" step="0.01" placeholder="Max Price" style="width: 120px;"/>
+          <input class="input" id="minPct" type="number" step="0.1" placeholder="Min Change% (e.g. 2)" style="width: 120px;"/>
+          <input class="input" id="maxPct" type="number" step="0.1" placeholder="Max Change%" style="width: 120px;"/>
+        </div>
+        
+        <!-- Row 4: Technical Indicators -->
+        <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap; background: var(--card); padding: 10px; border-radius: 8px; border: 1px solid var(--border);">
+          <span style="font-weight: 600; color: var(--text); font-size: 0.9rem;">📈 Technical Indicators</span>
+          <input class="input" id="minRSI" type="number" min="0" max="100" placeholder="Min RSI" style="width: 80px;"/>
+          <input class="input" id="maxRSI" type="number" min="0" max="100" placeholder="Max RSI" style="width: 80px;"/>
+          <input class="input" id="minScore" type="number" min="0" max="100" placeholder="Min Score" style="width: 80px;"/>
+          <input class="input" id="maxScore" type="number" min="0" max="100" placeholder="Max Score" style="width: 80px;"/>
+          <input class="input" id="minGap" type="number" step="0.1" placeholder="Min Gap%" style="width: 80px;"/>
+          <input class="input" id="maxGap" type="number" step="0.1" placeholder="Max Gap%" style="width: 80px;"/>
+        </div>
+        
+        <!-- Row 5: Signal Filters -->
+        <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap; background: var(--card); padding: 10px; border-radius: 8px; border: 1px solid var(--border);">
+          <span style="font-weight: 600; color: var(--text); font-size: 0.9rem;">🎯 Signal Filters</span>
+          <label style="font-size: 0.8rem; display: flex; align-items: center; gap: 4px;">
+            <input type="checkbox" id="filterVolumeSpike" /> Volume Spike
+          </label>
+          <label style="font-size: 0.8rem; display: flex; align-items: center; gap: 4px;">
+            <input type="checkbox" id="filterPriceBreakout" /> Price Breakout
+          </label>
+          <label style="font-size: 0.8rem; display: flex; align-items: center; gap: 4px;">
+            <input type="checkbox" id="filterOverbought" /> Overbought (RSI>70)
+          </label>
+          <label style="font-size: 0.8rem; display: flex; align-items: center; gap: 4px;">
+            <input type="checkbox" id="filterOversold" /> Oversold (RSI<30)
+          </label>
+          <label style="font-size: 0.8rem; display: flex; align-items: center; gap: 4px;">
+            <input type="checkbox" id="filterGap" /> Gap (>3%)
+          </label>
+          <label style="font-size: 0.8rem; display: flex; align-items: center; gap: 4px;">
+            <input type="checkbox" id="filterMACD" /> MACD Signal
+          </label>
+        </div>
+        
+        <!-- Row 6: Action Buttons -->
+        <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+          <button class="btn" id="applyFilters" style="background: var(--up);">Apply Filters</button>
+          <button class="btn" id="clearFilters" style="background: var(--meta);">Clear All</button>
+          <button class="btn" id="exportResults" style="background: var(--accent);">Export CSV</button>
+          <button class="btn" id="savePreset" style="background: var(--text);">Save Preset</button>
+          <span id="filterResults" style="font-size: 0.8rem; color: var(--meta); margin-left: 10px;"></span>
+        </div>
       </div>
       <div id="scanner-grid" class="grid">
         <div class="card">Run a news load, then click Recalculate to see high-momentum movers.</div>
@@ -1118,6 +1168,111 @@
       }, 100); // 100ms delay to ensure proper rendering
     }
 
+    // ---------- ADVANCED FILTER FUNCTIONS ----------
+    function applyAdvancedFilters(stocks = []) {
+      if (!stocks.length) return [];
+      
+      const filters = {
+        minVolume: parseFloat(document.getElementById('minVolume')?.value) || 0,
+        maxVolume: parseFloat(document.getElementById('maxVolume')?.value) || Infinity,
+        minRVOL: parseFloat(document.getElementById('minRVOL')?.value) || 0,
+        maxRVOL: parseFloat(document.getElementById('maxRVOL')?.value) || Infinity,
+        minPrice: parseFloat(document.getElementById('minPrice')?.value) || 0,
+        maxPrice: parseFloat(document.getElementById('maxPrice')?.value) || Infinity,
+        minPct: parseFloat(document.getElementById('minPct')?.value) || -Infinity,
+        maxPct: parseFloat(document.getElementById('maxPct')?.value) || Infinity,
+        minRSI: parseFloat(document.getElementById('minRSI')?.value) || 0,
+        maxRSI: parseFloat(document.getElementById('maxRSI')?.value) || 100,
+        minScore: parseFloat(document.getElementById('minScore')?.value) || 0,
+        maxScore: parseFloat(document.getElementById('maxScore')?.value) || 100,
+        minGap: parseFloat(document.getElementById('minGap')?.value) || -Infinity,
+        maxGap: parseFloat(document.getElementById('maxGap')?.value) || Infinity,
+        volumeSpike: document.getElementById('filterVolumeSpike')?.checked || false,
+        priceBreakout: document.getElementById('filterPriceBreakout')?.checked || false,
+        overbought: document.getElementById('filterOverbought')?.checked || false,
+        oversold: document.getElementById('filterOversold')?.checked || false,
+        gap: document.getElementById('filterGap')?.checked || false,
+        macd: document.getElementById('filterMACD')?.checked || false
+      };
+      
+      debugLog('Applying filters:', 'info');
+      debugLog(`Volume: ${filters.minVolume} - ${filters.maxVolume}`, 'info');
+      debugLog(`RVOL: ${filters.minRVOL} - ${filters.maxRVOL}`, 'info');
+      debugLog(`Price: ${filters.minPrice} - ${filters.maxPrice}`, 'info');
+      debugLog(`Change%: ${filters.minPct} - ${filters.maxPct}`, 'info');
+      debugLog(`RSI: ${filters.minRSI} - ${filters.maxRSI}`, 'info');
+      debugLog(`Score: ${filters.minScore} - ${filters.maxScore}`, 'info');
+      
+      const filtered = stocks.filter(stock => {
+        // Basic range filters
+        if (stock.volume < filters.minVolume || stock.volume > filters.maxVolume) return false;
+        if (stock.relativeVolume < filters.minRVOL || stock.relativeVolume > filters.maxRVOL) return false;
+        if (stock.price < filters.minPrice || stock.price > filters.maxPrice) return false;
+        if (stock.changePercent < filters.minPct || stock.changePercent > filters.maxPct) return false;
+        if (stock.rsi < filters.minRSI || stock.rsi > filters.maxRSI) return false;
+        if (stock.score < filters.minScore || stock.score > filters.maxScore) return false;
+        if (stock.gap < filters.minGap || stock.gap > filters.maxGap) return false;
+        
+        // Signal filters
+        if (filters.volumeSpike && !stock.volumeSpike) return false;
+        if (filters.priceBreakout && !stock.priceBreakout) return false;
+        if (filters.overbought && stock.rsi <= 70) return false;
+        if (filters.oversold && stock.rsi >= 30) return false;
+        if (filters.gap && Math.abs(stock.gap) <= 3) return false;
+        if (filters.macd && Math.abs(stock.macd) <= 0.5) return false;
+        
+        return true;
+      });
+      
+      // Update filter results display
+      const resultsEl = document.getElementById('filterResults');
+      if (resultsEl) {
+        resultsEl.textContent = `Showing ${filtered.length} of ${stocks.length} stocks`;
+      }
+      
+      return filtered;
+    }
+    
+    // Export scanner results to CSV
+    function exportScannerResults() {
+      const grid = document.getElementById('scanner-grid');
+      const cards = grid.querySelectorAll('.card');
+      
+      if (cards.length === 0) {
+        debugLog('No scanner results to export', 'warning');
+        return;
+      }
+      
+      const csvData = [];
+      csvData.push(['Symbol', 'Price', 'Change%', 'Volume', 'RVOL', 'RSI', 'Score', 'Category', 'Reason']);
+      
+      cards.forEach(card => {
+        const symbol = card.querySelector('strong')?.textContent || '';
+        const changeEl = card.querySelector('.change');
+        const changePct = changeEl ? parseFloat(changeEl.textContent.replace(/[+%]/g, '')) : 0;
+        const priceEl = card.querySelector('.meta');
+        const price = priceEl ? parseFloat(priceEl.textContent.match(/\$([\d.]+)/)?.[1]) : 0;
+        const volume = priceEl ? parseFloat(priceEl.textContent.match(/RVOL: ([\d.]+)x/)?.[1]) : 0;
+        const rsi = priceEl ? parseFloat(priceEl.textContent.match(/RSI: ([\d.]+)/)?.[1]) : 0;
+        const score = card.querySelector('.meta')?.textContent.match(/Score: (\d+)/)?.[1] || 0;
+        const category = card.querySelector('.meta')?.textContent.match(/Score: \d+ · (.+)/)?.[1] || '';
+        const reason = card.querySelector('.meta')?.textContent.split(' · ')[0] || '';
+        
+        csvData.push([symbol, price, changePct, '', volume, rsi, score, category, reason]);
+      });
+      
+      const csvContent = csvData.map(row => row.join(',')).join('\n');
+      const blob = new Blob([csvContent], { type: 'text/csv' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `scanner_results_${new Date().toISOString().split('T')[0]}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+      
+      debugLog(`Exported ${cards.length} scanner results to CSV`, 'success');
+    }
+    
     // ---------- ADVANCED DAY TRADER SCANNER ----------
     async function buildScanners(){
       debugLog('=== BUILDING SCANNERS ===', 'info');
@@ -1125,6 +1280,10 @@
       const limit = 50;
       
       debugLog(`Scanner preset: ${preset}, limit: ${limit}`, 'info');
+      
+      // Apply advanced filters
+      const filteredStocks = applyAdvancedFilters();
+      debugLog(`After filtering: ${filteredStocks.length} stocks`, 'info');
       
       try {
         debugLog('Building scanners with preset: ' + preset, 'info');
@@ -1139,7 +1298,7 @@
         ];
         
         // Generate advanced scanner data with multiple criteria
-        const sampleStocks = liquidStocks.map(symbol => {
+        const allStocks = liquidStocks.map(symbol => {
           const basePrice = 50 + Math.random() * 400;
           const changePercent = (Math.random() - 0.5) * 15; // -7.5% to +7.5%
           const change = (basePrice * changePercent) / 100;
@@ -1212,10 +1371,15 @@
           };
         }).sort((a, b) => b.score - a.score);
         
-        debugLog(`Using sample scanner data: ${sampleStocks.length} stocks`, 'info');
-        debugLog(`Scanner universe size = ${sampleStocks.length}`, 'success');
+        // Apply advanced filters
+        const filteredStocks = applyAdvancedFilters(allStocks);
         
-        const data = { success: true, data: { stocks: sampleStocks } };
+        debugLog(`Using sample scanner data: ${allStocks.length} stocks`, 'info');
+        debugLog(`After filtering: ${filteredStocks.length} stocks`, 'info');
+        debugLog(`Scanner universe size = ${allStocks.length}`, 'success');
+        debugLog(`Filtered results = ${filteredStocks.length}`, 'success');
+        
+        const data = { success: true, data: { stocks: filteredStocks } };
         debugLog(`Scanner API response: ${data.success}, stocks: ${data.data?.stocks?.length}`, 'success');
         debugLog(`Rows returned = ${data.data?.stocks?.length}`, 'success');
         
@@ -1360,11 +1524,30 @@
         `;
           }).join('');
           
-          // Draw mini-charts for all rendered cards
-          setTimeout(() => {
-            document.querySelectorAll('#scanner-grid .mini-chart[data-ticker]').forEach((el) => {
+          // Draw mini-charts for all rendered cards and subscribe to WebSocket
+          setTimeout(async () => {
+            document.querySelectorAll('#scanner-grid .mini-chart[data-ticker]').forEach(async (el) => {
               const t = el.dataset.ticker;
-              if (t) drawSparkline(el, t);
+              if (t) {
+                // Subscribe to WebSocket for this symbol
+                try {
+                  const { wsQuotes } = await import('./src/ws/quotes.js');
+                  wsQuotes.subscribe(t);
+                  debugLog(`Scanner: Subscribed to WebSocket for ${t}`, 'success');
+                } catch (error) {
+                  debugLog(`Scanner: Failed to subscribe ${t}: ${error.message}`, 'warning');
+                }
+                
+                // Use MiniChart component for consistent rendering
+                try {
+                  const { MiniChart } = await import('./src/components/MiniChart.js');
+                  new MiniChart(el, { symbol: t });
+                } catch (error) {
+                  debugLog(`Scanner: Failed to create MiniChart for ${t}: ${error.message}`, 'warning');
+                  // Fallback to drawSparkline
+                  drawSparkline(el, t);
+                }
+              }
             });
           }, 100);
           }
@@ -2023,6 +2206,37 @@
         } catch (error) {
           debugLog(`WebSocket connection failed: ${error.message}`, 'error');
         }
+        
+        // Add event listeners for advanced filters
+        document.getElementById('applyFilters')?.addEventListener('click', () => {
+          debugLog('Applying advanced filters...', 'info');
+          buildScanners();
+        });
+        
+        document.getElementById('clearFilters')?.addEventListener('click', () => {
+          debugLog('Clearing all filters...', 'info');
+          // Clear all filter inputs
+          ['minVolume', 'maxVolume', 'minRVOL', 'maxRVOL', 'minPrice', 'maxPrice', 
+           'minPct', 'maxPct', 'minRSI', 'maxRSI', 'minScore', 'maxScore', 
+           'minGap', 'maxGap'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.value = '';
+          });
+          
+          // Clear all checkboxes
+          ['filterVolumeSpike', 'filterPriceBreakout', 'filterOverbought', 
+           'filterOversold', 'filterGap', 'filterMACD'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.checked = false;
+          });
+          
+          buildScanners();
+        });
+        
+        document.getElementById('exportResults')?.addEventListener('click', () => {
+          debugLog('Exporting results to CSV...', 'info');
+          exportScannerResults();
+        });
         
         console.log('Dashboard initialized successfully');
         

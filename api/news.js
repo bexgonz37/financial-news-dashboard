@@ -235,6 +235,8 @@ function deduplicateNews(newsItems) {
 
 // Main news aggregation
 async function fetchNewsFromProviders() {
+  console.log('Starting news aggregation from all providers...');
+  
   const results = await Promise.allSettled([
     fetchFMP(50),
     fetchAlpha(50),
@@ -249,12 +251,18 @@ async function fetchNewsFromProviders() {
     const provider = ['fmp', 'alphavantage', 'finnhub'][index];
     
     if (result.status === 'fulfilled') {
+      console.log(`${provider}: SUCCESS - ${result.value.length} items`);
       items.push(...result.value);
       counts[provider] = result.value.length;
     } else {
+      console.log(`${provider}: ERROR - ${result.reason.message}`);
       errors.push(`${provider}: ${result.reason.message}`);
     }
   });
+  
+  console.log(`Total items collected: ${items.length}`);
+  console.log(`Provider counts:`, counts);
+  console.log(`Errors:`, errors);
   
   return { items, counts, errors };
 }
