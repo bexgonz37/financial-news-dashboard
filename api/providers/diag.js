@@ -1,4 +1,6 @@
-// Provider Diagnostics API - Real-time provider health monitoring
+// Provider diagnostics endpoint with real-time health tracking
+import { providerHealth } from '../news.js';
+
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
@@ -8,64 +10,68 @@ export default async function handler(req, res) {
   }
 
   try {
+    const now = Date.now();
+    
+    // Calculate provider status
+    const getProviderStatus = (provider) => {
+      const health = providerHealth[provider];
+      if (!health) return 'unknown';
+      
+      if (health.status === 'success' && health.lastSuccess) {
+        const timeSinceSuccess = now - health.lastSuccess;
+        if (timeSinceSuccess < 5 * 60 * 1000) { // 5 minutes
+          return 'healthy';
+        } else if (timeSinceSuccess < 30 * 60 * 1000) { // 30 minutes
+          return 'degraded';
+        } else {
+          return 'stale';
+        }
+      } else if (health.lastError) {
+        return 'error';
+      } else {
+        return 'unknown';
+      }
+    };
+
     const diagnostics = {
       timestamp: new Date().toISOString(),
-      providers: {},
-      overall: {
-        healthy: 0,
-        degraded: 0,
-        offline: 0,
-        total: 0
+      providers: {
+        fmp: {
+          status: getProviderStatus('fmp'),
+          lastSuccess: providerHealth.fmp.lastSuccess ? new Date(providerHealth.fmp.lastSuccess).toISOString() : null,
+          lastError: providerHealth.fmp.lastError,
+          rateLimitBudget: providerHealth.fmp.rateLimitBudget,
+          rateLimit: '1 req/sec, burst 2 (via limiter)'
+        },
+        finnhub: {
+          status: getProviderStatus('finnhub'),
+          lastSuccess: providerHealth.finnhub.lastSuccess ? new Date(providerHealth.finnhub.lastSuccess).toISOString() : null,
+          lastError: providerHealth.finnhub.lastError,
+          rateLimitBudget: providerHealth.finnhub.rateLimitBudget,
+          rateLimit: '60 req/min'
+        },
+        alphavantage: {
+          status: getProviderStatus('alphavantage'),
+          lastSuccess: providerHealth.alphavantage.lastSuccess ? new Date(providerHealth.alphavantage.lastSuccess).toISOString() : null,
+          lastError: providerHealth.alphavantage.lastError,
+          rateLimitBudget: providerHealth.alphavantage.rateLimitBudget,
+          rateLimit: '5 req/min'
+        },
+        yahoo: {
+          status: getProviderStatus('yahoo'),
+          lastSuccess: providerHealth.yahoo.lastSuccess ? new Date(providerHealth.yahoo.lastSuccess).toISOString() : null,
+          lastError: providerHealth.yahoo.lastError,
+          rateLimitBudget: providerHealth.yahoo.rateLimitBudget,
+          rateLimit: 'RSS feeds (no API limit)'
+        }
+      },
+      system: {
+        uptime: process.uptime(),
+        memory: process.memoryUsage(),
+        nodeVersion: process.version,
+        cacheStatus: 'active'
       }
     };
-
-    // Check provider status directly
-    const providerStatus = {
-      fmp: { enabled: !!process.env.FMP_KEY, keyPresent: !!process.env.FMP_KEY },
-      finnhub: { enabled: !!process.env.FINNHUB_KEY, keyPresent: !!process.env.FINNHUB_KEY },
-      alphavantage: { enabled: !!process.env.ALPHAVANTAGE_KEY, keyPresent: !!process.env.ALPHAVANTAGE_KEY }
-    };
-    
-    // Check each provider
-    const providerNames = ['fmp', 'finnhub', 'alphavantage'];
-    
-    for (const providerName of providerNames) {
-      const status = providerStatus[providerName] || {
-        enabled: false,
-        keyPresent: false
-      };
-
-      // Determine provider health status
-      let healthStatus = 'offline';
-      if (status.enabled && status.keyPresent) {
-        healthStatus = 'healthy';
-      }
-      
-      diagnostics.providers[providerName] = {
-        enabled: status.enabled,
-        keyPresent: status.keyPresent,
-        status: healthStatus
-      };
-
-      // Update overall counts
-      diagnostics.overall.total++;
-      if (healthStatus === 'healthy') {
-        diagnostics.overall.healthy++;
-      } else if (healthStatus === 'degraded') {
-        diagnostics.overall.degraded++;
-      } else {
-        diagnostics.overall.offline++;
-      }
-    }
-
-    // Determine overall status
-    if (diagnostics.overall.healthy === diagnostics.overall.total) {
-      diagnostics.overall.status = 'healthy';
-    } else if (diagnostics.overall.healthy > 0) {
-      diagnostics.overall.status = 'degraded';
-    } else {
-      diagnostics.overall.status = 'offline';
-    }
 
     return res.status(200).json({
       success: true,
@@ -76,7 +82,7 @@ export default async function handler(req, res) {
     console.error('Provider diagnostics error:', error);
     return res.status(500).json({
       success: false,
-      error: 'Internal server error',
+      error: 'Diagnostics failed',
       message: error.message
     });
   }

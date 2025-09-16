@@ -1,319 +1,338 @@
-// Multi-provider news aggregation with direct fetchers
+// Multi-provider news aggregation with Yahoo RSS support
 import fetch from 'node-fetch';
 import fmpLimiter from '../lib/fmp-limiter.js';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
-// Rate limiter for provider calls
-const rateLimiter = new Map();
+// In-memory cache for news aggregation
+let newsCache = null;
+let lastCacheUpdate = 0;
+const CACHE_DURATION = 90 * 1000; // 90 seconds
 
-function canMakeRequest(provider, maxRequests = 60, windowMs = 60000) {
-  const now = Date.now();
-  const key = provider;
+// Provider health tracking
+const providerHealth = {
+  fmp: { status: 'unknown', lastSuccess: null, lastError: null, rateLimitBudget: 2 },
+  finnhub: { status: 'unknown', lastSuccess: null, lastError: null, rateLimitBudget: 60 },
+  alphavantage: { status: 'unknown', lastSuccess: null, lastError: null, rateLimitBudget: 5 },
+  yahoo: { status: 'unknown', lastSuccess: null, lastError: null, rateLimitBudget: 10 }
+};
+
+// Yahoo Finance RSS feeds
+const YAHOO_FEEDS = [
+  'https://feeds.finance.yahoo.com/rss/2.0/headline?s=^GSPC&region=US&lang=en-US',
+  'https://feeds.finance.yahoo.com/rss/2.0/headline?s=^DJI&region=US&lang=en-US',
+  'https://feeds.finance.yahoo.com/rss/2.0/headline?s=^IXIC&region=US&lang=en-US',
+  'https://feeds.finance.yahoo.com/rss/2.0/headline?s=AAPL&region=US&lang=en-US',
+  'https://feeds.finance.yahoo.com/rss/2.0/headline?s=NVDA&region=US&lang=en-US',
+  'https://feeds.finance.yahoo.com/rss/2.0/headline?s=TSLA&region=US&lang=en-US',
+  'https://feeds.finance.yahoo.com/rss/2.0/headline?s=MSFT&region=US&lang=en-US',
+  'https://feeds.finance.yahoo.com/rss/2.0/headline?s=GOOGL&region=US&lang=en-US'
+];
+
+// Extract ticker from Yahoo RSS title/description
+function extractYahooTicker(title, description) {
+  const text = `${title} ${description}`.toUpperCase();
   
-  if (!rateLimiter.has(key)) {
-    rateLimiter.set(key, { requests: 0, windowStart: now });
+  // Pattern: (NASDAQ: TICK) or (NYSE: TICK)
+  const exchangeMatch = text.match(/\((NASDAQ|NYSE|AMEX):\s*([A-Z]{1,5}[.-]?[A-Z]?)\)/);
+  if (exchangeMatch) {
+    return exchangeMatch[2];
   }
   
-  const data = rateLimiter.get(key);
-  
-  // Reset window if expired
-  if (now - data.windowStart > windowMs) {
-    data.requests = 0;
-    data.windowStart = now;
+  // Pattern: TICK: or TICK -
+  const colonMatch = text.match(/\b([A-Z]{1,5}[.-]?[A-Z]?):/);
+  if (colonMatch) {
+    return colonMatch[1];
   }
   
-  if (data.requests >= maxRequests) {
-    return false;
-  }
-  
-  data.requests++;
-  return true;
+  return null;
 }
 
-// FMP News Fetcher
-async function fetchFMP(limit = 50) {
-  const apiKey = process.env.FMP_KEY;
-  if (!apiKey) {
-    console.log('FMP: No API key configured');
-    return [];
-  }
-  
-  if (!canMakeRequest('fmp', 60, 60000)) {
-    console.log('FMP: Rate limit exceeded');
-    return [];
-  }
-  
-  const url = `https://financialmodelingprep.com/api/v3/stock_news?limit=${limit}&apikey=${apiKey}`;
-  
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 4000);
-  
+// Parse RSS/Atom XML
+function parseRSS(xmlText) {
   try {
-    console.log(`FMP: Fetching from ${url}`);
-    const response = await fmpLimiter.makeRequest(url, { 
-      signal: controller.signal
+    const items = [];
+    const titleRegex = /<title><!\[CDATA\[(.*?)\]\]><\/title>|<title>(.*?)<\/title>/g;
+    const linkRegex = /<link><!\[CDATA\[(.*?)\]\]><\/link>|<link>(.*?)<\/link>/g;
+    const descRegex = /<description><!\[CDATA\[(.*?)\]\]><\/description>|<description>(.*?)<\/description>/g;
+    const pubDateRegex = /<pubDate>(.*?)<\/pubDate>|<published>(.*?)<\/published>/g;
+    
+    const titles = [...xmlText.matchAll(titleRegex)].map(m => m[1] || m[2]);
+    const links = [...xmlText.matchAll(linkRegex)].map(m => m[1] || m[2]);
+    const descriptions = [...xmlText.matchAll(descRegex)].map(m => m[1] || m[2]);
+    const pubDates = [...xmlText.matchAll(pubDateRegex)].map(m => m[1] || m[2]);
+    
+    for (let i = 0; i < titles.length; i++) {
+      if (titles[i] && !titles[i].includes('Yahoo Finance')) {
+        const ticker = extractYahooTicker(titles[i], descriptions[i] || '');
+        items.push({
+          id: `yahoo_${Date.now()}_${i}`,
+          title: titles[i].trim(),
+          summary: descriptions[i]?.trim() || '',
+          url: links[i] || '',
+          published_at: pubDates[i] ? new Date(pubDates[i]).toISOString() : new Date().toISOString(),
+          source: 'yahoo',
+          symbols: ticker ? [ticker] : []
+        });
+      }
+    }
+    
+    return items;
+  } catch (error) {
+    console.warn('RSS parsing error:', error);
+    return [];
+  }
+}
+
+// FMP News fetcher
+async function fetchFMPNews(limit = 50) {
+  try {
+    const fmpKey = process.env.FMP_KEY;
+    if (!fmpKey) {
+      providerHealth.fmp.lastError = 'No API key';
+      return { items: [], error: 'No FMP API key' };
+    }
+
+    const url = `https://financialmodelingprep.com/api/v3/stock_news?limit=${limit}&apikey=${fmpKey}`;
+    const response = await fmpLimiter.makeRequest(url, {
+      headers: { 'User-Agent': 'Financial-News-Dashboard/1.0' }
     });
-    clearTimeout(timeoutId);
-    
-    console.log(`FMP: Response status ${response.status}`);
-    
-    if (response.status === 429) {
-      console.log('FMP: Rate limit exceeded');
-      return [];
-    }
-    
+
     if (!response.ok) {
-      console.log(`FMP: API error ${response.status}`);
-      return [];
+      const error = `FMP ${response.status}: ${response.statusText}`;
+      providerHealth.fmp.lastError = error;
+      return { items: [], error };
     }
-    
+
     const data = await response.json();
-    console.log('FMP Response structure:', typeof data, Array.isArray(data) ? 'array' : 'object');
-    
-    // FMP returns array directly or wrapped in data property
-    const items = Array.isArray(data) ? data : (data.data || []);
-    if (!Array.isArray(items)) {
-      console.log('FMP: No array found in response, data:', data);
-      return [];
-    }
-    
-    console.log(`FMP: Found ${items.length} items`);
-    
-    const mappedItems = items.map(item => ({
-      id: `fmp_${item.id || Date.now()}`,
+    const items = (data || []).map(item => ({
+      id: `fmp_${item.publishedDate}_${item.title?.substring(0, 20)}`,
       title: item.title || '',
-      summary: item.text || item.summary || '',
+      summary: item.text || '',
       url: item.url || '',
-      published_at: item.publishedDate || item.date || new Date().toISOString(),
+      published_at: item.publishedDate || new Date().toISOString(),
       source: 'fmp',
-      symbols: item.tickers ? item.tickers.split(',').map(s => s.trim().toUpperCase()) : 
-               (item.symbol ? [item.symbol.toUpperCase()] : []),
-      image: item.image || '',
-      sentiment: 'neutral'
+      symbols: item.symbol ? [item.symbol] : (item.tickers || [])
     }));
-    
-    console.log(`FMP: Mapped ${mappedItems.length} items with symbols:`, 
-      mappedItems.filter(item => item.symbols.length > 0).length);
-    
-    return mappedItems;
+
+    providerHealth.fmp.status = 'success';
+    providerHealth.fmp.lastSuccess = Date.now();
+    return { items, error: null };
+
   } catch (error) {
-    clearTimeout(timeoutId);
-    console.log(`FMP: Error - ${error.message}`);
-    return [];
+    const errorMsg = `FMP error: ${error.message}`;
+    providerHealth.fmp.lastError = errorMsg;
+    return { items: [], error: errorMsg };
   }
 }
 
-// Alpha Vantage News Fetcher
-async function fetchAlpha(limit = 50) {
-  const apiKey = process.env.ALPHAVANTAGE_KEY;
-  if (!apiKey) {
-    throw new Error('ALPHAVANTAGE_KEY not configured');
-  }
-  
-  if (!canMakeRequest('alphavantage', 5, 60000)) {
-    throw new Error('Alpha Vantage rate limit exceeded');
-  }
-  
-  const url = `https://www.alphavantage.co/query?function=NEWS_SENTIMENT&sort=LATEST&apikey=${apiKey}`;
-  
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 4000);
-  
+// Finnhub News fetcher
+async function fetchFinnhubNews(limit = 50) {
   try {
-    const response = await fetch(url, { 
-      signal: controller.signal,
-      headers: { 'User-Agent': 'Financial-News-Dashboard/1.0' }
-    });
-    clearTimeout(timeoutId);
-    
-    if (response.status === 429) {
-      throw new Error('Alpha Vantage rate limit exceeded');
+    const finnhubKey = process.env.FINNHUB_KEY;
+    if (!finnhubKey) {
+      providerHealth.finnhub.lastError = 'No API key';
+      return { items: [], error: 'No Finnhub API key' };
     }
-    
-    if (!response.ok) {
-      throw new Error(`Alpha Vantage API error: ${response.status}`);
-    }
-    
-    const data = await response.json();
-    if (!data.feed || !Array.isArray(data.feed)) return [];
-    
-    return data.feed.slice(0, limit).map(item => ({
-      id: `av_${item.uuid || Date.now()}`,
-      title: item.title || '',
-      summary: item.summary || '',
-      url: item.url || '',
-      published_at: item.time_published || new Date().toISOString(),
-      source: 'alphavantage',
-      symbols: item.ticker_sentiment ? 
-        item.ticker_sentiment.map(ts => ts.ticker).filter(Boolean) : [],
-      image: item.banner_image || '',
-      sentiment: item.overall_sentiment_score ? 
-        (item.overall_sentiment_score > 0.1 ? 'positive' : 
-         item.overall_sentiment_score < -0.1 ? 'negative' : 'neutral') : 'neutral'
-    }));
-  } catch (error) {
-    clearTimeout(timeoutId);
-    throw error;
-  }
-}
 
-// Finnhub News Fetcher
-async function fetchFinnhub(limit = 50) {
-  const apiKey = process.env.FINNHUB_KEY;
-  if (!apiKey) {
-    console.log('Finnhub: No API key configured');
-    return [];
-  }
-  
-  if (!canMakeRequest('finnhub', 60, 60000)) {
-    console.log('Finnhub: Rate limit exceeded');
-    return [];
-  }
-  
-  const url = `https://finnhub.io/api/v1/news?category=general&token=${apiKey}`;
-  
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 4000);
-  
-  try {
-    console.log(`Finnhub: Fetching from ${url}`);
-    const response = await fetch(url, { 
-      signal: controller.signal,
+    const url = `https://finnhub.io/api/v1/news?category=general&minId=0&token=${finnhubKey}`;
+    const response = await fetch(url, {
       headers: { 'User-Agent': 'Financial-News-Dashboard/1.0' }
     });
-    clearTimeout(timeoutId);
-    
-    console.log(`Finnhub: Response status ${response.status}`);
-    
-    if (response.status === 429) {
-      console.log('Finnhub: Rate limit exceeded');
-      return [];
-    }
-    
+
     if (!response.ok) {
-      console.log(`Finnhub: API error ${response.status}`);
-      return [];
+      const error = `Finnhub ${response.status}: ${response.statusText}`;
+      providerHealth.finnhub.lastError = error;
+      return { items: [], error };
     }
-    
+
     const data = await response.json();
-    console.log('Finnhub Response structure:', typeof data, Array.isArray(data) ? 'array' : 'object');
-    
-    if (!Array.isArray(data)) {
-      console.log('Finnhub: No array found in response, data:', data);
-      return [];
-    }
-    
-    console.log(`Finnhub: Found ${data.length} items`);
-    
-    const mappedItems = data.slice(0, limit).map(item => ({
-      id: `fh_${item.id || Date.now()}`,
+    const items = (data || []).slice(0, limit).map(item => ({
+      id: `finnhub_${item.id || item.time}_${item.headline?.substring(0, 20)}`,
       title: item.headline || '',
       summary: item.summary || '',
       url: item.url || '',
       published_at: new Date(item.datetime * 1000).toISOString(),
       source: 'finnhub',
-      symbols: item.related ? 
-        item.related.split(',').map(s => s.trim().toUpperCase()) : [],
-      image: item.image || '',
-      sentiment: 'neutral'
+      symbols: item.related ? item.related.split(',').map(s => s.trim()) : []
     }));
-    
-    console.log(`Finnhub: Mapped ${mappedItems.length} items with symbols:`, 
-      mappedItems.filter(item => item.symbols.length > 0).length);
-    
-    return mappedItems;
+
+    providerHealth.finnhub.status = 'success';
+    providerHealth.finnhub.lastSuccess = Date.now();
+    return { items, error: null };
+
   } catch (error) {
-    clearTimeout(timeoutId);
-    console.log(`Finnhub: Error - ${error.message}`);
-    return [];
+    const errorMsg = `Finnhub error: ${error.message}`;
+    providerHealth.finnhub.lastError = errorMsg;
+    return { items: [], error: errorMsg };
   }
 }
 
-// Deduplicate news items by title and URL with 5-minute time window
-function deduplicateNews(newsItems) {
+// Alpha Vantage News fetcher
+async function fetchAlphaVantageNews(limit = 50) {
+  try {
+    const avKey = process.env.ALPHAVANTAGE_KEY;
+    if (!avKey) {
+      providerHealth.alphavantage.lastError = 'No API key';
+      return { items: [], error: 'No Alpha Vantage API key' };
+    }
+
+    const url = `https://www.alphavantage.co/query?function=NEWS_SENTIMENT&sort=LATEST&apikey=${avKey}`;
+    const response = await fetch(url, {
+      headers: { 'User-Agent': 'Financial-News-Dashboard/1.0' }
+    });
+
+    if (!response.ok) {
+      const error = `Alpha Vantage ${response.status}: ${response.statusText}`;
+      providerHealth.alphavantage.lastError = error;
+      return { items: [], error };
+    }
+
+    const data = await response.json();
+    const feed = data.feed || [];
+    const items = feed.slice(0, limit).map(item => ({
+      id: `av_${item.time_published}_${item.title?.substring(0, 20)}`,
+      title: item.title || '',
+      summary: item.summary || '',
+      url: item.url || '',
+      published_at: item.time_published || new Date().toISOString(),
+      source: 'alphavantage',
+      symbols: (item.ticker_sentiment || []).map(t => t.ticker).filter(Boolean)
+    }));
+
+    providerHealth.alphavantage.status = 'success';
+    providerHealth.alphavantage.lastSuccess = Date.now();
+    return { items, error: null };
+
+  } catch (error) {
+    const errorMsg = `Alpha Vantage error: ${error.message}`;
+    providerHealth.alphavantage.lastError = errorMsg;
+    return { items: [], error: errorMsg };
+  }
+}
+
+// Yahoo RSS fetcher
+async function fetchYahooNews(limit = 50) {
+  try {
+    const allItems = [];
+    
+    // Fetch from multiple Yahoo feeds in parallel
+    const feedPromises = YAHOO_FEEDS.map(async (feedUrl) => {
+      try {
+        const response = await fetch(feedUrl, {
+          headers: { 'User-Agent': 'Financial-News-Dashboard/1.0' },
+          timeout: 5000
+        });
+        
+        if (!response.ok) {
+          throw new Error(`Yahoo RSS ${response.status}: ${response.statusText}`);
+        }
+        
+        const xmlText = await response.text();
+        return parseRSS(xmlText);
+      } catch (error) {
+        console.warn(`Yahoo feed ${feedUrl} failed:`, error.message);
+        return [];
+      }
+    });
+    
+    const feedResults = await Promise.allSettled(feedPromises);
+    feedResults.forEach(result => {
+      if (result.status === 'fulfilled') {
+        allItems.push(...result.value);
+      }
+    });
+    
+    // Remove duplicates and limit
+    const uniqueItems = allItems.filter((item, index, self) => 
+      index === self.findIndex(t => t.title === item.title)
+    ).slice(0, limit);
+
+    providerHealth.yahoo.status = 'success';
+    providerHealth.yahoo.lastSuccess = Date.now();
+    return { items: uniqueItems, error: null };
+
+  } catch (error) {
+    const errorMsg = `Yahoo RSS error: ${error.message}`;
+    providerHealth.yahoo.lastError = errorMsg;
+    return { items: [], error: errorMsg };
+  }
+}
+
+// True deduplication (same normalized title + source within ±5 minutes)
+function deduplicateNews(items) {
   const seen = new Map();
-  const now = Date.now();
-  const FIVE_MINUTES = 5 * 60 * 1000;
+  const fiveMinutes = 5 * 60 * 1000;
   
-  return newsItems.filter(item => {
-    const title = item.title?.toLowerCase().trim();
-    const publishedAt = new Date(item.published_at).getTime();
-    const source = item.source;
-    
-    if (!title) return false;
-    
-    // Skip if older than 5 minutes for deduplication
-    if (now - publishedAt > FIVE_MINUTES) return true;
-    
-    // Create a key that includes source to allow same title from different providers
-    const key = `${title}|${source}`;
+  return items.filter(item => {
+    const normalizedTitle = item.title.toLowerCase().replace(/[^\w\s]/g, '').trim();
+    const key = `${normalizedTitle}|${item.source}`;
+    const now = new Date(item.published_at).getTime();
     
     if (seen.has(key)) {
-      return false;
+      const existing = seen.get(key);
+      const timeDiff = Math.abs(now - existing.time);
+      
+      if (timeDiff <= fiveMinutes) {
+        return false; // Duplicate within 5 minutes
+      }
     }
     
-    seen.set(key, true);
+    seen.set(key, { time: now });
     return true;
   });
 }
 
-// Main news aggregation
-async function fetchNewsFromProviders() {
-  console.log('Starting news aggregation from all providers...');
+// Main news aggregation function
+async function aggregateNews(limit = 100) {
+  console.log('Starting multi-provider news aggregation...');
   
-  // Force all providers to be called with individual error handling
-  const fmpPromise = fetchFMP(50).catch(err => {
-    console.log(`FMP: ERROR - ${err.message}`);
-    return { error: err.message, items: [] };
-  });
+  // Fetch from all providers in parallel
+  const results = await Promise.allSettled([
+    fetchFMPNews(limit),
+    fetchFinnhubNews(limit),
+    fetchAlphaVantageNews(limit),
+    fetchYahooNews(limit)
+  ]);
   
-  const alphaPromise = fetchAlpha(50).catch(err => {
-    console.log(`Alpha Vantage: ERROR - ${err.message}`);
-    return { error: err.message, items: [] };
-  });
-  
-  const finnhubPromise = fetchFinnhub(50).catch(err => {
-    console.log(`Finnhub: ERROR - ${err.message}`);
-    return { error: err.message, items: [] };
-  });
-  
-  const results = await Promise.allSettled([fmpPromise, alphaPromise, finnhubPromise]);
-  
-  const items = [];
+  const allItems = [];
   const errors = [];
-  const counts = { fmp: 0, alphavantage: 0, finnhub: 0 };
+  const counts = { fmp: 0, finnhub: 0, alphavantage: 0, yahoo: 0 };
   
   results.forEach((result, index) => {
-    const provider = ['fmp', 'alphavantage', 'finnhub'][index];
+    const providers = ['fmp', 'finnhub', 'alphavantage', 'yahoo'];
+    const provider = providers[index];
     
     if (result.status === 'fulfilled') {
-      const data = result.value;
-      if (data.error) {
-        console.log(`${provider}: ERROR - ${data.error}`);
-        errors.push(`${provider}: ${data.error}`);
-      } else {
-        console.log(`${provider}: SUCCESS - ${data.length} items`);
-        items.push(...data);
-        counts[provider] = data.length;
+      const { items, error } = result.value;
+      allItems.push(...items);
+      counts[provider] = items.length;
+      
+      if (error) {
+        errors.push(`${provider}: ${error}`);
       }
     } else {
-      console.log(`${provider}: PROMISE REJECTED - ${result.reason.message}`);
       errors.push(`${provider}: ${result.reason.message}`);
     }
   });
   
-  console.log(`Total items collected: ${items.length}`);
-  console.log(`Provider counts:`, counts);
-  console.log(`Errors:`, errors);
+  // Deduplicate and sort
+  const deduplicated = deduplicateNews(allItems);
+  const sorted = deduplicated.sort((a, b) => 
+    new Date(b.published_at).getTime() - new Date(a.published_at).getTime()
+  );
   
-  // Ensure we never return empty if any provider succeeded
-  if (items.length === 0 && errors.length > 0) {
-    console.log('All providers failed, but continuing with empty results');
-  }
+  console.log(`News aggregation complete: ${sorted.length} items from ${Object.values(counts).filter(c => c > 0).length} providers`);
   
-  return { items, counts, errors };
+  return {
+    items: sorted,
+    meta: {
+      counts,
+      errors,
+      updated_at: new Date().toISOString()
+    }
+  };
 }
 
 export default async function handler(req, res) {
@@ -322,50 +341,59 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { limit = 50 } = req.query;
-    const limitNum = Math.min(parseInt(limit) || 50, 100);
+    const { limit = 100, force = false } = req.query;
+    const now = Date.now();
     
-    console.log(`Fetching news: limit=${limitNum}`);
+    // Check cache first
+    if (!force && newsCache && (now - lastCacheUpdate) < CACHE_DURATION) {
+      console.log('Serving cached news');
+      return res.status(200).json({
+        success: true,
+        data: {
+          news: newsCache.items.slice(0, parseInt(limit)),
+          meta: newsCache.meta
+        }
+      });
+    }
     
-    const { items, counts, errors } = await fetchNewsFromProviders();
-    
-    // Deduplicate and sort
-    const deduplicated = deduplicateNews(items);
-    const sorted = deduplicated
-      .sort((a, b) => new Date(b.published_at) - new Date(a.published_at))
-      .slice(0, limitNum);
-    
-    console.log(`News aggregation complete: ${sorted.length} items, errors: ${errors.length}`);
-    console.log('Provider counts:', counts);
+    // Fetch fresh news
+    const result = await aggregateNews(parseInt(limit));
+    newsCache = result;
+    lastCacheUpdate = now;
     
     return res.status(200).json({
       success: true,
       data: {
-        news: sorted,
-        meta: {
-          counts,
-          errors,
-          total: sorted.length,
-          timestamp: new Date().toISOString()
-        }
+        news: result.items,
+        meta: result.meta
       }
     });
-    
+
   } catch (error) {
-    console.error('News API error:', error);
+    console.error('News aggregation error:', error);
+    
+    // Return cached data if available, even if stale
+    if (newsCache) {
+      console.log('Returning stale cache due to error');
+      return res.status(200).json({
+        success: true,
+        data: {
+          news: newsCache.items.slice(0, parseInt(req.query.limit || 100)),
+          meta: {
+            ...newsCache.meta,
+            errors: [...(newsCache.meta.errors || []), `Current error: ${error.message}`]
+          }
+        }
+      });
+    }
+    
     return res.status(500).json({
       success: false,
-      error: 'Failed to fetch news',
-      message: error.message,
-      data: {
-        news: [],
-        meta: {
-          counts: { fmp: 0, alphavantage: 0, finnhub: 0 },
-          errors: [error.message],
-          total: 0,
-          timestamp: new Date().toISOString()
-        }
-      }
+      error: 'News aggregation failed',
+      message: error.message
     });
   }
 }
+
+// Export provider health for diagnostics
+export { providerHealth };

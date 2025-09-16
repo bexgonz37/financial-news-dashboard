@@ -430,6 +430,7 @@
           <option value="alphavantage">Alpha Vantage</option>
           <option value="fmp">Financial Modeling Prep</option>
           <option value="finnhub">Finnhub</option>
+          <option value="yahoo">Yahoo Finance</option>
         </select>
         <div class="auto-refresh-indicator">
           <span class="status-indicator live">🔄 Auto-refresh enabled</span>
@@ -3718,11 +3719,23 @@
         statusText.textContent = `Live • Last updated: ${timeStr}`;
       }
       
-      // Update provider status display
+      // Update provider status display with multi-source counts
       if (providerStatusEl) {
         const newsStatus = getStatusBadge(providerStatus.news.status, 'News');
         const scannerStatus = getStatusBadge(providerStatus.scanner.status, 'Scanner');
-        providerStatusEl.innerHTML = `${newsStatus} | ${scannerStatus}`;
+        
+        // Show provider counts if available
+        let providerCounts = '';
+        if (window.lastNewsMeta && window.lastNewsMeta.counts) {
+          const counts = window.lastNewsMeta.counts;
+          const activeProviders = Object.entries(counts)
+            .filter(([_, count]) => count > 0)
+            .map(([provider, count]) => `${provider.toUpperCase()}:${count}`)
+            .join(' ');
+          providerCounts = activeProviders ? ` | ${activeProviders}` : '';
+        }
+        
+        providerStatusEl.innerHTML = `${newsStatus} | ${scannerStatus}${providerCounts}`;
       }
       
       // Update health panel
@@ -4175,6 +4188,10 @@
               // Replace sample data with real data
               newsData = realNewsData.data.news;
               filteredNews = realNewsData.data.news;
+              
+              // Store meta data for status bar
+              window.lastNewsMeta = realNewsData.data.meta;
+              
               renderNews();
             }
           }
@@ -4343,6 +4360,80 @@
         el.className = `status-indicator ${status.toLowerCase()}`;
       });
     }
+    
+    // Auto-refresh news every 90 seconds (staggered)
+    let refreshInterval;
+    let lastRefreshTime = 0;
+    
+    function startAutoRefresh() {
+      if (refreshInterval) clearInterval(refreshInterval);
+      
+      refreshInterval = setInterval(() => {
+        if (document.getElementById('view-news').style.display !== 'none') {
+          const now = Date.now();
+          // Stagger requests to avoid overwhelming providers
+          const delay = (now - lastRefreshTime) < 90000 ? 30000 : 0;
+          
+          setTimeout(() => {
+            loadNews();
+            lastRefreshTime = Date.now();
+          }, delay);
+        }
+      }, 90000); // 90 seconds
+    }
+    
+    // Load news function
+    async function loadNews() {
+      debugLog('Loading news from all providers...', 'info');
+      
+      try {
+        const response = await fetch('/api/news?limit=100');
+        if (response.ok) {
+          const data = await response.json();
+          if (data.success && data.data?.news?.length > 0) {
+            const counts = data.data.meta?.counts || {};
+            const errors = data.data.meta?.errors || [];
+            
+            debugLog(`News loaded: ${data.data.news.length} items`, 'success');
+            debugLog(`Provider counts: FMP=${counts.fmp || 0}, AV=${counts.alphavantage || 0}, FH=${counts.finnhub || 0}, Yahoo=${counts.yahoo || 0}`, 'info');
+            if (errors.length > 0) {
+              debugLog(`Provider errors: ${errors.join(', ')}`, 'warning');
+            }
+            
+            // Update data
+            newsData = data.data.news;
+            filteredNews = data.data.news;
+            
+            // Store meta data for status bar
+            window.lastNewsMeta = data.data.meta;
+            
+            // Update status
+            providerStatus.news.status = 'live';
+            updateStatusBar();
+            
+            renderNews();
+          } else {
+            debugLog('No news data received', 'warning');
+            providerStatus.news.status = 'degraded';
+            updateStatusBar();
+          }
+        } else {
+          debugLog(`News API error: ${response.status}`, 'error');
+          providerStatus.news.status = 'offline';
+          updateStatusBar();
+        }
+      } catch (error) {
+        debugLog(`News loading failed: ${error.message}`, 'error');
+        providerStatus.news.status = 'offline';
+        updateStatusBar();
+      }
+    }
+    
+    // Start auto-refresh when page loads
+    document.addEventListener('DOMContentLoaded', () => {
+      loadNews(); // Load initial news
+      startAutoRefresh();
+    });
   </script>
 </body>
 </html>
