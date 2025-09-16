@@ -1856,8 +1856,17 @@
           // The tick is automatically added to the store by wsQuotes
         });
         
+        // Connect to WebSocket
+        await wsQuotes.connect();
+        
         // Load initial data
         await loadInitialData();
+        
+        // Subscribe to some popular symbols for testing
+        const testSymbols = ['AAPL', 'MSFT', 'GOOGL', 'TSLA', 'NVDA', 'AMZN', 'META', 'NFLX'];
+        testSymbols.forEach(symbol => {
+          wsQuotes.subscribe(symbol);
+        });
         
         console.log('Dashboard initialized successfully');
         

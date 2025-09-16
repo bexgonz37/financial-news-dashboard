@@ -7,6 +7,7 @@ export const revalidate = 0;
 import { providerQueue } from '../lib/provider-queue.js';
 import { sharedCache } from '../lib/shared-cache.js';
 import { comprehensiveSymbolMaster } from '../lib/comprehensive-symbol-master.js';
+import { scannerEngine } from '../src/lib/scanners/run.js';
 
 // Scanner presets - BROAD FILTERS for maximum coverage
 const SCANNER_PRESETS = {
@@ -402,17 +403,17 @@ export default async function handler(req, res) {
     if (exchange) filters.exchange = exchange;
     if (sector) filters.sector = sector;
     
-    const result = await scanStocks(preset, parseInt(limit), filters);
+    // Use the new tick-based scanner engine
+    const result = await scannerEngine.runAllScanners();
+    const stocks = result[preset] || [];
     
-    console.log(`Advanced scanner returned ${result.stocks.length} stocks from ${result.totalProcessed} processed (universe: ${result.universeSize})`);
+    console.log(`Tick-based scanner returned ${stocks.length} stocks for preset ${preset}`);
     
     // Comprehensive logging for observability
-    const rateLimited = result.errors && result.errors.some(err => err.includes('429') || err.includes('rate limit'));
-    console.log(`scanner_universe=${result.universeSize} processed=${result.totalProcessed} rate_limited=${rateLimited}`);
-    console.log(`scanner_results=${result.stocks.length} preset=${preset} errors=[${(result.errors || []).join(',')}]`);
+    console.log(`scanner_results=${stocks.length} preset=${preset} tick_based=true`);
 
     // If no stocks, show partial results or error state
-    if (result.stocks.length === 0) {
+    if (stocks.length === 0) {
       if (result.providerStatus === 'offline') {
         return res.status(200).json({
           success: true,
@@ -485,14 +486,14 @@ export default async function handler(req, res) {
       success: true, 
       data: { 
         refreshInterval: 30000,
-        stocks: result.stocks, 
-        totalProcessed: result.totalProcessed,
-        universeSize: result.universeSize,
-        preset: result.preset,
-        filters: result.filters,
-        providerStatus: result.providerStatus,
+        stocks: stocks.slice(0, parseInt(limit)), 
+        totalProcessed: stocks.length,
+        universeSize: stocks.length,
+        preset: preset,
+        filters: filters,
+        providerStatus: 'live',
         lastUpdate: new Date().toISOString(),
-        errors: result.errors || []
+        errors: []
       }
     });
 

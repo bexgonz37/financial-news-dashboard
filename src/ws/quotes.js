@@ -1,4 +1,4 @@
-// WebSocket quotes client with polling fallback
+// WebSocket quotes client for Finnhub with tick buffers
 import { appState } from '../state/store.js';
 
 class WebSocketQuotes {
@@ -9,42 +9,42 @@ class WebSocketQuotes {
     this.reconnectDelay = 1000;
     this.heartbeatInterval = null;
     this.subscribedSymbols = new Set();
-    this.pollingFallback = null;
     this.isConnected = false;
-    this.lastHeartbeat = null;
+    this.lastHeartbeat = 0;
+    this.onTickCallback = null;
     
-    // Provider endpoints (mock - would be real WebSocket endpoints)
-    this.endpoints = [
-      'wss://fmp-ws.financialmodelingprep.com',
-      'wss://finnhub.io/ws',
-      'wss://polygon.io/stocks'
-    ];
-    this.currentEndpointIndex = 0;
+    // For client-side, we'll need to get the token from the API
+    this.FINNHUB_WS_URL = null;
+    this.HEARTBEAT_INTERVAL = 25000; // 25 seconds
+    this.MAX_TICKS_PER_SYMBOL = 300;
+
+    // Don't connect immediately - wait for initialization
   }
 
-  // Connect to WebSocket
-  connect() {
-    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-      return;
-    }
-
-    const endpoint = this.endpoints[this.currentEndpointIndex];
-    console.log(`Connecting to WebSocket: ${endpoint}`);
-
+  async connect() {
     try {
-      this.ws = new WebSocket(endpoint);
+      // First, get the WebSocket token
+      if (!this.FINNHUB_WS_URL) {
+        const response = await fetch('/api/ws-token');
+        const data = await response.json();
+        
+        if (!data.success) {
+          throw new Error('Failed to get WebSocket token');
+        }
+        
+        this.FINNHUB_WS_URL = data.data.wsUrl;
+      }
+      
+      console.log('Connecting to Finnhub WebSocket...');
+      this.ws = new WebSocket(this.FINNHUB_WS_URL);
       
       this.ws.onopen = () => {
-        console.log('WebSocket connected');
+        console.log('WebSocket connected to Finnhub');
         this.isConnected = true;
         this.reconnectAttempts = 0;
         this.startHeartbeat();
-        this.resubscribe();
-        
-        appState.updateStatus({
-          wsConnected: true,
-          providers: new Map([['quotes', { status: 'healthy', lastUpdate: Date.now() }]])
-        });
+        this.resubscribeAll();
+        this.updateStatus('LIVE');
       };
 
       this.ws.onmessage = (event) => {
@@ -52,108 +52,142 @@ class WebSocketQuotes {
           const data = JSON.parse(event.data);
           this.handleMessage(data);
         } catch (error) {
-          console.error('WebSocket message parse error:', error);
+          console.error('Failed to parse WebSocket message:', error);
         }
       };
 
-      this.ws.onclose = () => {
-        console.log('WebSocket disconnected');
+      this.ws.onclose = (event) => {
+        console.log('WebSocket closed:', event.code, event.reason);
         this.isConnected = false;
         this.stopHeartbeat();
-        this.startPollingFallback();
+        this.updateStatus('OFFLINE');
         this.scheduleReconnect();
-        
-        appState.updateStatus({
-          wsConnected: false,
-          providers: new Map([['quotes', { status: 'degraded', lastUpdate: Date.now() }]])
-        });
       };
 
       this.ws.onerror = (error) => {
         console.error('WebSocket error:', error);
-        this.tryNextEndpoint();
+        this.updateStatus('DEGRADED');
       };
 
     } catch (error) {
-      console.error('WebSocket connection failed:', error);
-      this.startPollingFallback();
+      console.error('Failed to connect to WebSocket:', error);
+      this.scheduleReconnect();
     }
   }
 
-  // Handle incoming messages
   handleMessage(data) {
-    if (data.type === 'quote') {
-      this.handleQuote(data);
-    } else if (data.type === 'heartbeat') {
-      this.lastHeartbeat = Date.now();
-    } else if (data.type === 'error') {
-      console.error('WebSocket error:', data.message);
+    if (data.type === 'ping') {
+      // Respond to ping with pong
+      this.send({ type: 'pong' });
+      return;
+    }
+
+    if (data.type === 'trade' && data.data) {
+      const trades = Array.isArray(data.data) ? data.data : [data.data];
+      
+      trades.forEach((trade) => {
+        if (trade.s && trade.p && trade.t) {
+          const tick = {
+            symbol: trade.s,
+            price: parseFloat(trade.p),
+            volume: parseFloat(trade.v) || 0,
+            timestamp: trade.t * 1000, // Convert to milliseconds
+            change: trade.c ? parseFloat(trade.c) : undefined,
+            changePercent: trade.dp ? parseFloat(trade.dp) : undefined
+          };
+
+          this.appendTick(tick);
+          
+          if (this.onTickCallback) {
+            this.onTickCallback(tick);
+          }
+        }
+      });
     }
   }
 
-  // Handle quote updates
-  handleQuote(data) {
-    const quote = {
-      symbol: data.symbol,
-      price: data.price,
-      change: data.change,
-      changePercent: data.changePercent,
-      volume: data.volume,
-      timestamp: data.timestamp || Date.now()
-    };
-
-    appState.updateQuote(data.symbol, quote);
+  appendTick(tick) {
+    const currentTicks = appState.state.ticks.get(tick.symbol) || [];
+    
+    // Add new tick
+    const updatedTicks = [...currentTicks, tick];
+    
+    // Maintain ring buffer size
+    if (updatedTicks.length > this.MAX_TICKS_PER_SYMBOL) {
+      updatedTicks.splice(0, updatedTicks.length - this.MAX_TICKS_PER_SYMBOL);
+    }
+    
+    // Update store
+    appState.updateTicks(tick.symbol, updatedTicks);
+    
+    // Update last price and volume in quotes
+    const currentQuote = appState.state.quotes.get(tick.symbol) || {};
+    appState.updateQuote(tick.symbol, {
+      ...currentQuote,
+      price: tick.price,
+      volume: tick.volume,
+      change: tick.change,
+      changePercent: tick.changePercent,
+      timestamp: tick.timestamp
+    });
   }
 
-  // Subscribe to symbol
   subscribe(symbol) {
+    if (!this.isConnected || !this.ws) {
+      console.warn('WebSocket not connected, cannot subscribe to', symbol);
+      return;
+    }
+
+    if (this.subscribedSymbols.has(symbol)) {
+      return; // Already subscribed
+    }
+
+    console.log('Subscribing to', symbol);
+    this.send({ type: 'subscribe', symbol });
     this.subscribedSymbols.add(symbol);
-    
-    if (this.isConnected && this.ws) {
-      this.send({
-        type: 'subscribe',
-        symbol: symbol
-      });
-    }
   }
 
-  // Unsubscribe from symbol
   unsubscribe(symbol) {
+    if (!this.isConnected || !this.ws) {
+      return;
+    }
+
+    if (!this.subscribedSymbols.has(symbol)) {
+      return; // Not subscribed
+    }
+
+    console.log('Unsubscribing from', symbol);
+    this.send({ type: 'unsubscribe', symbol });
     this.subscribedSymbols.delete(symbol);
-    
-    if (this.isConnected && this.ws) {
-      this.send({
-        type: 'unsubscribe',
-        symbol: symbol
-      });
-    }
   }
 
-  // Resubscribe to all symbols
-  resubscribe() {
-    if (this.subscribedSymbols.size > 0) {
-      this.send({
-        type: 'subscribe',
-        symbols: Array.from(this.subscribedSymbols)
-      });
+  resubscribeAll() {
+    if (!this.isConnected || !this.ws) {
+      return;
     }
+
+    console.log('Resubscribing to all symbols:', Array.from(this.subscribedSymbols));
+    this.subscribedSymbols.forEach(symbol => {
+      this.send({ type: 'subscribe', symbol });
+    });
   }
 
-  // Send message to WebSocket
   send(message) {
     if (this.ws && this.ws.readyState === WebSocket.OPEN) {
       this.ws.send(JSON.stringify(message));
     }
   }
 
-  // Start heartbeat
   startHeartbeat() {
+    this.stopHeartbeat();
     this.heartbeatInterval = setInterval(() => {
-      this.send({ type: 'ping' });
-    }, 30000); // 30 seconds
+      if (this.isConnected && this.ws) {
+        this.send({ type: 'ping' });
+        this.lastHeartbeat = Date.now();
+      }
+    }, this.HEARTBEAT_INTERVAL);
   }
 
-  // Stop heartbeat
   stopHeartbeat() {
     if (this.heartbeatInterval) {
       clearInterval(this.heartbeatInterval);
@@ -161,91 +195,52 @@ class WebSocketQuotes {
     }
   }
 
-  // Schedule reconnection
   scheduleReconnect() {
-    if (this.reconnectAttempts < this.maxReconnectAttempts) {
-      const delay = this.reconnectDelay * Math.pow(2, this.reconnectAttempts);
-      console.log(`Reconnecting in ${delay}ms (attempt ${this.reconnectAttempts + 1})`);
-      
-      setTimeout(() => {
-        this.reconnectAttempts++;
-        this.connect();
-      }, delay);
-    } else {
-      console.log('Max reconnection attempts reached, staying on polling fallback');
+    if (this.reconnectAttempts >= this.maxReconnectAttempts) {
+      console.error('Max reconnection attempts reached');
+      this.updateStatus('OFFLINE');
+      return;
     }
-  }
 
-  // Try next endpoint
-  tryNextEndpoint() {
-    this.currentEndpointIndex = (this.currentEndpointIndex + 1) % this.endpoints.length;
-    this.reconnectAttempts++;
-    this.connect();
-  }
-
-  // Start polling fallback
-  startPollingFallback() {
-    if (this.pollingFallback) return;
-
-    console.log('Starting polling fallback for quotes');
+    const delay = this.reconnectDelay * Math.pow(2, this.reconnectAttempts);
+    console.log(`Reconnecting in ${delay}ms (attempt ${this.reconnectAttempts + 1})`);
     
-    this.pollingFallback = setInterval(async () => {
-      await this.pollQuotes();
-    }, 5000); // Poll every 5 seconds
+    setTimeout(() => {
+      this.reconnectAttempts++;
+      this.connect();
+    }, delay);
   }
 
-  // Stop polling fallback
-  stopPollingFallback() {
-    if (this.pollingFallback) {
-      clearInterval(this.pollingFallback);
-      this.pollingFallback = null;
-    }
+  updateStatus(status) {
+    appState.updateStatus({
+      wsStatus: status,
+      lastHeartbeat: this.lastHeartbeat
+    });
   }
 
-  // Poll quotes from REST API
-  async pollQuotes() {
-    if (this.subscribedSymbols.size === 0) return;
-
-    try {
-      const symbols = Array.from(this.subscribedSymbols);
-      const response = await fetch(`/api/quotes?symbols=${symbols.join(',')}`);
-      const data = await response.json();
-
-      if (data.success && data.data) {
-        appState.updateQuotes(data.data);
-      }
-    } catch (error) {
-      console.error('Polling quotes failed:', error);
-    }
+  setOnTickCallback(callback) {
+    this.onTickCallback = callback;
   }
 
-  // Disconnect
-  disconnect() {
-    this.stopHeartbeat();
-    this.stopPollingFallback();
-    
-    if (this.ws) {
-      this.ws.close();
-      this.ws = null;
-    }
-    
-    this.isConnected = false;
-    this.subscribedSymbols.clear();
-  }
-
-  // Get connection status
   getStatus() {
     return {
-      connected: this.isConnected,
+      isConnected: this.isConnected,
       subscribedSymbols: Array.from(this.subscribedSymbols),
       lastHeartbeat: this.lastHeartbeat,
       reconnectAttempts: this.reconnectAttempts
     };
   }
+
+  disconnect() {
+    this.stopHeartbeat();
+    if (this.ws) {
+      this.ws.close();
+      this.ws = null;
+    }
+    this.isConnected = false;
+    this.subscribedSymbols.clear();
+  }
 }
 
 // Export singleton
 export const wsQuotes = new WebSocketQuotes();
-
-// Auto-connect on import
-wsQuotes.connect();
