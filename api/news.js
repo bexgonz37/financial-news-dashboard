@@ -63,16 +63,26 @@ async function fetchFMP(limit = 50) {
     }
     
     const data = await response.json();
-    if (!Array.isArray(data)) return [];
+    console.log('FMP Response:', JSON.stringify(data, null, 2));
     
-    return data.map(item => ({
+    // FMP returns array directly or wrapped in data property
+    const items = Array.isArray(data) ? data : (data.data || []);
+    if (!Array.isArray(items)) {
+      console.log('FMP: No array found in response');
+      return [];
+    }
+    
+    console.log(`FMP: Found ${items.length} items`);
+    
+    return items.map(item => ({
       id: `fmp_${item.id || Date.now()}`,
       title: item.title || '',
-      summary: item.text || '',
+      summary: item.text || item.summary || '',
       url: item.url || '',
-      published_at: item.publishedDate || new Date().toISOString(),
+      published_at: item.publishedDate || item.date || new Date().toISOString(),
       source: 'fmp',
-      symbols: item.tickers ? item.tickers.split(',').map(s => s.trim().toUpperCase()) : [],
+      symbols: item.tickers ? item.tickers.split(',').map(s => s.trim().toUpperCase()) : 
+               (item.symbol ? [item.symbol.toUpperCase()] : []),
       image: item.image || '',
       sentiment: 'neutral'
     }));
@@ -168,7 +178,14 @@ async function fetchFinnhub(limit = 50) {
     }
     
     const data = await response.json();
-    if (!Array.isArray(data)) return [];
+    console.log('Finnhub Response:', JSON.stringify(data, null, 2));
+    
+    if (!Array.isArray(data)) {
+      console.log('Finnhub: No array found in response');
+      return [];
+    }
+    
+    console.log(`Finnhub: Found ${data.length} items`);
     
     return data.slice(0, limit).map(item => ({
       id: `fh_${item.id || Date.now()}`,

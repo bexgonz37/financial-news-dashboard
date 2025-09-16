@@ -970,13 +970,13 @@
         return;
       }
       feed.innerHTML = filteredNews.map(n=>{
-        // Use new single-ticker resolver structure
-        const primaryTicker = n.primaryTicker || '';
-        const secondaryTickers = n.secondaryTickers || [];
-        const isGeneral = n.isGeneral || false;
-        const tickerReason = n.tickerReason || '';
+        // Extract ticker from symbols array or use existing fields
+        const primaryTicker = n.symbols && n.symbols.length > 0 ? n.symbols[0] : (n.primaryTicker || '');
+        const secondaryTickers = n.symbols && n.symbols.length > 1 ? n.symbols.slice(1) : (n.secondaryTickers || []);
+        const isGeneral = !primaryTicker;
+        const tickerReason = n.symbols && n.symbols.length > 0 ? 'provider_symbol' : (n.tickerReason || '');
         const t = primaryTicker.toUpperCase();
-        const when = n.publishedAt ? timeAgo(n.publishedAt) : '';
+        const when = n.published_at ? timeAgo(n.published_at) : '';
         const source = n.source ? n.source : '';
         const starred = watchlist.has(t) ? 'active' : '';
         const pctNode = `<span class="pct" data-optional="pct"><span class="arrow">⏳</span> <span class="val">…</span></span>`;
@@ -1138,13 +1138,54 @@
           'SPY', 'QQQ', 'IWM', 'VTI', 'VOO', 'ARKK', 'TQQQ', 'SQQQ', 'UPRO', 'SPXU'
         ];
         
-        // Generate dynamic scanner data
+        // Generate advanced scanner data with multiple criteria
         const sampleStocks = liquidStocks.map(symbol => {
           const basePrice = 50 + Math.random() * 400;
-          const changePercent = (Math.random() - 0.5) * 10; // -5% to +5%
+          const changePercent = (Math.random() - 0.5) * 15; // -7.5% to +7.5%
           const change = (basePrice * changePercent) / 100;
-          const volume = Math.floor(Math.random() * 50000000) + 1000000;
-          const score = Math.floor(Math.random() * 100) + 1;
+          const volume = Math.floor(Math.random() * 100000000) + 5000000;
+          const avgVolume = Math.floor(volume * (0.5 + Math.random() * 1.5));
+          const relativeVolume = volume / avgVolume;
+          
+          // Advanced technical indicators
+          const rsi = 20 + Math.random() * 60; // RSI 20-80
+          const macd = (Math.random() - 0.5) * 2; // MACD -1 to +1
+          const bollingerPosition = Math.random(); // 0-1 position in Bollinger Bands
+          const volumeSpike = relativeVolume > 2;
+          const priceBreakout = Math.abs(changePercent) > 5;
+          const momentum = changePercent * relativeVolume;
+          
+          // Calculate composite score based on multiple factors
+          let score = 0;
+          if (volumeSpike) score += 30;
+          if (priceBreakout) score += 25;
+          if (rsi > 70 || rsi < 30) score += 20; // Overbought/Oversold
+          if (macd > 0.5 || macd < -0.5) score += 15; // Strong MACD signal
+          if (bollingerPosition > 0.8 || bollingerPosition < 0.2) score += 10; // Near bands
+          score += Math.abs(momentum) / 2; // Momentum component
+          
+          // Determine scanner category
+          let category = 'MOMENTUM';
+          let reason = '';
+          if (volumeSpike && priceBreakout) {
+            category = 'BREAKOUT';
+            reason = `Volume spike ${relativeVolume.toFixed(1)}x + ${changePercent > 0 ? 'bullish' : 'bearish'} breakout`;
+          } else if (volumeSpike) {
+            category = 'UNUSUAL_VOLUME';
+            reason = `Volume spike ${relativeVolume.toFixed(1)}x avg volume`;
+          } else if (priceBreakout) {
+            category = 'PRICE_ACTION';
+            reason = `${changePercent > 0 ? 'Bullish' : 'Bearish'} move ${Math.abs(changePercent).toFixed(1)}%`;
+          } else if (rsi > 70) {
+            category = 'OVERBOUGHT';
+            reason = `RSI ${rsi.toFixed(1)} - potential reversal`;
+          } else if (rsi < 30) {
+            category = 'OVERSOLD';
+            reason = `RSI ${rsi.toFixed(1)} - potential bounce`;
+          } else {
+            category = 'MOMENTUM';
+            reason = `${changePercent > 0 ? 'Gain' : 'Loss'} ${Math.abs(changePercent).toFixed(1)}%`;
+          }
           
           return {
             symbol,
@@ -1152,8 +1193,22 @@
             change: parseFloat(change.toFixed(2)),
             changePercent: parseFloat(changePercent.toFixed(2)),
             volume,
-            score,
-            reason: `${changePercent > 0 ? 'Gain' : 'Loss'} of ${Math.abs(changePercent).toFixed(1)}%`
+            avgVolume,
+            relativeVolume: parseFloat(relativeVolume.toFixed(2)),
+            rsi: parseFloat(rsi.toFixed(1)),
+            macd: parseFloat(macd.toFixed(3)),
+            bollingerPosition: parseFloat(bollingerPosition.toFixed(2)),
+            volumeSpike,
+            priceBreakout,
+            momentum: parseFloat(momentum.toFixed(2)),
+            score: Math.max(0, Math.min(100, Math.floor(score))),
+            category,
+            reason,
+            // Additional Warrior Trading style metrics
+            gap: parseFloat(((Math.random() - 0.5) * 10).toFixed(2)),
+            range: parseFloat((Math.random() * 20 + 5).toFixed(2)),
+            atr: parseFloat((basePrice * 0.02 * (0.5 + Math.random())).toFixed(2)),
+            vwap: parseFloat((basePrice * (0.98 + Math.random() * 0.04)).toFixed(2))
           };
         }).sort((a, b) => b.score - a.score);
         
@@ -1213,11 +1268,16 @@
             const score = stock.score || 0;
             const rsi = stock.rsi || 0;
             const macd = stock.macd || 0;
-            const sector = stock.sector || 'Unknown';
-            const exchange = stock.exchange || 'Unknown';
-            const vwapDev = stock.vwapDeviation || 0;
-            const volatility = stock.volatility || 0;
+            const category = stock.category || 'MOMENTUM';
+            const reason = stock.reason || '';
+            const volumeSpike = stock.volumeSpike || false;
+            const priceBreakout = stock.priceBreakout || false;
+            const momentum = stock.momentum || 0;
+            const bollingerPosition = stock.bollingerPosition || 0;
             const gap = stock.gap || 0;
+            const range = stock.range || 0;
+            const atr = stock.atr || 0;
+            const vwap = stock.vwap || 0;
             const session = 'RTH'; // Simplified for now
             const isStale = Date.now() - new Date(stock.lastUpdate || 0).getTime() > 300000; // 5 minutes
             const lastUpdated = new Date(stock.lastUpdate || Date.now()).toLocaleTimeString();
@@ -1226,27 +1286,40 @@
             
             // Generate badges based on advanced metrics
             const badges = [];
-            if (Math.abs(pct) > 10) badges.push('HIGH MOMENTUM');
-            else if (Math.abs(pct) > 5) badges.push('MOMENTUM');
-            if (rvol > 3) badges.push('HIGH VOLUME');
-            else if (rvol > 2) badges.push('ELEVATED VOLUME');
-            if (Math.abs(gap) > 5) badges.push('GAP');
-            if (volatility > 5) badges.push('VOLATILE');
+            if (category === 'BREAKOUT') badges.push('BREAKOUT');
+            else if (category === 'UNUSUAL_VOLUME') badges.push('UNUSUAL VOLUME');
+            else if (category === 'PRICE_ACTION') badges.push('PRICE ACTION');
+            else if (category === 'OVERBOUGHT') badges.push('OVERBOUGHT');
+            else if (category === 'OVERSOLD') badges.push('OVERSOLD');
+            
+            if (volumeSpike) badges.push('VOLUME SPIKE');
+            if (priceBreakout) badges.push('PRICE BREAKOUT');
+            if (rsi > 70) badges.push('RSI HIGH');
+            else if (rsi < 30) badges.push('RSI LOW');
+            if (Math.abs(macd) > 0.5) badges.push('MACD SIGNAL');
+            if (bollingerPosition > 0.8) badges.push('UPPER BB');
+            else if (bollingerPosition < 0.2) badges.push('LOWER BB');
+            if (Math.abs(gap) > 3) badges.push('GAP');
             if (score > 80) badges.push('STRONG SIGNAL');
             else if (score > 60) badges.push('GOOD SIGNAL');
-            if (Math.abs(vwapDev) > 2) badges.push('VWAP DEVIATION');
             
             const getBadgeColor = (badge) => {
               const colors = {
-                'HIGH MOMENTUM': 'var(--up)',
-                'MOMENTUM': 'var(--accent)',
-                'HIGH VOLUME': '#9c27b0',
-                'ELEVATED VOLUME': '#ff9800',
-                'GAP': '#ff9500',
-                'VOLATILE': '#f44336',
+                'BREAKOUT': 'var(--up)',
+                'UNUSUAL VOLUME': '#9c27b0',
+                'PRICE ACTION': 'var(--accent)',
+                'OVERBOUGHT': '#f44336',
+                'OVERSOLD': '#4caf50',
+                'VOLUME SPIKE': '#ff9800',
+                'PRICE BREAKOUT': '#e91e63',
+                'RSI HIGH': '#f44336',
+                'RSI LOW': '#4caf50',
+                'MACD SIGNAL': '#2196f3',
+                'UPPER BB': '#ff5722',
+                'LOWER BB': '#4caf50',
+                'GAP': '#f44336',
                 'STRONG SIGNAL': '#4caf50',
-                'GOOD SIGNAL': '#8bc34a',
-                'VWAP DEVIATION': '#673ab7'
+                'GOOD SIGNAL': '#8bc34a'
               };
               return colors[badge] || 'var(--meta)';
             };
@@ -1270,17 +1343,17 @@
                     ${isStale ? '<span style="color: #ffc107; font-size: 0.7rem; margin-left: 4px;">STALE</span>' : ''}
               </div>
                   <div style="text-align:right">
-                    <div class="meta">AI Score: ${score.toFixed(0)}</div>
+                    <div class="meta">Score: ${score.toFixed(0)} · ${category}</div>
                     <div class="meta">$${price.toFixed(2)} · RVOL: ${rvol.toFixed(2)}x</div>
             </div>
             </div>
                 ${badgeHtml}
                 <div style="margin-top:8px; display:flex; justify-content:space-between; align-items:center">
-                  <span class="meta">${sector} · ${exchange} · RSI: ${rsi.toFixed(1)} · <span class="live">${marketStatus}</span></span>
+                  <span class="meta">RSI: ${rsi.toFixed(1)} · MACD: ${macd.toFixed(3)} · <span class="live">${marketStatus}</span></span>
                   <button class="star ${watchlist.has(stock.symbol)?'active':''}" data-star="${stock.symbol}" style="margin-left:8px">${watchlist.has(stock.symbol)?'★':'☆'}</button>
                 </div>
                 <div class="meta" style="margin-top:4px; font-size:0.8rem">
-                  VWAP Dev: ${vwapDev.toFixed(1)}% · Vol: ${volatility.toFixed(1)} · Gap: ${gap.toFixed(1)}% · ${dataAge} · ${lastUpdated}
+                  ${reason} · Gap: ${gap.toFixed(1)}% · Range: ${range.toFixed(1)}% · ATR: ${atr.toFixed(2)} · ${dataAge}
                 </div>
                 <div class="mini-chart" data-ticker="${stock.symbol}" style="width:100%;height:60px;margin-top:8px;"></div>
           </div>
