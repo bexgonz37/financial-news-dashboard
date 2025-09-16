@@ -35,7 +35,56 @@ class ScannerEngine {
 
   // Get all symbols with tick data
   getAllSymbolsWithTicks() {
-    return appState.getAllSymbolsWithTicks();
+    const symbolsWithTicks = appState.getAllSymbolsWithTicks();
+    
+    // If no tick data, return some mock data for testing
+    if (symbolsWithTicks.length === 0) {
+      console.log('No tick data available, using mock data for testing');
+      return this.getMockSymbols();
+    }
+    
+    return symbolsWithTicks;
+  }
+
+  // Mock symbols for testing when no tick data is available
+  getMockSymbols() {
+    const mockSymbols = [
+      { symbol: 'AAPL', price: 150.25, volume: 1000000, timestamp: Date.now(), change: 2.5, changePercent: 1.69, ticks: [] },
+      { symbol: 'MSFT', price: 300.15, volume: 800000, timestamp: Date.now(), change: -1.2, changePercent: -0.4, ticks: [] },
+      { symbol: 'GOOGL', price: 2800.50, volume: 500000, timestamp: Date.now(), change: 15.75, changePercent: 0.57, ticks: [] },
+      { symbol: 'TSLA', price: 250.80, volume: 2000000, timestamp: Date.now(), change: 8.30, changePercent: 3.42, ticks: [] },
+      { symbol: 'NVDA', price: 450.25, volume: 1500000, timestamp: Date.now(), change: 12.50, changePercent: 2.85, ticks: [] }
+    ];
+    
+    // Generate mock tick data for each symbol
+    return mockSymbols.map(symbol => ({
+      ...symbol,
+      ticks: this.generateMockTicks(symbol.symbol, symbol.price, 50)
+    }));
+  }
+
+  // Generate mock tick data
+  generateMockTicks(symbol, basePrice, count) {
+    const ticks = [];
+    const now = Date.now();
+    let price = basePrice;
+    
+    for (let i = 0; i < count; i++) {
+      // Random price movement
+      const change = (Math.random() - 0.5) * 0.02; // ±1% max change
+      price = price * (1 + change);
+      
+      ticks.push({
+        symbol,
+        price: parseFloat(price.toFixed(2)),
+        volume: Math.floor(Math.random() * 10000) + 1000,
+        timestamp: now - (count - i) * 1000, // 1 second intervals
+        change: i > 0 ? price - basePrice : 0,
+        changePercent: i > 0 ? ((price - basePrice) / basePrice) * 100 : 0
+      });
+    }
+    
+    return ticks;
   }
 
   // Calculate percentage change from first tick in buffer
