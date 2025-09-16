@@ -226,9 +226,19 @@
           <span class="status-indicator live" data-type="scanner" id="scanner-status">Scanner: LIVE</span>
           <span class="status-indicator live" data-type="symbols" id="symbols-status">Symbols: LIVE</span>
         </div>
-        <div class="provider-diagnostics" id="provider-diagnostics" style="margin-top: 8px; font-size: 0.7rem; color: var(--meta);">
-          Loading provider status...
+      <div class="provider-diagnostics" id="provider-diagnostics" style="margin-top: 8px; font-size: 0.7rem; color: var(--meta);">
+        Loading provider status...
+      </div>
+      
+      <!-- Status Bar -->
+      <div id="status-bar" style="margin-top: 8px; padding: 8px; background: var(--bg-secondary); border-radius: 4px; font-size: 0.8rem; display: flex; justify-content: space-between; align-items: center;">
+        <div class="status-left">
+          <span class="market-status">Loading...</span>
         </div>
+        <div class="status-right">
+          <span class="ws-status">Connecting...</span>
+        </div>
+      </div>
         <div class="status-bar" id="statusBar">
           <span class="status-indicator" id="statusIndicator">●</span>
           <span class="status-text" id="statusText">Live • Providers healthy</span>
@@ -1818,6 +1828,96 @@
       
       console.log('Auto-refresh started');
     }
+    
+    // Initialize new architecture
+    async function initializeApp() {
+      try {
+        console.log('Initializing pro day-trader dashboard...');
+        
+        // Initialize status bar
+        const statusBar = new StatusBar('status-bar');
+        
+        // Initialize WebSocket quotes
+        const { wsQuotes } = await import('./src/ws/quotes.js');
+        
+        // Initialize ticker resolver
+        const { tickerResolver } = await import('./src/lib/tickers/resolve.js');
+        
+        // Initialize news aggregator
+        const { newsAggregator } = await import('./src/lib/news/aggregate.js');
+        
+        // Initialize scanner engine
+        const { scannerEngine } = await import('./src/lib/scanners/run.js');
+        const { scannerScheduler } = await import('./src/lib/scanners/schedule.js');
+        
+        // Initialize logger
+        const { logger } = await import('./src/lib/log.js');
+        
+        // Load initial data
+        await loadInitialData();
+        
+        // Initialize mini-charts
+        initializeMiniCharts();
+        
+        console.log('Dashboard initialized successfully');
+        
+      } catch (error) {
+        console.error('Failed to initialize dashboard:', error);
+      }
+    }
+    
+    // Load initial data
+    async function loadInitialData() {
+      try {
+        // Load news
+        const newsResponse = await fetch('/api/enhanced-news?limit=100');
+        const newsData = await newsResponse.json();
+        
+        if (newsData.success) {
+          // Process news with ticker resolution
+          const processedNews = [];
+          for (const item of newsData.data.news) {
+            const resolution = await tickerResolver.resolveTicker(item);
+            processedNews.push({
+              ...item,
+              primaryTicker: resolution.ticker,
+              confidence: resolution.confidence,
+              isGeneral: resolution.isGeneral,
+              tickerReason: resolution.reason
+            });
+          }
+          
+          // Update app state
+          appState.updateNews(processedNews);
+        }
+        
+        // Load scanner results
+        const scannerResponse = await fetch('/api/dynamic-stocks-scanner?preset=high-momentum&limit=100');
+        const scannerData = await scannerResponse.json();
+        
+        if (scannerData.success) {
+          appState.updateScanner('high-momentum', scannerData.data.stocks);
+        }
+        
+      } catch (error) {
+        console.error('Failed to load initial data:', error);
+      }
+    }
+    
+    // Initialize mini-charts
+    function initializeMiniCharts() {
+      // Find all mini-chart containers and initialize them
+      const miniCharts = document.querySelectorAll('.mini-chart[data-ticker]');
+      miniCharts.forEach(chart => {
+        const symbol = chart.dataset.ticker;
+        if (symbol) {
+          new MiniChart(chart, { symbol, range: '1d' });
+        }
+      });
+    }
+    
+    // Initialize new architecture
+    initializeApp();
     
     // Start auto-refresh
     startAutoRefresh();
