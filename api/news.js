@@ -1,72 +1,34 @@
-// Consolidated News API - Direct multi-source news aggregation
+// Multi-provider news aggregation with direct fetchers
 import fetch from 'node-fetch';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
-// URL validation and normalization
-function isHttp(url) {
-  try {
-    return /^https?:\/\//i.test(url);
-  } catch {
+// Rate limiter for provider calls
+const rateLimiter = new Map();
+
+function canMakeRequest(provider, maxRequests = 60, windowMs = 60000) {
+  const now = Date.now();
+  const key = provider;
+  
+  if (!rateLimiter.has(key)) {
+    rateLimiter.set(key, { requests: 0, windowStart: now });
+  }
+  
+  const data = rateLimiter.get(key);
+  
+  // Reset window if expired
+  if (now - data.windowStart > windowMs) {
+    data.requests = 0;
+    data.windowStart = now;
+  }
+  
+  if (data.requests >= maxRequests) {
     return false;
   }
-}
-
-function normalizeUrl(url) {
-  if (!url || !isHttp(url)) return null;
-  try {
-    const u = new URL(url);
-    return u.href;
-  } catch {
-    return null;
-  }
-}
-
-// Deduplicate news items by title and URL with 5-minute time window
-function deduplicateNews(newsItems) {
-  const seen = new Set();
-  const seenTitles = new Set();
-  const now = Date.now();
-  const FIVE_MINUTES = 5 * 60 * 1000;
   
-  return newsItems.filter(item => {
-    const url = normalizeUrl(item.url);
-    const title = item.title?.toLowerCase().trim();
-    const publishedAt = new Date(item.published_at).getTime();
-    
-    if (!url || !title) return false;
-    
-    // Skip if older than 5 minutes for deduplication
-    if (now - publishedAt > FIVE_MINUTES) return true;
-    
-    const key = `${url}|${title}`;
-    if (seen.has(key) || seenTitles.has(title)) {
-      return false;
-    }
-    
-    seen.add(key);
-    seenTitles.add(title);
-    return true;
-  });
-}
-
-// Normalize news item to consistent schema
-function normalizeNewsItem(item, source) {
-  return {
-    id: item.id || `${source}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-    title: item.title || '',
-    summary: item.summary || item.description || '',
-    url: normalizeUrl(item.url) || '',
-    published_at: item.published_at || item.publishedAt || new Date().toISOString(),
-    source: source,
-    author: item.author || '',
-    category: item.category || 'general',
-    symbols: item.symbols || [],
-    image: item.image || item.imageUrl || '',
-    sentiment: item.sentiment || 'neutral',
-    priority: item.priority || 'normal'
-  };
+  data.requests++;
+  return true;
 }
 
 // FMP News Fetcher
@@ -74,6 +36,10 @@ async function fetchFMP(limit = 50) {
   const apiKey = process.env.FMP_KEY;
   if (!apiKey) {
     throw new Error('FMP_KEY not configured');
+  }
+  
+  if (!canMakeRequest('fmp', 60, 60000)) {
+    throw new Error('FMP rate limit exceeded');
   }
   
   const url = `https://financialmodelingprep.com/api/v3/stock_news?limit=${limit}&apikey=${apiKey}`;
@@ -123,6 +89,10 @@ async function fetchAlpha(limit = 50) {
     throw new Error('ALPHAVANTAGE_KEY not configured');
   }
   
+  if (!canMakeRequest('alphavantage', 5, 60000)) {
+    throw new Error('Alpha Vantage rate limit exceeded');
+  }
+  
   const url = `https://www.alphavantage.co/query?function=NEWS_SENTIMENT&sort=LATEST&apikey=${apiKey}`;
   
   const controller = new AbortController();
@@ -166,11 +136,15 @@ async function fetchAlpha(limit = 50) {
   }
 }
 
-// Finnhub News Fetcher (optional)
+// Finnhub News Fetcher
 async function fetchFinnhub(limit = 50) {
   const apiKey = process.env.FINNHUB_KEY;
   if (!apiKey) {
     throw new Error('FINNHUB_KEY not configured');
+  }
+  
+  if (!canMakeRequest('finnhub', 60, 60000)) {
+    throw new Error('Finnhub rate limit exceeded');
   }
   
   const url = `https://finnhub.io/api/v1/news?category=general&token=${apiKey}`;
@@ -214,6 +188,31 @@ async function fetchFinnhub(limit = 50) {
   }
 }
 
+// Deduplicate news items by title and URL with 5-minute time window
+function deduplicateNews(newsItems) {
+  const seen = new Set();
+  const seenTitles = new Set();
+  const now = Date.now();
+  const FIVE_MINUTES = 5 * 60 * 1000;
+  
+  return newsItems.filter(item => {
+    const title = item.title?.toLowerCase().trim();
+    const publishedAt = new Date(item.published_at).getTime();
+    
+    if (!title) return false;
+    
+    // Skip if older than 5 minutes for deduplication
+    if (now - publishedAt > FIVE_MINUTES) return true;
+    
+    if (seenTitles.has(title)) {
+      return false;
+    }
+    
+    seenTitles.add(title);
+    return true;
+  });
+}
+
 // Main news aggregation
 async function fetchNewsFromProviders() {
   const results = await Promise.allSettled([
@@ -230,9 +229,8 @@ async function fetchNewsFromProviders() {
     const provider = ['fmp', 'alphavantage', 'finnhub'][index];
     
     if (result.status === 'fulfilled') {
-      const providerItems = result.value.map(item => normalizeNewsItem(item, provider));
-      items.push(...providerItems);
-      counts[provider] = providerItems.length;
+      items.push(...result.value);
+      counts[provider] = result.value.length;
     } else {
       errors.push(`${provider}: ${result.reason.message}`);
     }
@@ -247,10 +245,10 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { limit = 50, source } = req.query;
+    const { limit = 50 } = req.query;
     const limitNum = Math.min(parseInt(limit) || 50, 100);
     
-    console.log(`Fetching news: limit=${limitNum}, source=${source || 'all'}`);
+    console.log(`Fetching news: limit=${limitNum}`);
     
     const { items, counts, errors } = await fetchNewsFromProviders();
     
@@ -261,6 +259,7 @@ export default async function handler(req, res) {
       .slice(0, limitNum);
     
     console.log(`News aggregation complete: ${sorted.length} items, errors: ${errors.length}`);
+    console.log('Provider counts:', counts);
     
     return res.status(200).json({
       success: true,

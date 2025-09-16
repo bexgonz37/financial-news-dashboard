@@ -69,8 +69,12 @@ class MiniChart {
     if (ticks && ticks.length > 0) {
       this.updateFromTicks(ticks);
     } else {
-      // No tick data available - show loading state
-      this.renderNoData();
+      // Show "No ticks yet" if no data after 5 seconds
+      setTimeout(() => {
+        if (!this.hasData) {
+          this.renderNoData('No ticks yet');
+        }
+      }, 5000);
     }
   }
 
@@ -107,13 +111,26 @@ class MiniChart {
     this.render();
   }
 
-  renderNoData() {
+  renderNoData(message = 'Resolve') {
     if (!this.container) return;
     
-    this.container.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--meta);font-size:0.7rem;">Resolve</div>';
+    this.container.innerHTML = `<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--meta);font-size:0.7rem;">${message}</div>`;
   }
 
   isStale() {
+    if (!this.data || this.data.length === 0) return false;
+    
+    const lastTick = this.data[this.data.length - 1];
+    const now = Date.now();
+    const age = now - lastTick.timestamp;
+    
+    // 5 minutes for regular hours, 15 minutes for after-hours
+    const threshold = marketHours.getMarketStatus() === 'market' ? 5 * 60 * 1000 : 15 * 60 * 1000;
+    
+    return age > threshold;
+  }
+
+  isStaleRingBuffer() {
     if (this.ringBuffer.length === 0) return true;
     
     const lastTick = this.ringBuffer[this.ringBuffer.length - 1];

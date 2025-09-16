@@ -214,6 +214,48 @@ class StatusBar {
     }
   }
 
+  getMarketStatusText(status) {
+    switch (status) {
+      case 'market':
+        return 'Market Open';
+      case 'pre-market':
+        return 'Pre-Market';
+      case 'after-hours':
+        return 'After Hours';
+      case 'closed':
+        return 'Market Closed';
+      default:
+        return 'Unknown';
+    }
+  }
+
+  getMarketStatusIcon(status) {
+    switch (status) {
+      case 'market':
+        return '🟢';
+      case 'pre-market':
+      case 'after-hours':
+        return '🟡';
+      case 'closed':
+        return '🔴';
+      default:
+        return '⚪';
+    }
+  }
+
+  getWsStatusIcon(status) {
+    switch (status) {
+      case 'LIVE':
+        return '🟢';
+      case 'DEGRADED':
+        return '🟡';
+      case 'OFFLINE':
+        return '🔴';
+      default:
+        return '⚪';
+    }
+  }
+
   destroy() {
     if (this.unsubscribe) {
       this.unsubscribe();

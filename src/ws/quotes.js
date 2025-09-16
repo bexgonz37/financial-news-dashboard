@@ -6,45 +6,42 @@ class WebSocketQuotes {
     this.ws = null;
     this.reconnectAttempts = 0;
     this.maxReconnectAttempts = 10;
-    this.reconnectDelay = 1000;
+    this.reconnectDelay = 500; // Start with 0.5s
     this.heartbeatInterval = null;
     this.subscribedSymbols = new Set();
     this.isConnected = false;
     this.lastHeartbeat = 0;
     this.onTickCallback = null;
     
-    // For client-side, we'll need to get the token from the API
-    this.FINNHUB_WS_URL = null;
+    // Get client key from build-injected environment
+    this.CLIENT_KEY = this.getClientKey();
     this.HEARTBEAT_INTERVAL = 25000; // 25 seconds
     this.MAX_TICKS_PER_SYMBOL = 300;
+  }
 
-    // Don't connect immediately - wait for initialization
+  getClientKey() {
+    // Try different ways to get the key based on build system
+    if (typeof process !== 'undefined' && process.env) {
+      return process.env.FINNHUB_KEY || process.env.NEXT_PUBLIC_FINNHUB_KEY || process.env.VITE_FINNHUB_KEY;
+    }
+    if (typeof import.meta !== 'undefined' && import.meta.env) {
+      return import.meta.env.VITE_FINNHUB_KEY;
+    }
+    return null;
   }
 
   async connect() {
     try {
-      // Get environment variables from API endpoint
-      if (!this.FINNHUB_WS_URL) {
-        const response = await fetch('/api/env');
-        const data = await response.json();
-        
-        if (!data.success) {
-          throw new Error('Failed to get environment variables');
-        }
-        
-        const apiKey = data.data.FINNHUB_KEY;
-        
-        if (!apiKey) {
-          this.updateStatus('OFFLINE');
-          this.showKeyMissingBanner('FINNHUB_KEY');
-          throw new Error('FINNHUB_KEY not configured');
-        }
-        
-        this.FINNHUB_WS_URL = `wss://ws.finnhub.io?token=${apiKey}`;
+      if (!this.CLIENT_KEY) {
+        this.updateStatus('OFFLINE');
+        this.showKeyMissingBanner('FINNHUB_KEY');
+        throw new Error('FINNHUB_KEY not configured for client-side use');
       }
       
+      const wsUrl = `wss://ws.finnhub.io?token=${this.CLIENT_KEY}`;
       console.log('Connecting to Finnhub WebSocket...');
-      this.ws = new WebSocket(this.FINNHUB_WS_URL);
+      
+      this.ws = new WebSocket(wsUrl);
       
       this.ws.onopen = () => {
         console.log('WebSocket connected to Finnhub');
@@ -58,9 +55,26 @@ class WebSocketQuotes {
       this.ws.onmessage = (event) => {
         try {
           const data = JSON.parse(event.data);
-          this.handleMessage(data);
+          
+          if (data.type === 'ping') {
+            // Respond to ping with pong
+            this.ws.send(JSON.stringify({ type: 'pong' }));
+            return;
+          }
+          
+          if (data.type === 'trade' && data.data) {
+            const tick = {
+              symbol: data.data.s,
+              price: data.data.p,
+              volume: data.data.v,
+              timestamp: data.data.t,
+              time: new Date(data.data.t).toISOString()
+            };
+            
+            this.handleTick(tick);
+          }
         } catch (error) {
-          console.error('Failed to parse WebSocket message:', error);
+          console.error('Error parsing WebSocket message:', error);
         }
       };
 
@@ -68,8 +82,10 @@ class WebSocketQuotes {
         console.log('WebSocket closed:', event.code, event.reason);
         this.isConnected = false;
         this.stopHeartbeat();
-        this.updateStatus('OFFLINE');
-        this.scheduleReconnect();
+        
+        if (event.code !== 1000) { // Not a normal closure
+          this.scheduleReconnect();
+        }
       };
 
       this.ws.onerror = (error) => {
@@ -79,65 +95,21 @@ class WebSocketQuotes {
 
     } catch (error) {
       console.error('Failed to connect to WebSocket:', error);
+      this.updateStatus('OFFLINE');
       this.scheduleReconnect();
     }
   }
 
-  handleMessage(data) {
-    if (data.type === 'ping') {
-      // Respond to ping with pong
-      this.send({ type: 'pong' });
-      return;
+  handleTick(tick) {
+    if (!tick.symbol) return;
+    
+    // Update ring buffer in app state
+    appState.appendTick(tick.symbol, tick);
+    
+    // Call callback if set
+    if (this.onTickCallback) {
+      this.onTickCallback(tick);
     }
-
-    if (data.type === 'trade' && data.data) {
-      const trades = Array.isArray(data.data) ? data.data : [data.data];
-      
-      trades.forEach((trade) => {
-        if (trade.s && trade.p && trade.t) {
-          const tick = {
-            symbol: trade.s,
-            price: parseFloat(trade.p),
-            volume: parseFloat(trade.v) || 0,
-            timestamp: trade.t * 1000, // Convert to milliseconds
-            change: trade.c ? parseFloat(trade.c) : undefined,
-            changePercent: trade.dp ? parseFloat(trade.dp) : undefined
-          };
-
-          this.appendTick(tick);
-          
-          if (this.onTickCallback) {
-            this.onTickCallback(tick);
-          }
-        }
-      });
-    }
-  }
-
-  appendTick(tick) {
-    const currentTicks = appState.state.ticks.get(tick.symbol) || [];
-    
-    // Add new tick
-    const updatedTicks = [...currentTicks, tick];
-    
-    // Maintain ring buffer size
-    if (updatedTicks.length > this.MAX_TICKS_PER_SYMBOL) {
-      updatedTicks.splice(0, updatedTicks.length - this.MAX_TICKS_PER_SYMBOL);
-    }
-    
-    // Update store
-    appState.updateTicks(tick.symbol, updatedTicks);
-    
-    // Update last price and volume in quotes
-    const currentQuote = appState.state.quotes.get(tick.symbol) || {};
-    appState.updateQuote(tick.symbol, {
-      ...currentQuote,
-      price: tick.price,
-      volume: tick.volume,
-      change: tick.change,
-      changePercent: tick.changePercent,
-      timestamp: tick.timestamp
-    });
   }
 
   subscribe(symbol) {
@@ -145,53 +117,64 @@ class WebSocketQuotes {
       console.warn('WebSocket not connected, cannot subscribe to', symbol);
       return;
     }
-
+    
     if (this.subscribedSymbols.has(symbol)) {
       return; // Already subscribed
     }
-
-    console.log('Subscribing to', symbol);
-    this.send({ type: 'subscribe', symbol });
+    
     this.subscribedSymbols.add(symbol);
+    
+    const message = {
+      type: 'subscribe',
+      symbol: symbol
+    };
+    
+    this.ws.send(JSON.stringify(message));
+    console.log('Subscribed to', symbol);
   }
 
   unsubscribe(symbol) {
     if (!this.isConnected || !this.ws) {
       return;
     }
-
+    
     if (!this.subscribedSymbols.has(symbol)) {
       return; // Not subscribed
     }
-
-    console.log('Unsubscribing from', symbol);
-    this.send({ type: 'unsubscribe', symbol });
+    
     this.subscribedSymbols.delete(symbol);
+    
+    const message = {
+      type: 'unsubscribe',
+      symbol: symbol
+    };
+    
+    this.ws.send(JSON.stringify(message));
+    console.log('Unsubscribed from', symbol);
   }
 
   resubscribeAll() {
-    if (!this.isConnected || !this.ws) {
-      return;
-    }
-
-    console.log('Resubscribing to all symbols:', Array.from(this.subscribedSymbols));
-    this.subscribedSymbols.forEach(symbol => {
-      this.send({ type: 'subscribe', symbol });
-    });
-  }
-
-  send(message) {
-    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+    if (!this.isConnected || !this.ws) return;
+    
+    for (const symbol of this.subscribedSymbols) {
+      const message = {
+        type: 'subscribe',
+        symbol: symbol
+      };
       this.ws.send(JSON.stringify(message));
     }
+    
+    console.log(`Resubscribed to ${this.subscribedSymbols.size} symbols`);
   }
 
   startHeartbeat() {
-    this.stopHeartbeat();
+    this.stopHeartbeat(); // Clear any existing interval
+    
     this.heartbeatInterval = setInterval(() => {
       if (this.isConnected && this.ws) {
-        this.send({ type: 'ping' });
+        this.ws.send(JSON.stringify({ type: 'ping' }));
         this.lastHeartbeat = Date.now();
+        this.updateStatus('LIVE');
       }
     }, this.HEARTBEAT_INTERVAL);
   }
@@ -209,8 +192,8 @@ class WebSocketQuotes {
       this.updateStatus('OFFLINE');
       return;
     }
-
-    const delay = this.reconnectDelay * Math.pow(2, this.reconnectAttempts);
+    
+    const delay = Math.min(this.reconnectDelay * Math.pow(2, this.reconnectAttempts), 10000);
     console.log(`Reconnecting in ${delay}ms (attempt ${this.reconnectAttempts + 1})`);
     
     setTimeout(() => {
@@ -260,17 +243,17 @@ class WebSocketQuotes {
 
   getStatus() {
     return {
-      isConnected: this.isConnected,
-      subscribedSymbols: Array.from(this.subscribedSymbols),
-      lastHeartbeat: this.lastHeartbeat,
-      reconnectAttempts: this.reconnectAttempts
+      connected: this.isConnected,
+      status: this.isConnected ? 'LIVE' : 'OFFLINE',
+      subscribedCount: this.subscribedSymbols.size,
+      lastHeartbeat: this.lastHeartbeat
     };
   }
 
   disconnect() {
     this.stopHeartbeat();
     if (this.ws) {
-      this.ws.close();
+      this.ws.close(1000, 'Normal closure');
       this.ws = null;
     }
     this.isConnected = false;
@@ -278,5 +261,5 @@ class WebSocketQuotes {
   }
 }
 
-// Export singleton
+// Export singleton instance
 export const wsQuotes = new WebSocketQuotes();

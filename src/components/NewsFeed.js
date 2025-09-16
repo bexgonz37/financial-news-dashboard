@@ -185,6 +185,63 @@ class NewsFeed {
     }
   }
 
+  async loadNews() {
+    try {
+      const response = await fetch('/api/news?limit=50');
+      const data = await response.json();
+      
+      if (data.success && data.data?.news) {
+        const newsItems = data.data.news;
+        const meta = data.data.meta || {};
+        
+        console.log(`Loaded ${newsItems.length} news items`);
+        console.log('Provider counts:', meta.counts);
+        if (meta.errors && meta.errors.length > 0) {
+          console.warn('Provider errors:', meta.errors);
+        }
+        
+        // Store news in app state
+        appState.updateNews(newsItems);
+        
+        // Resolve tickers for each news item
+        newsItems.forEach(item => this.resolveNewsItem(item));
+        
+        return { items: newsItems, meta };
+      } else {
+        console.error('Failed to load news:', data.error);
+        return { items: [], meta: { errors: [data.error || 'Unknown error'] } };
+      }
+    } catch (error) {
+      console.error('Error loading news:', error);
+      return { items: [], meta: { errors: [error.message] } };
+    }
+  }
+
+  resolveNewsItem(item) {
+    // Use provider symbols first, then fall back to resolver
+    let resolution;
+    if (item.symbols && item.symbols.length > 0) {
+      resolution = {
+        ticker: item.symbols[0].toUpperCase(),
+        confidence: 0.95,
+        reason: 'provider',
+        isGeneral: false
+      };
+      appState.updateTickerResolution(item.id, resolution);
+      if (resolution.ticker) {
+        this.subscribeToSymbol(resolution.ticker);
+      }
+    } else {
+      // Fall back to ticker resolver
+      tickerResolver.resolveTicker(item).then(resolution => {
+        appState.updateTickerResolution(item.id, resolution);
+        if (resolution.ticker) {
+          this.subscribeToSymbol(resolution.ticker);
+        }
+      });
+    }
+  }
+
   selectTicker(symbol) {
     // Dispatch event to parent or update UI
     const event = new CustomEvent('tickerSelected', { detail: { symbol } });

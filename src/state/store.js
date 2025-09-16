@@ -264,6 +264,34 @@ class AppState {
     return Array.from(this.state.watchlist);
   }
 
+  // Append tick to ring buffer
+  appendTick(symbol, tick) {
+    if (!this.state.ticks.has(symbol)) {
+      this.state.ticks.set(symbol, []);
+    }
+    
+    const ticks = this.state.ticks.get(symbol);
+    ticks.push(tick);
+    
+    // Keep only last 300 ticks
+    if (ticks.length > 300) {
+      ticks.splice(0, ticks.length - 300);
+    }
+    
+    // Update last price and volume
+    this.state.quotes.set(symbol, {
+      symbol,
+      price: tick.price,
+      volume: tick.volume,
+      change: 0, // Will be calculated later
+      changePercent: 0,
+      lastUpdate: tick.timestamp
+    });
+    
+    this.updateDataAge('ticks');
+    this.notify();
+  }
+
   // Clear old data
   cleanup(maxAge = 86400000) { // 24 hours
     const cutoff = Date.now() - maxAge;

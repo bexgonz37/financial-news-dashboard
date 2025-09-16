@@ -1,24 +1,15 @@
-// Enhanced scanner engine consuming live tick buffers
+// Live scanner engine consuming tick buffers only
 import { appState } from '../../state/store.js';
 import { marketHours } from '../time/marketHours.js';
-import { advancedScanner } from './advanced-scanner.js';
 
 class ScannerEngine {
   constructor() {
     this.scanners = {
-      'high-momentum': this.scanHighMomentum.bind(this),
-      'gap-up': this.scanGapUp.bind(this),
-      'gap-down': this.scanGapDown.bind(this),
+      'movers': this.scanMovers.bind(this),
+      'rvol': this.scanRvol.bind(this),
       'unusual-volume': this.scanUnusualVolume.bind(this),
-      'range-breakout': this.scanRangeBreakout.bind(this),
-      'news-momentum': this.scanNewsMomentum.bind(this),
-      'premarket-movers': this.scanPremarketMovers.bind(this),
-      'after-hours-movers': this.scanAfterHoursMovers.bind(this),
-      'halt-resume': this.scanHaltResume.bind(this),
-      'momentum-breakouts': this.scanMomentumBreakouts.bind(this),
-      'gap-and-go': this.scanGapAndGo.bind(this),
-      'volume-surge': this.scanVolumeSurge.bind(this),
-      'technical-patterns': this.scanTechnicalPatterns.bind(this)
+      'range-break': this.scanRangeBreak.bind(this),
+      'news-momentum': this.scanNewsMomentum.bind(this)
     };
   }
 
@@ -52,436 +43,201 @@ class ScannerEngine {
     return appState.getAllSymbolsWithTicks();
   }
 
-
-  // Calculate percentage change from first tick in buffer
-  calculateChangePercent(symbol, ticks) {
-    if (ticks.length < 2) return 0;
-    
-    const firstTick = ticks[0];
-    const lastTick = ticks[ticks.length - 1];
-    
-    return ((lastTick.price - firstTick.price) / firstTick.price) * 100;
-  }
-
-  // Calculate relative volume from tick buffer
-  calculateRelativeVolume(symbol, ticks) {
-    if (ticks.length < 10) return 1;
-    
-    const recentVolume = ticks.slice(-10).reduce((sum, tick) => sum + tick.volume, 0) / 10;
-    const averageVolume = ticks.reduce((sum, tick) => sum + tick.volume, 0) / ticks.length;
-    
-    return recentVolume / averageVolume;
-  }
-
-  // Calculate gap from first tick vs previous close (if available)
-  calculateGap(symbol, ticks) {
-    if (ticks.length < 1) return 0;
-    
-    const firstTick = ticks[0];
-    // For now, use first tick as proxy for gap calculation
-    // In production, you'd fetch previous close from a single REST call at session start
-    return 0; // Placeholder - would need previous close reference
-  }
-
-  // Calculate range breakout from tick buffer
-  calculateRangeBreakout(symbol, ticks) {
-    if (ticks.length < 20) return { breakout20Day: false, breakout20DayLow: false };
-    
-    const currentPrice = ticks[ticks.length - 1].price;
-    const last20Ticks = ticks.slice(-20);
-    const high20Day = Math.max(...last20Ticks.map(t => t.price));
-    const low20Day = Math.min(...last20Ticks.map(t => t.price));
-    
-    return {
-      breakout20Day: currentPrice > high20Day,
-      breakout20DayLow: currentPrice < low20Day
-    };
-  }
-
-  // Calculate unusual volume from tick buffer
-  calculateUnusualVolume(symbol, ticks) {
-    if (ticks.length < 20) return 1;
-    
-    const recentVolume = ticks.slice(-5).reduce((sum, tick) => sum + tick.volume, 0) / 5;
-    const averageVolume = ticks.reduce((sum, tick) => sum + tick.volume, 0) / ticks.length;
-    
-    return recentVolume / averageVolume;
-  }
-
-  // High momentum scanner
-  async scanHighMomentum() {
-    try {
-      // Use advanced scanner for sophisticated analysis
-      const results = await advancedScanner.scanMomentumBreakouts(1000);
-      
-      return results.map(stock => ({
-        ...stock,
-        scanner: 'high-momentum',
-        score: stock.score
-      }));
-    } catch (error) {
-      console.error('High momentum scanner error:', error);
-      return [];
-    }
-  }
-
-  // Gap up scanner
-  async scanGapUp() {
-    try {
-      // Use advanced scanner for sophisticated analysis
-      const results = await advancedScanner.scanGapAndGo(1000);
-      
-      return results.map(stock => ({
-        ...stock,
-        scanner: 'gap-up',
-        score: stock.score
-      }));
-    } catch (error) {
-      console.error('Gap up scanner error:', error);
-      return [];
-    }
-  }
-
-  // Gap down scanner
-  scanGapDown() {
+  // Movers scanner - % change vs first tick in buffer
+  scanMovers(thresholds = {}) {
     const symbols = this.getAllSymbolsWithTicks();
+    const results = [];
     
-    return symbols
-      .filter(quote => {
-        const gapPercent = this.calculateGapPercent(quote);
-        return gapPercent < -5 && // > 5% gap down
-               quote.volume > 200000 && // > 200k volume
-               quote.price > 2; // > $2 price
-      })
-      .map(quote => {
-        const gapPercent = this.calculateGapPercent(quote);
-        return {
-          ...quote,
-          gapPercent,
-          score: Math.abs(gapPercent) * 0.7 + (quote.volume / 1000000) * 0.3,
-          scanner: 'gap-down'
-        };
-      })
-      .sort((a, b) => b.score - a.score)
-      .slice(0, 30);
-  }
-
-  // Unusual volume scanner
-  async scanUnusualVolume() {
-    try {
-      // Use advanced scanner for sophisticated analysis
-      const results = await advancedScanner.scanVolumeSurge(1000);
+    for (const { symbol, ticks, lastPrice } of symbols) {
+      if (ticks.length < 2) continue;
       
-      return results.map(stock => ({
-        ...stock,
-        scanner: 'unusual-volume',
-        score: stock.score
-      }));
-    } catch (error) {
-      console.error('Unusual volume scanner error:', error);
-      return [];
-    }
-  }
-
-  // Range breakout scanner
-  scanRangeBreakout() {
-    const symbols = this.getAllSymbolsWithTicks();
-    
-    return symbols
-      .filter(symbol => {
-        const breakout = this.calculateRangeBreakout(symbol.symbol, symbol.ticks);
-        return breakout.breakout20Day && // 20-day high breakout
-               symbol.volume > 300000 && // > 300k volume
-               symbol.price > 2; // > $2 price
-      })
-      .map(symbol => {
-        const breakout = this.calculateRangeBreakout(symbol.symbol, symbol.ticks);
-        const changePercent = this.calculateChangePercent(symbol.symbol, symbol.ticks);
-        const relativeVolume = this.calculateRelativeVolume(symbol.symbol, symbol.ticks);
-        
-        return {
-          ...symbol,
-          ...breakout,
+      const firstPrice = ticks[0].price;
+      const changePercent = ((lastPrice - firstPrice) / firstPrice) * 100;
+      
+      const minChange = thresholds.minChange || 0;
+      const maxChange = thresholds.maxChange || 1000;
+      
+      if (changePercent >= minChange && changePercent <= maxChange) {
+        results.push({
+          symbol,
+          price: lastPrice,
+          change: lastPrice - firstPrice,
           changePercent,
-          relativeVolume,
-          score: changePercent * 0.6 + relativeVolume * 0.4,
-          scanner: 'range-breakout'
-        };
-      })
-      .sort((a, b) => b.score - a.score)
-      .slice(0, 35);
-  }
-
-  // News momentum scanner
-  scanNewsMomentum() {
-    const symbols = this.getAllSymbolsWithTicks();
-    const news = Array.from(appState.state.news.values());
-    const newsBySymbol = this.groupNewsBySymbol(news);
-    
-    return symbols
-      .filter(quote => {
-        const symbolNews = newsBySymbol.get(quote.symbol) || [];
-        const recentNews = symbolNews.filter(n => 
-          Date.now() - new Date(n.publishedAt).getTime() < 24 * 60 * 60 * 1000 // Last 24h
-        );
-        return recentNews.length > 0 && quote.changePercent > 1;
-      })
-      .map(quote => {
-        const symbolNews = newsBySymbol.get(quote.symbol) || [];
-        const recentNews = symbolNews.filter(n => 
-          Date.now() - new Date(n.publishedAt).getTime() < 24 * 60 * 60 * 1000
-        );
-        
-        return {
-          ...quote,
-          newsCount: recentNews.length,
-          score: quote.changePercent * 0.5 + recentNews.length * 10,
-          scanner: 'news-momentum'
-        };
-      })
-      .sort((a, b) => b.score - a.score)
-      .slice(0, 40);
-  }
-
-  // Premarket movers scanner
-  scanPremarketMovers() {
-    if (!marketHours.isPreMarket()) {
-      return [];
-    }
-    
-    const symbols = this.getAllSymbolsWithTicks();
-    
-    return symbols
-      .filter(quote => {
-        const premarketChange = this.calculatePremarketChange(quote);
-        return premarketChange > 2 && // > 2% premarket change
-               quote.volume > 100000 && // > 100k volume
-               quote.price > 1; // > $1 price
-      })
-      .map(quote => {
-        const premarketChange = this.calculatePremarketChange(quote);
-        return {
-          ...quote,
-          premarketChange,
-          score: premarketChange * 0.8 + (quote.volume / 1000000) * 0.2,
-          scanner: 'premarket-movers'
-        };
-      })
-      .sort((a, b) => b.score - a.score)
-      .slice(0, 25);
-  }
-
-  // After-hours movers scanner
-  scanAfterHoursMovers() {
-    if (!marketHours.isAfterHours()) {
-      return [];
-    }
-    
-    const symbols = this.getAllSymbolsWithTicks();
-    
-    return symbols
-      .filter(quote => {
-        const afterHoursChange = this.calculateAfterHoursChange(quote);
-        return afterHoursChange > 1 && // > 1% after-hours change
-               quote.volume > 50000 && // > 50k volume
-               quote.price > 1; // > $1 price
-      })
-      .map(quote => {
-        const afterHoursChange = this.calculateAfterHoursChange(quote);
-        return {
-          ...quote,
-          afterHoursChange,
-          score: afterHoursChange * 0.8 + (quote.volume / 1000000) * 0.2,
-          scanner: 'after-hours-movers'
-        };
-      })
-      .sort((a, b) => b.score - a.score)
-      .slice(0, 25);
-  }
-
-  // Halt/resume scanner
-  scanHaltResume() {
-    const symbols = this.getAllSymbolsWithTicks();
-    
-    return symbols
-      .filter(quote => {
-        const lastTick = quote.ticks[quote.ticks.length - 1];
-        const timeSinceLastTick = Date.now() - (lastTick?.timestamp || 0);
-        return timeSinceLastTick > 300000; // No trades for 5+ minutes
-      })
-      .map(quote => {
-        const lastTick = quote.ticks[quote.ticks.length - 1];
-        const timeSinceLastTick = Date.now() - (lastTick?.timestamp || 0);
-        return {
-          ...quote,
-          timeSinceLastTick,
-          score: timeSinceLastTick > 600000 ? 100 : 50, // Higher score for longer halt
-          scanner: 'halt-resume'
-        };
-      })
-      .sort((a, b) => b.score - a.score)
-      .slice(0, 20);
-  }
-
-  // Calculate momentum score
-  calculateMomentumScore(symbol, changePercent, relativeVolume) {
-    const changeScore = Math.abs(changePercent) * 0.4;
-    const volumeScore = Math.min(relativeVolume || 1, 5) * 0.3;
-    const priceScore = Math.min(symbol.price / 100, 1) * 0.3;
-    
-    return changeScore + volumeScore + priceScore;
-  }
-
-  // Calculate gap percent
-  calculateGapPercent(quote) {
-    if (quote.ticks.length < 2) return 0;
-    
-    const currentPrice = quote.price;
-    const previousClose = quote.ticks[0].price; // First tick as proxy for previous close
-    
-    return ((currentPrice - previousClose) / previousClose) * 100;
-  }
-
-  // Calculate relative volume
-  calculateRelativeVolume(quote) {
-    if (quote.ticks.length < 20) return 1;
-    
-    const recentVolume = quote.ticks.slice(-20).reduce((sum, tick) => sum + tick.volume, 0) / 20;
-    const averageVolume = quote.ticks.reduce((sum, tick) => sum + tick.volume, 0) / quote.ticks.length;
-    
-    return recentVolume / averageVolume;
-  }
-
-  // Calculate range breakout
-  calculateRangeBreakout(quote) {
-    if (quote.ticks.length < 20) return { breakout20Day: false, relativeVolume: 1 };
-    
-    const currentPrice = quote.price;
-    const last20Ticks = quote.ticks.slice(-20);
-    const high20Day = Math.max(...last20Ticks.map(t => t.price));
-    const low20Day = Math.min(...last20Ticks.map(t => t.price));
-    
-    return {
-      breakout20Day: currentPrice > high20Day,
-      breakout20DayLow: currentPrice < low20Day,
-      relativeVolume: this.calculateRelativeVolume(quote)
-    };
-  }
-
-  // Calculate premarket change
-  calculatePremarketChange(quote) {
-    if (quote.ticks.length < 2) return 0;
-    
-    const currentPrice = quote.price;
-    const premarketOpen = quote.ticks[0].price;
-    
-    return ((currentPrice - premarketOpen) / premarketOpen) * 100;
-  }
-
-  // Calculate after-hours change
-  calculateAfterHoursChange(quote) {
-    if (quote.ticks.length < 2) return 0;
-    
-    const currentPrice = quote.price;
-    const afterHoursOpen = quote.ticks[0].price;
-    
-    return ((currentPrice - afterHoursOpen) / afterHoursOpen) * 100;
-  }
-
-  // Group news by symbol
-  groupNewsBySymbol(news) {
-    const grouped = new Map();
-    
-    news.forEach(item => {
-      if (item.primaryTicker) {
-        if (!grouped.has(item.primaryTicker)) {
-          grouped.set(item.primaryTicker, []);
-        }
-        grouped.get(item.primaryTicker).push(item);
-      }
-      
-      if (item.tickers) {
-        item.tickers.forEach(ticker => {
-          if (!grouped.has(ticker)) {
-            grouped.set(ticker, []);
-          }
-          grouped.get(ticker).push(item);
+          volume: ticks.reduce((sum, tick) => sum + tick.volume, 0),
+          score: Math.abs(changePercent),
+          reason: `Moved ${changePercent.toFixed(2)}%`
         });
       }
-    });
+    }
     
-    return grouped;
+    return results.sort((a, b) => b.score - a.score);
   }
 
-  // Get scanner results
-  getScannerResults(scannerName) {
-    return appState.getScannerResults(scannerName);
-  }
-
-  // Get all scanner results
-  getAllScannerResults() {
-    const results = {};
-    for (const scannerName of Object.keys(this.scanners)) {
-      results[scannerName] = this.getScannerResults(scannerName);
+  // Relative volume scanner - current volume vs average
+  scanRvol(thresholds = {}) {
+    const symbols = this.getAllSymbolsWithTicks();
+    const results = [];
+    
+    for (const { symbol, ticks } of symbols) {
+      if (ticks.length < 10) continue;
+      
+      const currentVolume = ticks[ticks.length - 1].volume;
+      const avgVolume = ticks.reduce((sum, tick) => sum + tick.volume, 0) / ticks.length;
+      const rvol = avgVolume > 0 ? currentVolume / avgVolume : 0;
+      
+      const minRvol = thresholds.minRvol || 1.5;
+      
+      if (rvol >= minRvol) {
+        results.push({
+          symbol,
+          price: ticks[ticks.length - 1].price,
+          volume: currentVolume,
+          avgVolume,
+          rvol,
+          score: rvol,
+          reason: `${rvol.toFixed(1)}x avg volume`
+        });
+      }
     }
-    return results;
+    
+    return results.sort((a, b) => b.score - a.score);
   }
 
-  // Advanced scanner methods
-  async scanMomentumBreakouts() {
-    try {
-      const results = await advancedScanner.scanMomentumBreakouts(1000);
-      return results.map(stock => ({
-        ...stock,
-        scanner: 'momentum-breakouts',
-        score: stock.score
-      }));
-    } catch (error) {
-      console.error('Momentum breakouts scanner error:', error);
-      return [];
+  // Unusual volume scanner - intraday vs buffer average
+  scanUnusualVolume(thresholds = {}) {
+    const symbols = this.getAllSymbolsWithTicks();
+    const results = [];
+    
+    for (const { symbol, ticks } of symbols) {
+      if (ticks.length < 20) continue;
+      
+      // Get recent ticks (last 10) vs older ticks
+      const recentTicks = ticks.slice(-10);
+      const olderTicks = ticks.slice(-20, -10);
+      
+      const recentVolume = recentTicks.reduce((sum, tick) => sum + tick.volume, 0);
+      const olderVolume = olderTicks.reduce((sum, tick) => sum + tick.volume, 0);
+      
+      const recentAvg = recentVolume / recentTicks.length;
+      const olderAvg = olderVolume / olderTicks.length;
+      
+      const volumeRatio = olderAvg > 0 ? recentAvg / olderAvg : 0;
+      
+      const minRatio = thresholds.minRatio || 2.0;
+      
+      if (volumeRatio >= minRatio) {
+        results.push({
+          symbol,
+          price: ticks[ticks.length - 1].price,
+          recentVolume,
+          olderVolume,
+          volumeRatio,
+          score: volumeRatio,
+          reason: `${volumeRatio.toFixed(1)}x volume spike`
+        });
+      }
     }
+    
+    return results.sort((a, b) => b.score - a.score);
   }
 
-  async scanGapAndGo() {
-    try {
-      const results = await advancedScanner.scanGapAndGo(1000);
-      return results.map(stock => ({
-        ...stock,
-        scanner: 'gap-and-go',
-        score: stock.score
-      }));
-    } catch (error) {
-      console.error('Gap and go scanner error:', error);
-      return [];
+  // Range break scanner - new HOD/LOD from buffer
+  scanRangeBreak(thresholds = {}) {
+    const symbols = this.getAllSymbolsWithTicks();
+    const results = [];
+    
+    for (const { symbol, ticks } of symbols) {
+      if (ticks.length < 10) continue;
+      
+      const prices = ticks.map(tick => tick.price);
+      const high = Math.max(...prices);
+      const low = Math.min(...prices);
+      const current = prices[prices.length - 1];
+      
+      const range = high - low;
+      const rangePercent = range / low * 100;
+      
+      const isBreakout = current >= high * 0.99 || current <= low * 1.01;
+      const minRange = thresholds.minRange || 2.0;
+      
+      if (isBreakout && rangePercent >= minRange) {
+        results.push({
+          symbol,
+          price: current,
+          high,
+          low,
+          range,
+          rangePercent,
+          score: rangePercent,
+          reason: `Range break: ${rangePercent.toFixed(1)}% range`
+        });
+      }
     }
+    
+    return results.sort((a, b) => b.score - a.score);
   }
 
-  async scanVolumeSurge() {
-    try {
-      const results = await advancedScanner.scanVolumeSurge(1000);
-      return results.map(stock => ({
-        ...stock,
-        scanner: 'volume-surge',
-        score: stock.score
-      }));
-    } catch (error) {
-      console.error('Volume surge scanner error:', error);
-      return [];
+  // News momentum scanner - score based on news recency and price movement
+  scanNewsMomentum(thresholds = {}) {
+    const symbols = this.getAllSymbolsWithTicks();
+    const results = [];
+    
+    for (const { symbol, ticks } of symbols) {
+      if (ticks.length < 5) continue;
+      
+      // Get recent news for this symbol
+      const recentNews = Array.from(appState.state.news.values())
+        .filter(item => {
+          const resolution = appState.getTickerResolution(item.id);
+          return resolution && resolution.ticker === symbol;
+        })
+        .sort((a, b) => new Date(b.published_at) - new Date(a.published_at))
+        .slice(0, 3);
+      
+      if (recentNews.length === 0) continue;
+      
+      const latestNews = recentNews[0];
+      const newsAge = (Date.now() - new Date(latestNews.published_at).getTime()) / 1000 / 60; // minutes
+      
+      // Calculate price movement since news
+      const newsTime = new Date(latestNews.published_at).getTime();
+      const relevantTicks = ticks.filter(tick => tick.timestamp >= newsTime);
+      
+      if (relevantTicks.length < 2) continue;
+      
+      const startPrice = relevantTicks[0].price;
+      const currentPrice = relevantTicks[relevantTicks.length - 1].price;
+      const priceChange = ((currentPrice - startPrice) / startPrice) * 100;
+      
+      // Calculate volume surge
+      const recentVolume = relevantTicks.reduce((sum, tick) => sum + tick.volume, 0);
+      const avgVolume = ticks.reduce((sum, tick) => sum + tick.volume, 0) / ticks.length;
+      const volumeRatio = avgVolume > 0 ? recentVolume / avgVolume : 0;
+      
+      // Score based on news recency, price movement, and volume
+      const recencyScore = Math.max(0, 1 - (newsAge / 60)); // Decay over 1 hour
+      const priceScore = Math.abs(priceChange) / 10; // Normalize to 0-1
+      const volumeScore = Math.min(volumeRatio / 3, 1); // Cap at 3x
+      
+      const score = (recencyScore * 0.4 + priceScore * 0.4 + volumeScore * 0.2) * 100;
+      
+      const minScore = thresholds.minScore || 30;
+      
+      if (score >= minScore) {
+        results.push({
+          symbol,
+          price: currentPrice,
+          priceChange,
+          volumeRatio,
+          newsAge,
+          newsCount: recentNews.length,
+          score,
+          reason: `News momentum: ${score.toFixed(1)} score`
+        });
+      }
     }
-  }
-
-  async scanTechnicalPatterns() {
-    try {
-      const results = await advancedScanner.scanTechnicalPatterns(1000);
-      return results.map(stock => ({
-        ...stock,
-        scanner: 'technical-patterns',
-        score: stock.score
-      }));
-    } catch (error) {
-      console.error('Technical patterns scanner error:', error);
-      return [];
-    }
+    
+    return results.sort((a, b) => b.score - a.score);
   }
 }
 

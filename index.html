@@ -4,6 +4,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <!-- Environment variables -->
+  <script src="public/env.js"></script>
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
   <title>🚀 PRO Day Trader Dashboard - Advanced News & Screener</title>
@@ -1865,14 +1867,15 @@
           // The tick is automatically added to the store by wsQuotes
         });
         
-        // Connect to WebSocket
-        await wsQuotes.connect();
-        
         // Load initial data
         await loadInitialData();
         
-        // Subscribe to symbols as they are resolved from news
-        // No hardcoded symbols - all subscriptions come from news ticker resolution
+        // Start scanner scheduler
+        const { scannerScheduler } = await import('./src/lib/scanners/schedule.js');
+        scannerScheduler.start();
+        
+        // Connect to WebSocket
+        await wsQuotes.connect();
         
         console.log('Dashboard initialized successfully');
         
