@@ -190,25 +190,28 @@ async function fetchFinnhub(limit = 50) {
 
 // Deduplicate news items by title and URL with 5-minute time window
 function deduplicateNews(newsItems) {
-  const seen = new Set();
-  const seenTitles = new Set();
+  const seen = new Map();
   const now = Date.now();
   const FIVE_MINUTES = 5 * 60 * 1000;
   
   return newsItems.filter(item => {
     const title = item.title?.toLowerCase().trim();
     const publishedAt = new Date(item.published_at).getTime();
+    const source = item.source;
     
     if (!title) return false;
     
     // Skip if older than 5 minutes for deduplication
     if (now - publishedAt > FIVE_MINUTES) return true;
     
-    if (seenTitles.has(title)) {
+    // Create a key that includes source to allow same title from different providers
+    const key = `${title}|${source}`;
+    
+    if (seen.has(key)) {
       return false;
     }
     
-    seenTitles.add(title);
+    seen.set(key, true);
     return true;
   });
 }

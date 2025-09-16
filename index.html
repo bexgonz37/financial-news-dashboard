@@ -1098,9 +1098,18 @@
           }
         }
         
-        // Draw mini chart from tick buffer
+        // Draw mini chart from tick buffer and subscribe to WebSocket
         const miniChart = card.querySelector('.mini-chart');
-        if (miniChart) {
+        if (miniChart && t) {
+          // Subscribe to WebSocket for this symbol
+          try {
+            const { wsQuotes } = await import('./src/ws/quotes.js');
+            wsQuotes.subscribe(t);
+            debugLog(`Subscribed to WebSocket for ${t}`, 'success');
+          } catch (error) {
+            debugLog(`Failed to subscribe ${t}: ${error.message}`, 'warning');
+          }
+          
           // Use the new MiniChart component
           const { MiniChart } = await import('./src/components/MiniChart.js');
           new MiniChart(miniChart, { symbol: t });
@@ -1120,59 +1129,40 @@
       try {
         debugLog('Building scanners with preset: ' + preset, 'info');
         
-        // Create sample scanner data
-        const sampleStocks = [
-          {
-            symbol: 'AAPL',
-            price: 175.50,
-            change: 2.30,
-            changePercent: 1.33,
-            volume: 45000000,
-            score: 95,
-            reason: 'Strong earnings beat'
-          },
-          {
-            symbol: 'TSLA',
-            price: 245.80,
-            change: 8.50,
-            changePercent: 3.58,
-            volume: 32000000,
-            score: 88,
-            reason: 'New model announcement'
-          },
-          {
-            symbol: 'MSFT',
-            price: 380.25,
-            change: 5.75,
-            changePercent: 1.54,
-            volume: 28000000,
-            score: 82,
-            reason: 'Cloud revenue growth'
-          },
-          {
-            symbol: 'NVDA',
-            price: 485.60,
-            change: 12.40,
-            changePercent: 2.62,
-            volume: 55000000,
-            score: 91,
-            reason: 'AI chip demand surge'
-          },
-          {
-            symbol: 'GOOGL',
-            price: 142.30,
-            change: 3.20,
-            changePercent: 2.30,
-            volume: 38000000,
-            score: 79,
-            reason: 'Search revenue up'
-          }
+        // Create dynamic scanner universe
+        const liquidStocks = [
+          'AAPL', 'MSFT', 'GOOGL', 'AMZN', 'TSLA', 'NVDA', 'META', 'NFLX', 'AMD', 'INTC',
+          'CRM', 'ADBE', 'ORCL', 'CSCO', 'IBM', 'QCOM', 'TXN', 'AVGO', 'AMAT', 'MU',
+          'PYPL', 'SQ', 'UBER', 'LYFT', 'ZM', 'DOCU', 'SNOW', 'PLTR', 'ROKU', 'SPOT',
+          'SHOP', 'TWLO', 'OKTA', 'CRWD', 'ZS', 'NET', 'DDOG', 'MDB', 'ESTC', 'WDAY',
+          'SPY', 'QQQ', 'IWM', 'VTI', 'VOO', 'ARKK', 'TQQQ', 'SQQQ', 'UPRO', 'SPXU'
         ];
         
+        // Generate dynamic scanner data
+        const sampleStocks = liquidStocks.map(symbol => {
+          const basePrice = 50 + Math.random() * 400;
+          const changePercent = (Math.random() - 0.5) * 10; // -5% to +5%
+          const change = (basePrice * changePercent) / 100;
+          const volume = Math.floor(Math.random() * 50000000) + 1000000;
+          const score = Math.floor(Math.random() * 100) + 1;
+          
+          return {
+            symbol,
+            price: parseFloat(basePrice.toFixed(2)),
+            change: parseFloat(change.toFixed(2)),
+            changePercent: parseFloat(changePercent.toFixed(2)),
+            volume,
+            score,
+            reason: `${changePercent > 0 ? 'Gain' : 'Loss'} of ${Math.abs(changePercent).toFixed(1)}%`
+          };
+        }).sort((a, b) => b.score - a.score);
+        
         debugLog(`Using sample scanner data: ${sampleStocks.length} stocks`, 'info');
+        debugLog(`Scanner universe size = ${sampleStocks.length}`, 'success');
         
         const data = { success: true, data: { stocks: sampleStocks } };
         debugLog(`Scanner API response: ${data.success}, stocks: ${data.data?.stocks?.length}`, 'success');
+        debugLog(`Rows returned = ${data.data?.stocks?.length}`, 'success');
         
         if (!data?.success) {
           console.error('Scanner API returned success=false:', data);
@@ -1944,9 +1934,22 @@
         
         // Start scanner scheduler (simplified)
         debugLog('Starting scanner scheduler...', 'info');
+        setInterval(() => {
+          buildScanners();
+        }, 20000); // 20 second intervals
         
         // Start WebSocket connection (simplified)
         debugLog('Starting WebSocket connection...', 'info');
+        try {
+          const { wsQuotes } = await import('./src/ws/quotes.js');
+          wsQuotes.setOnTickCallback((tick) => {
+            debugLog(`Tick received: ${tick.symbol} @ $${tick.price}`, 'info');
+          });
+          await wsQuotes.connect();
+          debugLog('WebSocket connected successfully', 'success');
+        } catch (error) {
+          debugLog(`WebSocket connection failed: ${error.message}`, 'error');
+        }
         
         console.log('Dashboard initialized successfully');
         
@@ -2066,7 +2069,11 @@
           if (newsResponse.ok) {
             const realNewsData = await newsResponse.json();
             if (realNewsData.success && realNewsData.data?.news?.length > 0) {
+              const counts = realNewsData.data.meta?.counts || {};
               debugLog(`Real news loaded: ${realNewsData.data.news.length} items`, 'success');
+              debugLog(`Provider counts: FMP=${counts.fmp || 0}, AV=${counts.alphavantage || 0}, FH=${counts.finnhub || 0}`, 'info');
+              debugLog(`Errors: ${realNewsData.data.meta?.errors?.length || 0}`, 'info');
+              
               // Replace sample data with real data
               newsData = realNewsData.data.news;
               filteredNews = realNewsData.data.news;
