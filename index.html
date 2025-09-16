@@ -855,7 +855,9 @@
         </div>
       </div>
       <div class="chart-container">
-        <div id="main-chart" style="width: 100%; height: 500px;"></div>
+        <div id="chart-container" style="width: 100%; height: 500px; background: var(--bg-secondary); border-radius: 8px; position: relative;">
+          <!-- Chart will be rendered here by LightweightCharts -->
+        </div>
         <div class="chart-indicators">
           <label><input type="checkbox" id="ind-vwap" checked> VWAP</label>
           <label><input type="checkbox" id="ind-sma20"> SMA 20</label>
@@ -4429,10 +4431,42 @@
       }
     }
     
+    // Initialize WS-driven scanner engine
+    function initializeScannerEngine() {
+      debugLog('Initializing WS-driven scanner engine...', 'info');
+      
+      // Start scanner with market-aware cadence
+      if (window.scannerEngine) {
+        window.scannerEngine.start();
+        debugLog('Scanner engine started', 'success');
+      } else {
+        debugLog('Scanner engine not available', 'warning');
+      }
+    }
+    
+    // Initialize chart with overlays
+    function initializeChart() {
+      debugLog('Initializing chart with overlays...', 'info');
+      
+      const chartContainer = document.getElementById('chart-container');
+      if (chartContainer && window.Chart) {
+        window.chart = new window.Chart(chartContainer, {
+          width: 800,
+          height: 400,
+          symbol: 'AAPL' // Default symbol
+        });
+        debugLog('Chart initialized with VWAP, EMA9/20, HOD/LOD overlays', 'success');
+      } else {
+        debugLog('Chart container or Chart class not available', 'warning');
+      }
+    }
+    
     // Start auto-refresh when page loads
     document.addEventListener('DOMContentLoaded', () => {
       loadNews(); // Load initial news
       startAutoRefresh();
+      initializeScannerEngine(); // Initialize WS-driven scanner
+      initializeChart(); // Initialize chart with overlays
     });
   </script>
 </body>
