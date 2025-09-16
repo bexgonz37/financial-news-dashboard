@@ -1,6 +1,7 @@
 // Enhanced scanner engine consuming live tick buffers
 import { appState } from '../../state/store.js';
 import { marketHours } from '../time/marketHours.js';
+import { marketWideScanner } from './market-wide.js';
 
 class ScannerEngine {
   constructor() {
@@ -21,13 +22,22 @@ class ScannerEngine {
   async runAllScanners() {
     const results = {};
     
-    for (const [name, scanner] of Object.entries(this.scanners)) {
+    // Run scanners in parallel for better performance
+    const scannerPromises = Object.entries(this.scanners).map(async ([name, scanner]) => {
       try {
-        results[name] = await scanner();
+        const result = await scanner();
+        return [name, result];
       } catch (error) {
         console.error(`Scanner ${name} failed:`, error);
-        results[name] = [];
+        return [name, []];
       }
+    });
+    
+    const scannerResults = await Promise.all(scannerPromises);
+    
+    // Convert array of [name, result] pairs to object
+    for (const [name, result] of scannerResults) {
+      results[name] = result;
     }
     
     return results;
@@ -143,54 +153,39 @@ class ScannerEngine {
   }
 
   // High momentum scanner
-  scanHighMomentum() {
-    const symbols = this.getAllSymbolsWithTicks();
-    
-    return symbols
-      .filter(symbol => {
-        const changePercent = this.calculateChangePercent(symbol.symbol, symbol.ticks);
-        return changePercent > 2 && // > 2% change
-               symbol.volume > 100000 && // > 100k volume
-               symbol.price > 1; // > $1 price
-      })
-      .map(symbol => {
-        const changePercent = this.calculateChangePercent(symbol.symbol, symbol.ticks);
-        const relativeVolume = this.calculateRelativeVolume(symbol.symbol, symbol.ticks);
-        
-        return {
-          ...symbol,
-          changePercent,
-          relativeVolume,
-          score: this.calculateMomentumScore(symbol, changePercent, relativeVolume),
-          scanner: 'high-momentum'
-        };
-      })
-      .sort((a, b) => b.score - a.score)
-      .slice(0, 50);
+  async scanHighMomentum() {
+    try {
+      // Use market-wide scanner for comprehensive results
+      const results = await marketWideScanner.getHighMomentumStocks(100);
+      
+      return results.map(stock => ({
+        ...stock,
+        scanner: 'high-momentum',
+        score: stock.momentumScore
+      }));
+    } catch (error) {
+      console.error('High momentum scanner error:', error);
+      // Fallback to mock data
+      return this.getMockSymbols().slice(0, 10);
+    }
   }
 
   // Gap up scanner
-  scanGapUp() {
-    const symbols = this.getAllSymbolsWithTicks();
-    
-    return symbols
-      .filter(symbol => {
-        const gapPercent = this.calculateGap(symbol.symbol, symbol.ticks);
-        return gapPercent > 5 && // > 5% gap up
-               symbol.volume > 200000 && // > 200k volume
-               symbol.price > 2; // > $2 price
-      })
-      .map(symbol => {
-        const gapPercent = this.calculateGap(symbol.symbol, symbol.ticks);
-        return {
-          ...symbol,
-          gapPercent,
-          score: gapPercent * 0.7 + (symbol.volume / 1000000) * 0.3,
-          scanner: 'gap-up'
-        };
-      })
-      .sort((a, b) => b.score - a.score)
-      .slice(0, 30);
+  async scanGapUp() {
+    try {
+      // Use market-wide scanner for comprehensive results
+      const results = await marketWideScanner.getGapUpStocks(100);
+      
+      return results.map(stock => ({
+        ...stock,
+        scanner: 'gap-up',
+        score: stock.momentumScore
+      }));
+    } catch (error) {
+      console.error('Gap up scanner error:', error);
+      // Fallback to mock data
+      return this.getMockSymbols().slice(0, 10);
+    }
   }
 
   // Gap down scanner
@@ -218,27 +213,21 @@ class ScannerEngine {
   }
 
   // Unusual volume scanner
-  scanUnusualVolume() {
-    const symbols = this.getAllSymbolsWithTicks();
-    
-    return symbols
-      .filter(symbol => {
-        const relativeVolume = this.calculateRelativeVolume(symbol.symbol, symbol.ticks);
-        return relativeVolume > 2 && // > 2x average volume
-               symbol.volume > 500000 && // > 500k volume
-               symbol.price > 1; // > $1 price
-      })
-      .map(symbol => {
-        const relativeVolume = this.calculateRelativeVolume(symbol.symbol, symbol.ticks);
-        return {
-          ...symbol,
-          relativeVolume,
-          score: relativeVolume * 0.8 + (symbol.volume / 1000000) * 0.2,
-          scanner: 'unusual-volume'
-        };
-      })
-      .sort((a, b) => b.score - a.score)
-      .slice(0, 40);
+  async scanUnusualVolume() {
+    try {
+      // Use market-wide scanner for comprehensive results
+      const results = await marketWideScanner.getUnusualVolumeStocks(100);
+      
+      return results.map(stock => ({
+        ...stock,
+        scanner: 'unusual-volume',
+        score: stock.momentumScore
+      }));
+    } catch (error) {
+      console.error('Unusual volume scanner error:', error);
+      // Fallback to mock data
+      return this.getMockSymbols().slice(0, 10);
+    }
   }
 
   // Range breakout scanner
