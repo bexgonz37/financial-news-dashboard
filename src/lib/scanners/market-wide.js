@@ -8,8 +8,8 @@ class MarketWideScanner {
     this.symbolMaster = null;
     this.lastUpdate = 0;
     this.updateInterval = 5 * 60 * 1000; // 5 minutes
-    this.maxSymbolsPerBatch = 200; // Increased batch size for all market data
-    this.batchDelay = 1000; // 1 second between batches
+    this.maxSymbolsPerBatch = 100; // Conservative batch size for stability
+    this.batchDelay = 1500; // 1.5 seconds between batches
   }
 
   // Get comprehensive stock universe
@@ -23,8 +23,10 @@ class MarketWideScanner {
         return symbol.symbol && symbol.symbol.length > 0; // Only basic validation
       });
 
-      // No limits - show all market data
-      const limitedStocks = allStocks;
+      // Start with top 1000 stocks by market cap for stability
+      const limitedStocks = allStocks
+        .sort((a, b) => (b.marketCap || 0) - (a.marketCap || 0))
+        .slice(0, 1000);
 
       console.log(`Market-wide scanner: Found ${limitedStocks.length} stocks (ALL MARKET DATA)`);
       return limitedStocks;
