@@ -1,5 +1,6 @@
 // Multi-provider news aggregation with direct fetchers
 import fetch from 'node-fetch';
+import fmpLimiter from '../lib/fmp-limiter.js';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -51,9 +52,8 @@ async function fetchFMP(limit = 50) {
   
   try {
     console.log(`FMP: Fetching from ${url}`);
-    const response = await fetch(url, { 
-      signal: controller.signal,
-      headers: { 'User-Agent': 'Financial-News-Dashboard/1.0' }
+    const response = await fmpLimiter.makeRequest(url, { 
+      signal: controller.signal
     });
     clearTimeout(timeoutId);
     

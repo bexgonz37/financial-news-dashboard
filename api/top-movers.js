@@ -1,4 +1,6 @@
 // Top movers API endpoint
+import fmpLimiter from '../lib/fmp-limiter.js';
+
 export default async function handler(req, res) {
   if (req.method !== 'GET') {
     return res.status(405).json({ error: 'Method not allowed' });
@@ -25,9 +27,8 @@ export default async function handler(req, res) {
     const timeoutId = setTimeout(() => controller.abort(), 5000);
     
     try {
-      const response = await fetch(url, { 
-        signal: controller.signal,
-        headers: { 'User-Agent': 'Financial-News-Dashboard/1.0' }
+      const response = await fmpLimiter.makeRequest(url, { 
+        signal: controller.signal
       });
       clearTimeout(timeoutId);
       
