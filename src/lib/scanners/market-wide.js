@@ -8,8 +8,8 @@ class MarketWideScanner {
     this.symbolMaster = null;
     this.lastUpdate = 0;
     this.updateInterval = 5 * 60 * 1000; // 5 minutes
-    this.maxSymbolsPerBatch = 50; // API rate limits - reduced for stability
-    this.batchDelay = 2000; // 2 seconds between batches
+    this.maxSymbolsPerBatch = 200; // Increased batch size for all market data
+    this.batchDelay = 1000; // 1 second between batches
   }
 
   // Get comprehensive stock universe
@@ -18,21 +18,15 @@ class MarketWideScanner {
       // Get symbols from comprehensive symbol master
       const symbols = await comprehensiveSymbolMaster.getAllActiveSymbols();
       
-      // Filter for tradeable stocks (exclude ETFs, mutual funds, etc.)
-      const tradeableStocks = symbols.filter(symbol => {
-        return symbol.type === 'Common Stock' && 
-               symbol.exchange && 
-               symbol.exchange !== 'OTC' &&
-               symbol.price > 1 && // Minimum price filter
-               symbol.marketCap > 10000000; // Minimum market cap $10M
+      // Include ALL stocks - no filters
+      const allStocks = symbols.filter(symbol => {
+        return symbol.symbol && symbol.symbol.length > 0; // Only basic validation
       });
 
-      // Limit to top 500 stocks to avoid rate limits
-      const limitedStocks = tradeableStocks
-        .sort((a, b) => (b.marketCap || 0) - (a.marketCap || 0))
-        .slice(0, 500);
+      // No limits - show all market data
+      const limitedStocks = allStocks;
 
-      console.log(`Market-wide scanner: Found ${limitedStocks.length} tradeable stocks (limited from ${tradeableStocks.length})`);
+      console.log(`Market-wide scanner: Found ${limitedStocks.length} stocks (ALL MARKET DATA)`);
       return limitedStocks;
     } catch (error) {
       console.error('Error getting stock universe:', error);
@@ -189,44 +183,28 @@ class MarketWideScanner {
   }
 
   // Get high momentum stocks
-  async getHighMomentumStocks(limit = 100) {
+  async getHighMomentumStocks(limit = 1000) {
     const results = await this.runMarketScan();
     
     return results
-      .filter(stock => 
-        stock.changePercent > 1 && // > 1% change
-        stock.relativeVolume > 1.2 && // > 20% above average volume
-        stock.volume > 100000 && // > 100k volume
-        stock.price > 5 // > $5 price
-      )
       .sort((a, b) => b.momentumScore - a.momentumScore)
       .slice(0, limit);
   }
 
   // Get gap up stocks
-  async getGapUpStocks(limit = 100) {
+  async getGapUpStocks(limit = 1000) {
     const results = await this.runMarketScan();
     
     return results
-      .filter(stock => 
-        stock.changePercent > 5 && // > 5% gap up
-        stock.volume > 200000 && // > 200k volume
-        stock.price > 10 // > $10 price
-      )
       .sort((a, b) => b.changePercent - a.changePercent)
       .slice(0, limit);
   }
 
   // Get unusual volume stocks
-  async getUnusualVolumeStocks(limit = 100) {
+  async getUnusualVolumeStocks(limit = 1000) {
     const results = await this.runMarketScan();
     
     return results
-      .filter(stock => 
-        stock.relativeVolume > 2 && // > 2x average volume
-        stock.volume > 500000 && // > 500k volume
-        stock.price > 5 // > $5 price
-      )
       .sort((a, b) => b.relativeVolume - a.relativeVolume)
       .slice(0, limit);
   }
